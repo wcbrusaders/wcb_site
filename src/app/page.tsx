@@ -147,20 +147,14 @@ export default function Home() {
       {/* Header */}
       <header className="sticky top-0 z-50 bg-background/90 backdrop-blur-lg border-b border-border/50">
         <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
-          <a href="#" className="flex items-center gap-3 group">
+          <a href="#" className="flex items-center gap-2 group">
             <Image
-              src="/images/WCBBanner.jpg"
+              src="/images/WCB - 500 dpi white on black BANNER.png"
               alt="Wake County Brusaders"
-              width={44}
-              height={44}
-              className="w-11 h-11 rounded-full object-cover ring-2 ring-accent/50 group-hover:ring-accent transition-all"
+              width={140}
+              height={40}
+              className="h-9 w-auto"
             />
-            <div className="hidden sm:block">
-              <h1 className="text-lg font-bold text-foreground leading-tight">
-                Wake County <span className="text-accent">Brusaders</span>
-              </h1>
-              <p className="text-xs text-foreground/50">More than Just Beer</p>
-            </div>
           </a>
           <nav className="hidden md:flex items-center gap-8">
             <a href="#about" className="text-sm text-foreground/70 hover:text-accent transition-colors">About</a>
@@ -187,13 +181,13 @@ export default function Home() {
 
         <div className="max-w-6xl mx-auto px-4 py-20 text-center relative z-10">
           <div className="mb-10 animate-fade-in-up">
-            <div className="w-36 h-36 md:w-44 md:h-44 mx-auto rounded-full bg-card-bg border-4 border-accent shadow-[0_0_60px_rgba(255,149,0,0.3)] flex items-center justify-center overflow-hidden">
+            <div className="max-w-md mx-auto">
               <Image
-                src="/images/WCBBanner.jpg"
-                alt="Wake County Brusaders Logo"
-                width={176}
-                height={176}
-                className="w-full h-full object-cover"
+                src="/images/WCB - 500 dpi white on black BANNER.png"
+                alt="Wake County Brusaders"
+                width={500}
+                height={200}
+                className="w-full h-auto"
                 priority
               />
             </div>
@@ -246,6 +240,33 @@ export default function Home() {
           <p className="text-lg text-foreground/60 mt-4">
             Your pace. Your path.
           </p>
+        </div>
+      </section>
+
+      {/* Awards & Recognition */}
+      <section className="py-16 md:py-20">
+        <div className="max-w-4xl mx-auto px-4">
+          <div className="text-center mb-10">
+            <h3 className="text-2xl md:text-3xl font-bold mb-4">
+              Award-Winning <span className="text-accent">Club</span>
+            </h3>
+            <p className="text-foreground/60">
+              Proud members of the Southeastern Homebrewers Association (SHA)
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="bg-gradient-to-br from-accent/20 to-accent/5 border border-accent/30 rounded-2xl p-8 text-center">
+              <div className="text-5xl mb-4">🏆</div>
+              <h4 className="text-xl font-bold text-accent mb-2">Best Overall Club</h4>
+              <p className="text-foreground/70">NCHI 2025</p>
+            </div>
+            <div className="bg-gradient-to-br from-accent/20 to-accent/5 border border-accent/30 rounded-2xl p-8 text-center">
+              <div className="text-5xl mb-4">🍺</div>
+              <h4 className="text-xl font-bold text-accent mb-2">Brewer&apos;s Cup</h4>
+              <p className="text-foreground/70">NCHI 2024</p>
+            </div>
+          </div>
         </div>
       </section>
 
@@ -453,8 +474,11 @@ export default function Home() {
         <div className="max-w-6xl mx-auto px-4">
           <div className="text-center mb-12">
             <h3 className="text-3xl md:text-4xl font-bold mb-4">
-              Our <span className="text-accent">Partners</span>
+              Our <span className="text-accent">Network</span>
             </h3>
+            <p className="text-foreground/60 max-w-2xl mx-auto">
+              We&apos;re proud members of the Southeastern Homebrewers Association (SHA), a collection of homebrew clubs across the Southeast US.
+            </p>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-2xl mx-auto">
@@ -520,18 +544,14 @@ export default function Home() {
       <footer className="py-12 border-t border-border/50">
         <div className="max-w-6xl mx-auto px-4">
           <div className="flex flex-col md:flex-row items-center justify-between gap-6">
-            <div className="flex items-center gap-3">
+            <div className="flex items-center">
               <Image
-                src="/images/WCBBanner.jpg"
+                src="/images/WCB - 500 dpi white on black BANNER.png"
                 alt="Wake County Brusaders"
-                width={36}
-                height={36}
-                className="w-9 h-9 rounded-full object-cover"
+                width={120}
+                height={35}
+                className="h-8 w-auto"
               />
-              <div>
-                <span className="font-semibold">Wake County <span className="text-accent">Brusaders</span></span>
-                <p className="text-xs text-foreground/50">More than Just Beer</p>
-              </div>
             </div>
 
             <div className="flex items-center gap-6 text-sm text-foreground/50">
