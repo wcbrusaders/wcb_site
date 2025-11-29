@@ -337,6 +337,74 @@ export default function Home() {
         </div>
       </section>
 
+      {/* Four Pathways Section */}
+      <section className="py-20 md:py-28 bg-gradient-to-b from-background to-card-bg/30">
+        <div className="max-w-6xl mx-auto px-4">
+          <div className="text-center mb-16">
+            <h3 className="text-3xl md:text-4xl font-bold mb-4">
+              Choose Your <span className="text-accent">Path</span>
+            </h3>
+            <p className="text-foreground/60 max-w-2xl mx-auto">
+              Our optional badge system offers four pathways. Do one, all four, or none at all. We don&apos;t care — it&apos;s your journey.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="bg-gradient-to-br from-emerald-500/10 to-emerald-500/5 border border-emerald-500/30 rounded-2xl p-8 hover:border-emerald-500/50 transition-all">
+              <div className="flex items-center gap-4 mb-4">
+                <div className="w-12 h-12 bg-emerald-500/20 rounded-xl flex items-center justify-center">
+                  <span className="text-2xl">🍻</span>
+                </div>
+                <h4 className="text-xl font-bold text-emerald-400">Social</h4>
+              </div>
+              <p className="text-foreground/70">
+                Just here for the camaraderie? Perfect. Show up to hangouts, share a pint, swap stories. No homework required.
+              </p>
+            </div>
+
+            <div className="bg-gradient-to-br from-blue-500/10 to-blue-500/5 border border-blue-500/30 rounded-2xl p-8 hover:border-blue-500/50 transition-all">
+              <div className="flex items-center gap-4 mb-4">
+                <div className="w-12 h-12 bg-blue-500/20 rounded-xl flex items-center justify-center">
+                  <span className="text-2xl">🔬</span>
+                </div>
+                <h4 className="text-xl font-bold text-blue-400">Technical</h4>
+              </div>
+              <p className="text-foreground/70">
+                Dive deep into the science. Water chemistry, fermentation kinetics, yeast biology — for those who want to understand the &quot;why.&quot;
+              </p>
+            </div>
+
+            <div className="bg-gradient-to-br from-purple-500/10 to-purple-500/5 border border-purple-500/30 rounded-2xl p-8 hover:border-purple-500/50 transition-all">
+              <div className="flex items-center gap-4 mb-4">
+                <div className="w-12 h-12 bg-purple-500/20 rounded-xl flex items-center justify-center">
+                  <span className="text-2xl">🎨</span>
+                </div>
+                <h4 className="text-xl font-bold text-purple-400">Creative</h4>
+              </div>
+              <p className="text-foreground/70">
+                Unlock adjuncts, fruit additions, barrel aging, and wild fermentation. Level up your skills and push boundaries.
+              </p>
+            </div>
+
+            <div className="bg-gradient-to-br from-accent/10 to-accent/5 border border-accent/30 rounded-2xl p-8 hover:border-accent/50 transition-all">
+              <div className="flex items-center gap-4 mb-4">
+                <div className="w-12 h-12 bg-accent/20 rounded-xl flex items-center justify-center">
+                  <span className="text-2xl">🏅</span>
+                </div>
+                <h4 className="text-xl font-bold text-accent">Competitive</h4>
+              </div>
+              <p className="text-foreground/70">
+                Chase medals and certifications. BJCP study groups, competition prep, and club-supported entry fees for those aiming for gold.
+              </p>
+            </div>
+          </div>
+
+          <p className="text-center text-foreground/50 mt-10 text-sm">
+            Mix and match, or just hang out. There&apos;s no wrong way to be a Brusader.
+          </p>
+        </div>
+      </section>
+
       {/* Discord Callout */}
       <section className="py-12 bg-card-bg/50 border-y border-border/50">
         <div className="max-w-4xl mx-auto px-4 text-center">
