@@ -241,7 +241,7 @@ export default function Home() {
 
           <div className="text-center">
             <a
-              href="https://photos.google.com"
+              href="https://photos.google.com/share/AF1QipM-ZK-nI0tw9r2q4SEpXUGbIxGRrrGeR1ERCb3C"
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center gap-3 bg-card-bg border border-border hover:border-accent rounded-xl px-8 py-6 transition-all hover:scale-105 group"
@@ -259,9 +259,6 @@ export default function Home() {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
               </svg>
             </a>
-            <p className="text-sm text-foreground/50 mt-4">
-              [Link to Google Photos album to be added]
-            </p>
           </div>
         </div>
       </section>
