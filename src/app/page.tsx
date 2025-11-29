@@ -249,6 +249,33 @@ export default function Home() {
         </div>
       </section>
 
+      {/* Awards & Recognition */}
+      <section className="py-16 md:py-20">
+        <div className="max-w-4xl mx-auto px-4">
+          <div className="text-center mb-10">
+            <h3 className="text-2xl md:text-3xl font-bold mb-4">
+              Award-Winning <span className="text-accent">Club</span>
+            </h3>
+            <p className="text-foreground/60">
+              Proud members of the Southeastern Homebrewers Association (SHA)
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="bg-gradient-to-br from-accent/20 to-accent/5 border border-accent/30 rounded-2xl p-8 text-center">
+              <div className="text-5xl mb-4">🏆</div>
+              <h4 className="text-xl font-bold text-accent mb-2">Best Overall Club</h4>
+              <p className="text-foreground/70">NCHI 2025</p>
+            </div>
+            <div className="bg-gradient-to-br from-accent/20 to-accent/5 border border-accent/30 rounded-2xl p-8 text-center">
+              <div className="text-5xl mb-4">🍺</div>
+              <h4 className="text-xl font-bold text-accent mb-2">Brewer&apos;s Cup</h4>
+              <p className="text-foreground/70">NCHI 2024</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* About Section - What We Offer */}
       <section id="about" className="py-20 md:py-28">
         <div className="max-w-6xl mx-auto px-4">
@@ -453,8 +480,11 @@ export default function Home() {
         <div className="max-w-6xl mx-auto px-4">
           <div className="text-center mb-12">
             <h3 className="text-3xl md:text-4xl font-bold mb-4">
-              Our <span className="text-accent">Partners</span>
+              Our <span className="text-accent">Network</span>
             </h3>
+            <p className="text-foreground/60 max-w-2xl mx-auto">
+              We&apos;re proud members of the Southeastern Homebrewers Association (SHA), a collection of homebrew clubs across the Southeast US.
+            </p>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-2xl mx-auto">
