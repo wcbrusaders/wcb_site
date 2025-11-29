@@ -5,6 +5,11 @@ export const metadata: Metadata = {
   title: "Wake County Brusaders | Homebrewing Club",
   description: "Wake County Brusaders - A community of homebrewing enthusiasts in Wake County, NC. Join us for brewing education, recipe sharing, and community events.",
   keywords: ["homebrewing", "beer", "Wake County", "NC", "brewing club", "homebrew"],
+  icons: {
+    icon: "/favicon.svg",
+    shortcut: "/favicon.svg",
+    apple: "/favicon.svg",
+  },
   openGraph: {
     title: "Wake County Brusaders | Homebrewing Club",
     description: "A community of homebrewing enthusiasts in Wake County, NC",
