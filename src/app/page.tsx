@@ -343,14 +343,84 @@ export default function Home() {
             About <span className="text-accent">The Club</span>
           </h3>
 
-          <div className="max-w-3xl mx-auto bg-card-bg border border-border rounded-xl p-8 md:p-12">
-            <p className="text-lg text-foreground/80 leading-relaxed text-center">
-              The Wake County Brusaders is a community of homebrewing enthusiasts based in Wake County, North Carolina.
-              We are passionate about the art and science of brewing, and we love sharing our knowledge with others.
+          <div className="max-w-4xl mx-auto">
+            {/* Founding info */}
+            <p className="text-xl text-foreground/80 text-center mb-12">
+              Established April 2023 in Holly Springs, NC
             </p>
-            <p className="text-sm text-foreground/50 text-center mt-6 italic">
-              [About section content coming soon]
-            </p>
+
+            {/* Features grid */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-12">
+              <div className="bg-card-bg border border-border rounded-xl p-6">
+                <h4 className="text-lg font-semibold text-accent mb-3">Monthly Meetings</h4>
+                <p className="text-foreground/70">
+                  Third Thursdays, with full remote participation via Google Meet. Can&apos;t make it in person?
+                  Join from anywhere and still be part of the conversation. We always post recordings of the important bits.
+                </p>
+              </div>
+
+              <div className="bg-card-bg border border-border rounded-xl p-6">
+                <h4 className="text-lg font-semibold text-accent mb-3">24/7 Discord Bot</h4>
+                <p className="text-foreground/70">
+                  AI-powered brewing assistant with 155+ science modules, ingredient databases (300+ yeasts, 150+ hops, 90 grains),
+                  formula calculators, and 65+ knowledge base articles.
+                </p>
+              </div>
+
+              <div className="bg-card-bg border border-border rounded-xl p-6">
+                <h4 className="text-lg font-semibold text-accent mb-3">~12 Workshops/Year</h4>
+                <p className="text-foreground/70">
+                  Water chemistry, yeast management, recipe design, fermentation, specialty techniques, and style deep-dives.
+                </p>
+              </div>
+
+              <div className="bg-card-bg border border-border rounded-xl p-6">
+                <h4 className="text-lg font-semibold text-accent mb-3">Strong Club Cohesion</h4>
+                <p className="text-foreground/70">
+                  Quarterly brew days, internal competitions, optional badge system across four learning pathways.
+                </p>
+              </div>
+
+              <div className="bg-card-bg border border-border rounded-xl p-6 md:col-span-2">
+                <h4 className="text-lg font-semibold text-accent mb-3">Practical Perks</h4>
+                <p className="text-foreground/70">
+                  Group grain and hop buys, BJCP judging practice, club-funded competition shipping, free Master Homebrewer Program membership,
+                  and discounts at Brew Hardware, Whalepod Shippers, and more.
+                </p>
+              </div>
+            </div>
+
+            {/* Philosophy */}
+            <div className="bg-card-bg border border-accent/50 rounded-xl p-8 mb-12 text-center">
+              <h4 className="text-xl font-semibold text-accent mb-4">The Philosophy</h4>
+              <p className="text-lg text-foreground/80">
+                Everything is 100% optional. Between remote meetings and the Discord bot, 70% of what we offer works
+                even if you never set foot in Holly Springs. Your pace, your path.
+              </p>
+            </div>
+
+            {/* Board Leadership */}
+            <div className="text-center">
+              <h4 className="text-xl font-semibold mb-6">Board Leadership</h4>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="bg-card-bg border border-border rounded-lg p-4">
+                  <p className="font-semibold text-foreground">Jordan LaFontaine</p>
+                  <p className="text-sm text-foreground/60">Founder, President & Technology Officer</p>
+                </div>
+                <div className="bg-card-bg border border-border rounded-lg p-4">
+                  <p className="font-semibold text-foreground">Nathan Caulder</p>
+                  <p className="text-sm text-foreground/60">Vice President</p>
+                </div>
+                <div className="bg-card-bg border border-border rounded-lg p-4">
+                  <p className="font-semibold text-foreground">Marcella LaFontaine</p>
+                  <p className="text-sm text-foreground/60">Secretary & Aesthetics Officer</p>
+                </div>
+                <div className="bg-card-bg border border-border rounded-lg p-4">
+                  <p className="font-semibold text-foreground">James &quot;Roof Rat&quot; Stevens</p>
+                  <p className="text-sm text-foreground/60">Event Coordinator</p>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </section>
