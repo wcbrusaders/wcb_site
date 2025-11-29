@@ -241,7 +241,7 @@ export default function Home() {
 
           <div className="text-center">
             <a
-              href="https://photos.google.com/share/AF1QipM-ZK-nI0tw9r2q4SEpXUGbIxGRrrGeR1ERCb3C"
+              href="https://photos.google.com/album/AF1QipM-ZK-nI0tw9r2q4SEpXUGbIxGRrrGeR1ERCb3C"
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center gap-3 bg-card-bg border border-border hover:border-accent rounded-xl px-8 py-6 transition-all hover:scale-105 group"
