@@ -30,15 +30,85 @@ const capabilities = [
   "Suggest recipe adjustments based on your goals",
 ];
 
-// Example queries
-const exampleQueries = [
-  "Will US-05 introduce biotransformative properties if I pitch hops during high krausen?",
-  "What's the difference between US-05 and Nottingham?",
-  "I want more tropical fruit in my IPA — which hops should I use?",
-  "Why did my beer finish at 1.020?",
-  "Show me Belgian yeast strains that are POF+",
-  "How much fruit should I add to a 5-gallon sour?",
-  "Create a recipe for a hazy IPA with Citra and Galaxy",
+// Example queries by category
+const queryCategories = [
+  {
+    name: "Recipe Development",
+    color: "accent",
+    queries: [
+      "Create a recipe for a hazy IPA with Citra and Galaxy",
+      "Design a German pilsner with traditional ingredients",
+      "I want to clone Pliny the Elder — what do I need to know?",
+    ],
+  },
+  {
+    name: "Photo Analysis",
+    color: "pink",
+    queries: [
+      "[Upload photo] Does this look right for an American wheat?",
+      "[Upload photo] Rate my lager's clarity and color",
+      "[Upload photo] What style does this beer look like?",
+      "[Upload photo] Is this haze from yeast or chill haze?",
+    ],
+  },
+  {
+    name: "Yeast & Fermentation",
+    color: "blue",
+    queries: [
+      "What's the difference between US-05 and Nottingham?",
+      "Show me Belgian yeast strains that are POF+",
+      "Will US-05 introduce biotransformative properties if I pitch hops during high krausen?",
+      "Why did my beer finish at 1.020 when I expected 1.010?",
+    ],
+  },
+  {
+    name: "Hops",
+    color: "emerald",
+    queries: [
+      "I want more tropical fruit in my IPA — which hops should I use?",
+      "What hops are similar to Citra but cheaper?",
+      "Explain the science of biotransformation in dry hopping",
+      "What's the difference between whirlpool and dry hop additions?",
+    ],
+  },
+  {
+    name: "Water Chemistry",
+    color: "cyan",
+    queries: [
+      "What water profile should I use for a Czech pilsner?",
+      "My tap water is 200 ppm chloride — how do I adjust for an IPA?",
+      "Explain sulfate to chloride ratio and how it affects flavor",
+    ],
+  },
+  {
+    name: "Adjuncts & Specialty",
+    color: "purple",
+    queries: [
+      "How much fruit should I add to a 5-gallon sour?",
+      "When should I add vanilla beans and how many?",
+      "I want to add coconut to a stout — fresh, toasted, or extract?",
+      "How do I add lactose for a milkshake IPA?",
+    ],
+  },
+  {
+    name: "Troubleshooting",
+    color: "red",
+    queries: [
+      "My beer tastes like butter — what went wrong?",
+      "Why does my IPA have a harsh, lingering bitterness?",
+      "I have a stuck fermentation at 1.030 — how do I fix it?",
+      "My lager has a sulfur smell — is it ruined?",
+    ],
+  },
+  {
+    name: "BJCP & Competition",
+    color: "amber",
+    queries: [
+      "What are the style parameters for American IPA?",
+      "How do I improve my scoresheet feedback for aroma?",
+      "What's the difference between a Helles and a Munich Dunkel?",
+    ],
+  },
 ];
 
 export default function BotPage() {
@@ -168,35 +238,76 @@ export default function BotPage() {
         </div>
       </section>
 
-      {/* Recipe Export Callout */}
-      <section className="py-12 border-y border-border/30 bg-accent/5">
-        <div className="max-w-3xl mx-auto px-6 text-center">
-          <h3 className="text-xl font-bold mb-3">Recipe Creation & Export</h3>
-          <p className="text-foreground/60">
-            WCB Bot can generate full recipes based on your goals and export them as XML
-            for import into BeerSmith, Brewfather, or your preferred brewing software.
-          </p>
+      {/* Feature Callouts */}
+      <section className="py-12 border-y border-border/30">
+        <div className="max-w-5xl mx-auto px-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="p-6 rounded-2xl bg-accent/5 border border-accent/20">
+              <h3 className="text-lg font-bold mb-2 text-accent">Recipe Creation & Export</h3>
+              <p className="text-foreground/60 text-sm">
+                Generate full recipes based on your goals and export as XML
+                for BeerSmith, Brewfather, or your preferred brewing software.
+              </p>
+            </div>
+            <div className="p-6 rounded-2xl bg-pink-500/5 border border-pink-500/20">
+              <h3 className="text-lg font-bold mb-2 text-pink-400">Beer Photo Analysis</h3>
+              <p className="text-foreground/60 text-sm">
+                Upload a photo of your beer and get BJCP appearance feedback —
+                color, clarity, head retention, and style accuracy.
+              </p>
+            </div>
+          </div>
         </div>
       </section>
 
       {/* Example Queries */}
       <section className="py-20 md:py-28">
-        <div className="max-w-5xl mx-auto px-6">
+        <div className="max-w-6xl mx-auto px-6">
           <h2 className="text-2xl md:text-3xl font-bold text-center mb-4">
-            Example Questions
+            What Can You Ask?
           </h2>
           <p className="text-center text-foreground/50 mb-12">
-            Real queries members ask every day
+            Real questions members ask every day
           </p>
 
-          <div className="max-w-2xl mx-auto space-y-3">
-            {exampleQueries.map((query, index) => (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {queryCategories.map((category) => (
               <div
-                key={index}
-                className="p-4 rounded-xl bg-card-bg border border-border/50 text-foreground/70 text-sm"
+                key={category.name}
+                className={`p-5 rounded-2xl border bg-card-bg/20 ${
+                  category.color === "accent" ? "border-accent/30" :
+                  category.color === "pink" ? "border-pink-500/30" :
+                  category.color === "blue" ? "border-blue-500/30" :
+                  category.color === "emerald" ? "border-emerald-500/30" :
+                  category.color === "cyan" ? "border-cyan-500/30" :
+                  category.color === "purple" ? "border-purple-500/30" :
+                  category.color === "red" ? "border-red-500/30" :
+                  category.color === "amber" ? "border-amber-500/30" :
+                  "border-border/50"
+                }`}
               >
-                <span className="text-accent font-mono mr-2">&gt;</span>
-                {query}
+                <h3 className={`font-semibold mb-4 ${
+                  category.color === "accent" ? "text-accent" :
+                  category.color === "pink" ? "text-pink-400" :
+                  category.color === "blue" ? "text-blue-400" :
+                  category.color === "emerald" ? "text-emerald-400" :
+                  category.color === "cyan" ? "text-cyan-400" :
+                  category.color === "purple" ? "text-purple-400" :
+                  category.color === "red" ? "text-red-400" :
+                  category.color === "amber" ? "text-amber-400" :
+                  "text-foreground"
+                }`}>
+                  {category.name}
+                </h3>
+                <ul className="space-y-3">
+                  {category.queries.map((query, idx) => (
+                    <li key={idx} className="text-sm text-foreground/60 leading-relaxed">
+                      <span className="text-foreground/30 mr-1">"</span>
+                      {query}
+                      <span className="text-foreground/30 ml-1">"</span>
+                    </li>
+                  ))}
+                </ul>
               </div>
             ))}
           </div>
