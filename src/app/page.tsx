@@ -1,12 +1,13 @@
 "use client";
 
 import Image from "next/image";
+import Link from "next/link";
 import { useState, useEffect } from "react";
 
 // Minimal benefits - icon + one-liner
 const benefits = [
   { icon: "calendar", title: "Monthly Meetings", desc: "Third Thursdays, in-person or remote" },
-  { icon: "bot", title: "AI Brewing Assistant", desc: "300+ yeasts, 140+ hops, 90 grains, BJCP guidelines" },
+  { icon: "bot", title: "WCB Bot", desc: "300+ yeasts, 140+ hops, 90 grains, recipe creation", link: "/bot" },
   { icon: "graduation", title: "290 Learning Modules", desc: "Five tiers from Foundations to Expert" },
   { icon: "gift", title: "Member Perks", desc: "Group buys, competition support, industry discounts" },
 ];
@@ -186,17 +187,32 @@ export default function Home() {
           </p>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-12">
-            {benefits.map((benefit) => (
-              <div key={benefit.title} className="flex gap-5">
-                <div className="w-12 h-12 rounded-xl bg-accent/10 flex items-center justify-center flex-shrink-0">
-                  <Icon name={benefit.icon} className="w-6 h-6 text-accent" />
+            {benefits.map((benefit) => {
+              const content = (
+                <>
+                  <div className="w-12 h-12 rounded-xl bg-accent/10 flex items-center justify-center flex-shrink-0 group-hover:bg-accent/20 transition-colors">
+                    <Icon name={benefit.icon} className="w-6 h-6 text-accent" />
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-lg mb-1">{benefit.title}</h3>
+                    <p className="text-foreground/60">{benefit.desc}</p>
+                    {benefit.link && (
+                      <p className="text-accent text-sm mt-2 group-hover:underline">Learn more →</p>
+                    )}
+                  </div>
+                </>
+              );
+
+              return benefit.link ? (
+                <Link key={benefit.title} href={benefit.link} className="flex gap-5 group">
+                  {content}
+                </Link>
+              ) : (
+                <div key={benefit.title} className="flex gap-5">
+                  {content}
                 </div>
-                <div>
-                  <h3 className="font-semibold text-lg mb-1">{benefit.title}</h3>
-                  <p className="text-foreground/60">{benefit.desc}</p>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       </section>
