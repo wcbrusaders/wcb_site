@@ -6,17 +6,16 @@ import { useState, useEffect } from "react";
 // Minimal benefits - icon + one-liner
 const benefits = [
   { icon: "calendar", title: "Monthly Meetings", desc: "Third Thursdays, in-person or remote" },
-  { icon: "bot", title: "24/7 Discord Bot", desc: "Yeasts, hops, grains, calculators, and brewing science" },
-  { icon: "graduation", title: "~12 Workshops/Year", desc: "From water chemistry to recipe design" },
-  { icon: "gift", title: "Member Perks", desc: "Group buys, competition support, discounts" },
+  { icon: "bot", title: "AI Brewing Assistant", desc: "300+ yeasts, 140+ hops, 90 grains, BJCP guidelines" },
+  { icon: "graduation", title: "290 Learning Modules", desc: "Five tiers from Foundations to Expert" },
+  { icon: "gift", title: "Member Perks", desc: "Group buys, competition support, industry discounts" },
 ];
 
-// Four pathways - minimal
+// Three pathways
 const pathways = [
-  { name: "Social", color: "emerald", desc: "Just here for the hangouts" },
-  { name: "Technical", color: "blue", desc: "Deep-dive into brewing science" },
+  { name: "Technical", color: "blue", desc: "Water chemistry to fermentation science" },
   { name: "Creative", color: "purple", desc: "Adjuncts, barrel aging, wild fermentation" },
-  { name: "Competitive", color: "orange", desc: "BJCP certification & medals" },
+  { name: "Competition", color: "orange", desc: "BJCP prep, scoresheets, medal chasing" },
 ];
 
 // Footer resources
@@ -25,7 +24,6 @@ const resources = [
   { title: "Recipe Library", href: "https://drive.google.com/drive/folders/1NGuf6ImU6UxivQPbPGWl91tETUzzzN77" },
   { title: "Workshop Guides", href: "https://drive.google.com/drive/folders/1hLeWLw-6kGqwccWdsPTzO32eW_5FKk18" },
   { title: "Meeting Notes", href: "https://drive.google.com/drive/u/1/folders/1hYiIV6NnhFHCItJuZ4Je2KjDUz0Ktk8h" },
-  { title: "Community Docs", href: "https://drive.google.com/drive/u/1/folders/0AH3fezsxCD4DUk9PVA" },
 ];
 
 // Simple icon components
@@ -50,7 +48,6 @@ function Icon({ name, className = "w-5 h-5" }: { name: string; className?: strin
 export default function Home() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
-  // Close mobile menu on resize
   useEffect(() => {
     const handleResize = () => {
       if (window.innerWidth >= 768) setMobileMenuOpen(false);
@@ -74,7 +71,6 @@ export default function Home() {
             />
           </a>
 
-          {/* Desktop Nav */}
           <nav className="hidden md:flex items-center gap-8">
             <a href="#benefits" className="text-sm text-foreground/60 hover:text-foreground transition-colors">What You Get</a>
             <a href="#pathways" className="text-sm text-foreground/60 hover:text-foreground transition-colors">Pathways</a>
@@ -88,10 +84,9 @@ export default function Home() {
               rel="noopener noreferrer"
               className="hidden sm:inline-flex bg-accent hover:bg-accent-hover text-background text-sm font-medium px-5 py-2 rounded-full transition-colors"
             >
-              Join
+              Join — $40/yr
             </a>
 
-            {/* Mobile Menu Button */}
             <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
               className="md:hidden p-2 text-foreground/70 hover:text-foreground"
@@ -102,7 +97,6 @@ export default function Home() {
           </div>
         </div>
 
-        {/* Mobile Menu */}
         {mobileMenuOpen && (
           <div className="md:hidden border-t border-border/50 bg-background">
             <nav className="flex flex-col px-6 py-4 gap-4">
@@ -115,53 +109,81 @@ export default function Home() {
                 rel="noopener noreferrer"
                 className="bg-accent text-background text-center font-medium px-5 py-3 rounded-full mt-2"
               >
-                Join the Club
+                Join — $40/yr
               </a>
             </nav>
           </div>
         )}
       </header>
 
-      {/* ===== MOMENT 1: WHO WE ARE ===== */}
-      <section className="py-32 md:py-40">
+      {/* ===== HERO ===== */}
+      <section className="py-28 md:py-36">
         <div className="max-w-3xl mx-auto px-6 text-center">
           <p className="text-accent font-medium tracking-wide uppercase text-sm mb-6">
             Holly Springs, NC — Est. 2023
           </p>
 
-          <h1 className="text-4xl md:text-6xl font-bold mb-8 leading-tight">
+          <h1 className="text-4xl md:text-6xl font-bold mb-6 leading-tight">
             More than Just Beer
           </h1>
 
-          <p className="text-xl md:text-2xl text-foreground/60 mb-12 leading-relaxed max-w-2xl mx-auto">
+          <p className="text-xl md:text-2xl text-foreground/60 mb-4 leading-relaxed max-w-2xl mx-auto">
             A homebrewing community built on education, connection, and doing things your way.
-            70% of what we offer works even if you never set foot in Holly Springs.
           </p>
 
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
+          <p className="text-lg text-foreground/50 mb-10">
+            70% of what we offer works even if you never visit Holly Springs.
+          </p>
+
+          <div className="flex flex-col sm:flex-row gap-4 justify-center mb-6">
             <a
               href="https://www.paypal.com/ncp/payment/UQ6VG5K69FC92"
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center justify-center gap-2 bg-accent hover:bg-accent-hover text-background font-medium px-8 py-4 rounded-full transition-all"
             >
-              Become a Brusader
+              Become a Brusader — $40/yr
               <Icon name="arrow" className="w-4 h-4" />
             </a>
           </div>
 
-          <p className="text-foreground/40 text-sm mt-16">
-            Award-winning club — Best Overall Club & Brewer&apos;s Cup, NCHI 2024–2025
+          <p className="text-foreground/40 text-sm">
+            $65/yr for couples · No experience required
           </p>
         </div>
       </section>
 
-      {/* ===== MOMENT 2: WHAT MEMBERS GET ===== */}
-      <section id="benefits" className="py-24 md:py-32 border-t border-border/30">
+      {/* ===== CREDIBILITY BAR ===== */}
+      <section className="py-8 border-y border-border/30 bg-card-bg/30">
         <div className="max-w-5xl mx-auto px-6">
-          <h2 className="text-2xl md:text-3xl font-bold text-center mb-16">
+          <div className="flex flex-col md:flex-row items-center justify-center gap-6 md:gap-12 text-center">
+            <div>
+              <p className="text-accent font-semibold">Best Overall Club</p>
+              <p className="text-sm text-foreground/50">NCHI 2025 · Chosen from 18 clubs</p>
+            </div>
+            <div className="hidden md:block w-px h-8 bg-border/50" />
+            <div>
+              <p className="text-accent font-semibold">Brewer&apos;s Cup Winners</p>
+              <p className="text-sm text-foreground/50">NCHI 2024</p>
+            </div>
+            <div className="hidden md:block w-px h-8 bg-border/50" />
+            <div>
+              <p className="text-accent font-semibold">Growing 20%</p>
+              <p className="text-sm text-foreground/50">While other clubs shrink</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ===== WHAT MEMBERS GET ===== */}
+      <section id="benefits" className="py-24 md:py-32">
+        <div className="max-w-5xl mx-auto px-6">
+          <h2 className="text-2xl md:text-3xl font-bold text-center mb-6">
             What Members Get
           </h2>
+          <p className="text-center text-foreground/50 mb-16 max-w-xl mx-auto">
+            Deep roots in the Triangle brewing scene. Access, opportunities, and community that isolated clubs can&apos;t offer.
+          </p>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-12">
             {benefits.map((benefit) => (
@@ -179,31 +201,30 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Pathways */}
+      {/* ===== PATHWAYS ===== */}
       <section id="pathways" className="py-24 md:py-32 border-t border-border/30">
         <div className="max-w-5xl mx-auto px-6">
-          <div className="text-center mb-16">
+          <div className="text-center mb-6">
             <h2 className="text-2xl md:text-3xl font-bold mb-4">
-              Choose Your Path
+              290 Modules. 98 Badges. Your Pace.
             </h2>
-            <p className="text-foreground/50">
-              Do one, all four, or none. We don&apos;t care — it&apos;s your journey.
+            <p className="text-foreground/50 max-w-xl mx-auto">
+              Three pathways across five tiers — Foundations to Expert.
+              Earn badges as you learn, or skip them entirely. No pressure.
             </p>
           </div>
 
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-12">
             {pathways.map((path) => (
               <div
                 key={path.name}
                 className={`p-6 rounded-2xl border transition-colors ${
-                  path.color === "emerald" ? "border-emerald-500/30 hover:border-emerald-500/50" :
                   path.color === "blue" ? "border-blue-500/30 hover:border-blue-500/50" :
                   path.color === "purple" ? "border-purple-500/30 hover:border-purple-500/50" :
                   "border-accent/30 hover:border-accent/50"
                 }`}
               >
-                <h3 className={`font-semibold mb-2 ${
-                  path.color === "emerald" ? "text-emerald-400" :
+                <h3 className={`font-semibold text-lg mb-2 ${
                   path.color === "blue" ? "text-blue-400" :
                   path.color === "purple" ? "text-purple-400" :
                   "text-accent"
@@ -214,10 +235,14 @@ export default function Home() {
               </div>
             ))}
           </div>
+
+          <p className="text-center text-foreground/40 text-sm mt-10">
+            Mix and match pathways, or just hang out. There&apos;s no wrong way to be a Brusader.
+          </p>
         </div>
       </section>
 
-      {/* ===== MOMENT 3: JOIN / EVENTS ===== */}
+      {/* ===== EVENTS ===== */}
       <section id="events" className="py-24 md:py-32 border-t border-border/30">
         <div className="max-w-5xl mx-auto px-6">
           <h2 className="text-2xl md:text-3xl font-bold text-center mb-16">
@@ -238,17 +263,14 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Contact CTA */}
+      {/* ===== FINAL CTA ===== */}
       <section className="py-24 md:py-32 border-t border-border/30">
         <div className="max-w-2xl mx-auto px-6 text-center">
           <h2 className="text-2xl md:text-3xl font-bold mb-4">
             Ready to Join?
           </h2>
-          <p className="text-foreground/60 mb-10">
-            Questions? Reach out at{" "}
-            <a href="mailto:club@wcbrusaders.com" className="text-accent hover:underline">
-              club@wcbrusaders.com
-            </a>
+          <p className="text-foreground/60 mb-8">
+            No experience required. Our Foundations tier starts from zero.
           </p>
 
           <a
@@ -260,14 +282,17 @@ export default function Home() {
             Become a Brusader
             <Icon name="arrow" className="w-5 h-5" />
           </a>
+
+          <p className="text-foreground/40 text-sm mt-6">
+            Questions? <a href="mailto:club@wcbrusaders.com" className="text-accent hover:underline">club@wcbrusaders.com</a>
+          </p>
         </div>
       </section>
 
-      {/* Footer */}
+      {/* ===== FOOTER ===== */}
       <footer className="py-16 border-t border-border/30 bg-card-bg/30">
         <div className="max-w-5xl mx-auto px-6">
           <div className="grid grid-cols-1 md:grid-cols-4 gap-12 md:gap-8">
-            {/* Brand */}
             <div className="md:col-span-1">
               <Image
                 src="/images/WCB - 500 dpi white on black BANNER.png"
@@ -281,7 +306,6 @@ export default function Home() {
               </p>
             </div>
 
-            {/* Resources */}
             <div>
               <h4 className="font-medium text-sm text-foreground/70 mb-4">Resources</h4>
               <ul className="space-y-2">
@@ -300,7 +324,6 @@ export default function Home() {
               </ul>
             </div>
 
-            {/* Connect */}
             <div>
               <h4 className="font-medium text-sm text-foreground/70 mb-4">Connect</h4>
               <ul className="space-y-2">
@@ -335,7 +358,6 @@ export default function Home() {
               </ul>
             </div>
 
-            {/* Partners */}
             <div>
               <h4 className="font-medium text-sm text-foreground/70 mb-4">Partners</h4>
               <div className="flex flex-col gap-4">
@@ -359,7 +381,6 @@ export default function Home() {
             </div>
           </div>
 
-          {/* Bottom */}
           <div className="mt-12 pt-8 border-t border-border/30 flex flex-col md:flex-row items-center justify-between gap-4 text-center md:text-left">
             <p className="text-xs text-foreground/30">
               © {new Date().getFullYear()} Wake County Brusaders
