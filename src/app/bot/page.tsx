@@ -42,6 +42,16 @@ const queryCategories = [
     ],
   },
   {
+    name: "Photo Analysis",
+    color: "pink",
+    queries: [
+      "[Upload photo] Does this look right for an American wheat?",
+      "[Upload photo] Rate my lager's clarity and color",
+      "[Upload photo] What style does this beer look like?",
+      "[Upload photo] Is this haze from yeast or chill haze?",
+    ],
+  },
+  {
     name: "Yeast & Fermentation",
     color: "blue",
     queries: [
@@ -228,14 +238,25 @@ export default function BotPage() {
         </div>
       </section>
 
-      {/* Recipe Export Callout */}
-      <section className="py-12 border-y border-border/30 bg-accent/5">
-        <div className="max-w-3xl mx-auto px-6 text-center">
-          <h3 className="text-xl font-bold mb-3">Recipe Creation & Export</h3>
-          <p className="text-foreground/60">
-            WCB Bot can generate full recipes based on your goals and export them as XML
-            for import into BeerSmith, Brewfather, or your preferred brewing software.
-          </p>
+      {/* Feature Callouts */}
+      <section className="py-12 border-y border-border/30">
+        <div className="max-w-5xl mx-auto px-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="p-6 rounded-2xl bg-accent/5 border border-accent/20">
+              <h3 className="text-lg font-bold mb-2 text-accent">Recipe Creation & Export</h3>
+              <p className="text-foreground/60 text-sm">
+                Generate full recipes based on your goals and export as XML
+                for BeerSmith, Brewfather, or your preferred brewing software.
+              </p>
+            </div>
+            <div className="p-6 rounded-2xl bg-pink-500/5 border border-pink-500/20">
+              <h3 className="text-lg font-bold mb-2 text-pink-400">Beer Photo Analysis</h3>
+              <p className="text-foreground/60 text-sm">
+                Upload a photo of your beer and get BJCP appearance feedback —
+                color, clarity, head retention, and style accuracy.
+              </p>
+            </div>
+          </div>
         </div>
       </section>
 
@@ -255,6 +276,7 @@ export default function BotPage() {
                 key={category.name}
                 className={`p-5 rounded-2xl border bg-card-bg/20 ${
                   category.color === "accent" ? "border-accent/30" :
+                  category.color === "pink" ? "border-pink-500/30" :
                   category.color === "blue" ? "border-blue-500/30" :
                   category.color === "emerald" ? "border-emerald-500/30" :
                   category.color === "cyan" ? "border-cyan-500/30" :
@@ -266,6 +288,7 @@ export default function BotPage() {
               >
                 <h3 className={`font-semibold mb-4 ${
                   category.color === "accent" ? "text-accent" :
+                  category.color === "pink" ? "text-pink-400" :
                   category.color === "blue" ? "text-blue-400" :
                   category.color === "emerald" ? "text-emerald-400" :
                   category.color === "cyan" ? "text-cyan-400" :
