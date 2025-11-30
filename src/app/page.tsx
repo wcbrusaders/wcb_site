@@ -6,7 +6,7 @@ import { useState, useEffect } from "react";
 // Minimal benefits - icon + one-liner
 const benefits = [
   { icon: "calendar", title: "Monthly Meetings", desc: "Third Thursdays, in-person or remote" },
-  { icon: "bot", title: "24/7 Discord Bot", desc: "AI assistant with 500+ brewing resources" },
+  { icon: "bot", title: "24/7 Discord Bot", desc: "Yeasts, hops, grains, calculators, and brewing science" },
   { icon: "graduation", title: "~12 Workshops/Year", desc: "From water chemistry to recipe design" },
   { icon: "gift", title: "Member Perks", desc: "Group buys, competition support, discounts" },
 ];
@@ -135,7 +135,7 @@ export default function Home() {
 
           <p className="text-xl md:text-2xl text-foreground/60 mb-12 leading-relaxed max-w-2xl mx-auto">
             A homebrewing community built on education, connection, and doing things your way.
-            Everything is optional. Your pace, your path.
+            70% of what we offer works even if you never set foot in Holly Springs.
           </p>
 
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
@@ -360,12 +360,12 @@ export default function Home() {
           </div>
 
           {/* Bottom */}
-          <div className="mt-12 pt-8 border-t border-border/30 flex flex-col md:flex-row items-center justify-between gap-4">
+          <div className="mt-12 pt-8 border-t border-border/30 flex flex-col md:flex-row items-center justify-between gap-4 text-center md:text-left">
             <p className="text-xs text-foreground/30">
-              © {new Date().getFullYear()} Wake County Brusaders. All rights reserved.
+              © {new Date().getFullYear()} Wake County Brusaders
             </p>
-            <p className="text-xs text-foreground/30">
-              Board: Jordan LaFontaine, Nathan Caulder, Marcella LaFontaine, James Stevens
+            <p className="text-xs text-foreground/40">
+              Proud SHA member · Est. 2023
             </p>
           </div>
         </div>
