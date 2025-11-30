@@ -76,6 +76,7 @@ export default function Home() {
             <a href="#benefits" className="text-sm text-foreground/60 hover:text-foreground transition-colors">What You Get</a>
             <a href="#pathways" className="text-sm text-foreground/60 hover:text-foreground transition-colors">Pathways</a>
             <a href="#events" className="text-sm text-foreground/60 hover:text-foreground transition-colors">Events</a>
+            <Link href="/bot" className="text-sm text-foreground/60 hover:text-foreground transition-colors">WCB Bot</Link>
           </nav>
 
           <div className="flex items-center gap-4">
@@ -104,6 +105,7 @@ export default function Home() {
               <a href="#benefits" onClick={() => setMobileMenuOpen(false)} className="text-foreground/70 hover:text-foreground py-2">What You Get</a>
               <a href="#pathways" onClick={() => setMobileMenuOpen(false)} className="text-foreground/70 hover:text-foreground py-2">Pathways</a>
               <a href="#events" onClick={() => setMobileMenuOpen(false)} className="text-foreground/70 hover:text-foreground py-2">Events</a>
+              <Link href="/bot" onClick={() => setMobileMenuOpen(false)} className="text-foreground/70 hover:text-foreground py-2">WCB Bot</Link>
               <a
                 href="https://www.paypal.com/ncp/payment/UQ6VG5K69FC92"
                 target="_blank"
@@ -370,6 +372,14 @@ export default function Home() {
                   >
                     Photo Gallery
                   </a>
+                </li>
+                <li>
+                  <Link
+                    href="/bot"
+                    className="text-sm text-foreground/50 hover:text-foreground transition-colors"
+                  >
+                    WCB Bot
+                  </Link>
                 </li>
               </ul>
             </div>
