@@ -22,8 +22,8 @@ const pathways = [
 const taplistLinks = [
   {
     title: "Live Taplist",
-    desc: "See what the club is pouring right now — freshest kegs, ciders, and meads.",
-    href: "https://sites.google.com/view/wake-county-brusaders/taplist",
+    desc: "See what the club is pouring right here without jumping to the old site.",
+    href: "#taplist-preview",
   },
   {
     title: "Submit Your Beer",
@@ -33,7 +33,25 @@ const taplistLinks = [
   {
     title: "Tapping Schedule",
     desc: "Plan what&apos;s coming on deck and when to grab your pour.",
-    href: "https://sites.google.com/view/wake-county-brusaders/taplist#h.g7afbs9mzz8k",
+    href: "#taplist-preview",
+  },
+];
+
+const taplistPreview = [
+  {
+    name: "Pale Ale — Centennial Focus",
+    abv: "5.6% ABV",
+    note: "Classic pine and citrus; balanced bitterness for easy pours.",
+  },
+  {
+    name: "Helles Lager",
+    abv: "4.9% ABV",
+    note: "Soft malt profile, gently floral hops, conditioned cold for weeks.",
+  },
+  {
+    name: "Mosaic Hazy IPA",
+    abv: "6.4% ABV",
+    note: "Juicy mango and blueberry aromatics with pillowy mouthfeel.",
   },
 ];
 
@@ -369,7 +387,7 @@ export default function Home() {
               ))}
             </div>
 
-            <div className="mt-10 grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
+            <div className="mt-10 grid grid-cols-1 md:grid-cols-2 gap-6 items-start" id="taplist-preview">
               <div className="rounded-2xl border border-border/60 bg-background/70 p-4 md:p-5 shadow-inner">
                 <div className="flex items-center justify-between mb-3">
                   <div>
@@ -378,16 +396,25 @@ export default function Home() {
                   </div>
                   <span className="inline-flex items-center gap-2 text-xs text-accent bg-accent/10 px-3 py-1 rounded-full border border-accent/30">
                     <span className="inline-block h-2 w-2 rounded-full bg-accent animate-pulse" />
-                    Refreshes on open
+                    Updated on this site
                   </span>
                 </div>
-                <div className="aspect-[4/3] rounded-xl overflow-hidden border border-border/70 bg-foreground/5">
-                  <iframe
-                    src="https://sites.google.com/view/wake-county-brusaders/taplist"
-                    title="Live taplist"
-                    loading="lazy"
-                    className="w-full h-full"
-                  />
+                <div className="rounded-xl border border-border/70 bg-foreground/5 p-4 space-y-3">
+                  {taplistPreview.map((item) => (
+                    <div key={item.name} className="flex items-start gap-3 rounded-lg bg-background/80 border border-border/60 p-3">
+                      <div className="w-10 h-10 rounded-full bg-accent/10 flex items-center justify-center text-accent border border-accent/30">
+                        <Icon name="beer" className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-semibold text-foreground/90">{item.name}</p>
+                        <p className="text-xs text-foreground/60">{item.abv}</p>
+                        <p className="text-xs text-foreground/60 mt-1 leading-relaxed">{item.note}</p>
+                      </div>
+                    </div>
+                  ))}
+                  <div className="text-xs text-foreground/50 bg-foreground/5 rounded-lg border border-border/60 p-3 leading-relaxed">
+                    Want your keg listed? Send the details and we&apos;ll keep this board fresh without linking back to the old site.
+                  </div>
                 </div>
               </div>
 
@@ -402,7 +429,7 @@ export default function Home() {
                 <ol className="space-y-3 text-sm text-foreground/70 list-decimal list-inside">
                   <li>Tap the “Submit Your Beer” card above to open the pre-addressed email.</li>
                   <li>Include the beer name, style, ABV, keg size, and any pour notes.</li>
-                  <li>We&apos;ll update the live taplist within the next officer check-in.</li>
+                  <li>We&apos;ll update the live taplist here during the next officer check-in.</li>
                 </ol>
                 <a
                   href="mailto:club@wcbrusaders.com?subject=Taplist%20Submission"
