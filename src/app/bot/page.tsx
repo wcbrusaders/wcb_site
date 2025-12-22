@@ -302,9 +302,9 @@ export default function BotPage() {
                 <ul className="space-y-3">
                   {category.queries.map((query, idx) => (
                     <li key={idx} className="text-sm text-foreground/60 leading-relaxed">
-                      <span className="text-foreground/30 mr-1">"</span>
+                      <span className="text-foreground/30 mr-1">&ldquo;</span>
                       {query}
-                      <span className="text-foreground/30 ml-1">"</span>
+                      <span className="text-foreground/30 ml-1">&rdquo;</span>
                     </li>
                   ))}
                 </ul>
