@@ -19,6 +19,47 @@ const pathways = [
   { name: "Competition", color: "orange", desc: "BJCP prep, scoresheets, medal chasing" },
 ];
 
+const taplistLinks = [
+  {
+    title: "Live Taplist",
+    desc: "See what the club is pouring right now — freshest kegs, ciders, and meads.",
+    href: "https://sites.google.com/view/wake-county-brusaders/taplist",
+  },
+  {
+    title: "Submit Your Beer",
+    desc: "Share your keg details so we can add it to the board before the next meetup.",
+    href: "mailto:club@wcbrusaders.com?subject=Taplist%20Submission",
+  },
+  {
+    title: "Tapping Schedule",
+    desc: "Plan what&apos;s coming on deck and when to grab your pour.",
+    href: "https://sites.google.com/view/wake-county-brusaders/taplist#h.g7afbs9mzz8k",
+  },
+];
+
+const taplistSupportingLinks = [
+  {
+    title: "Community Documents",
+    desc: "Bylaws, checklists, and shared planning docs for pours and events.",
+    href: "https://drive.google.com/drive/folders/1Von8YTFkyQ3fGC8DbC-Augwlwvhe0rRA",
+  },
+  {
+    title: "Recipe Library",
+    desc: "House beers, medal winners, and member-shared fermentables inspiration.",
+    href: "https://drive.google.com/drive/folders/1NGuf6ImU6UxivQPbPGWl91tETUzzzN77",
+  },
+  {
+    title: "Workshop Guides",
+    desc: "One-pagers for off-flavor classes, water labs, and seasonal projects.",
+    href: "https://drive.google.com/drive/folders/1hLeWLw-6kGqwccWdsPTzO32eW_5FKk18",
+  },
+  {
+    title: "Meeting Notes",
+    desc: "What was tapped, key decisions, and follow-ups from each meetup.",
+    href: "https://drive.google.com/drive/u/1/folders/1hYiIV6NnhFHCItJuZ4Je2KjDUz0Ktk8h",
+  },
+];
+
 // Footer resources
 const resources = [
   { title: "Knowledge Base", href: "https://drive.google.com/drive/folders/1Von8YTFkyQ3fGC8DbC-Augwlwvhe0rRA" },
@@ -34,6 +75,14 @@ function Icon({ name, className = "w-5 h-5" }: { name: string; className?: strin
     bot: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8.25 3v1.5M4.5 8.25H3m18 0h-1.5M4.5 12H3m18 0h-1.5M4.5 15.75H3m18 0h-1.5M12 3v1.5m0 15V21m-6.75-3.75h13.5a2.25 2.25 0 002.25-2.25V9a2.25 2.25 0 00-2.25-2.25H5.25A2.25 2.25 0 003 9v6a2.25 2.25 0 002.25 2.25zM9 12h.008v.008H9V12zm3 0h.008v.008H12V12zm3 0h.008v.008H15V12z" />,
     graduation: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4.26 10.147a60.436 60.436 0 00-.491 6.347A48.627 48.627 0 0112 20.904a48.627 48.627 0 018.232-4.41 60.46 60.46 0 00-.491-6.347m-15.482 0a50.57 50.57 0 00-2.658-.813A59.905 59.905 0 0112 3.493a59.902 59.902 0 0110.399 5.84c-.896.248-1.783.52-2.658.814m-15.482 0A50.697 50.697 0 0112 13.489a50.702 50.702 0 017.74-3.342M6.75 15a.75.75 0 100-1.5.75.75 0 000 1.5zm0 0v-3.675A55.378 55.378 0 0112 8.443m-7.007 11.55A5.981 5.981 0 006.75 15.75v-1.5" />,
     gift: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 11.25v8.25a1.5 1.5 0 01-1.5 1.5H5.25a1.5 1.5 0 01-1.5-1.5v-8.25M12 4.875A2.625 2.625 0 109.375 7.5H12m0-2.625V7.5m0-2.625A2.625 2.625 0 1114.625 7.5H12m0 0V21m-8.625-9.75h18c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125h-18c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125z" />,
+    beer: (
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={1.5}
+        d="M6.75 5.25c0-.621.504-1.125 1.125-1.125h7.25c.621 0 1.125.504 1.125 1.125v13.5a1.125 1.125 0 01-1.125 1.125h-7.25A1.125 1.125 0 016.75 18.75v-4.5m0-9h10.5m-10.5 0v4.5m0 0H9m-2.25 0h-1.5m1.5 0v4.5m0 0H9m-2.25 0h-1.5"
+      />
+    ),
     menu: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />,
     x: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M6 18L18 6M6 6l12 12" />,
     arrow: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />,
@@ -75,6 +124,7 @@ export default function Home() {
           <nav className="hidden md:flex items-center gap-8">
             <a href="#benefits" className="text-sm text-foreground/60 hover:text-foreground transition-colors">What You Get</a>
             <a href="#pathways" className="text-sm text-foreground/60 hover:text-foreground transition-colors">Pathways</a>
+            <a href="#taplist" className="text-sm text-foreground/60 hover:text-foreground transition-colors">Taplist</a>
             <a href="#events" className="text-sm text-foreground/60 hover:text-foreground transition-colors">Events</a>
             <Link href="/bot" className="text-sm text-foreground/60 hover:text-foreground transition-colors">WCB Bot</Link>
           </nav>
@@ -104,6 +154,7 @@ export default function Home() {
             <nav className="flex flex-col px-6 py-4 gap-4">
               <a href="#benefits" onClick={() => setMobileMenuOpen(false)} className="text-foreground/70 hover:text-foreground py-2">What You Get</a>
               <a href="#pathways" onClick={() => setMobileMenuOpen(false)} className="text-foreground/70 hover:text-foreground py-2">Pathways</a>
+              <a href="#taplist" onClick={() => setMobileMenuOpen(false)} className="text-foreground/70 hover:text-foreground py-2">Taplist</a>
               <a href="#events" onClick={() => setMobileMenuOpen(false)} className="text-foreground/70 hover:text-foreground py-2">Events</a>
               <Link href="/bot" onClick={() => setMobileMenuOpen(false)} className="text-foreground/70 hover:text-foreground py-2">WCB Bot</Link>
               <a
@@ -147,6 +198,13 @@ export default function Home() {
             >
               Become a Brusader — $40/yr
               <Icon name="arrow" className="w-4 h-4" />
+            </a>
+            <a
+              href="#taplist"
+              className="inline-flex items-center justify-center gap-2 bg-foreground/5 hover:bg-foreground/10 text-foreground font-medium px-8 py-4 rounded-full border border-border transition-all"
+            >
+              Jump to the Taplist
+              <Icon name="beer" className="w-4 h-4" />
             </a>
           </div>
 
@@ -257,6 +315,137 @@ export default function Home() {
           <p className="text-center text-foreground/40 text-sm mt-10">
             Mix and match pathways, or just hang out. There&apos;s no wrong way to be a Brusader.
           </p>
+        </div>
+      </section>
+
+      {/* ===== TAPLIST ===== */}
+      <section id="taplist" className="py-24 md:py-32 border-t border-border/30">
+        <div className="max-w-5xl mx-auto px-6">
+          <div className="relative overflow-hidden rounded-3xl border border-border/40 bg-gradient-to-br from-card-bg/60 via-card-bg to-black/40 p-8 md:p-12">
+            <div className="absolute inset-0 pointer-events-none">
+              <div className="absolute -right-24 -top-24 h-64 w-64 rounded-full bg-accent/10 blur-3xl" />
+              <div className="absolute -left-16 bottom-0 h-48 w-48 rounded-full bg-accent/5 blur-3xl" />
+            </div>
+
+            <div className="relative flex flex-col md:flex-row md:items-center md:justify-between gap-6 mb-10">
+              <div>
+                <p className="text-xs uppercase tracking-[0.2em] text-foreground/50 mb-3">Taplist</p>
+                <h2 className="text-2xl md:text-3xl font-bold mb-3">On Tap &amp; On Deck</h2>
+                <p className="text-foreground/60 max-w-2xl">
+                  Live-updated links from the club&apos;s taplist page — built for quick check-ins before you pour.
+                </p>
+              </div>
+              <div className="flex items-center gap-3 bg-accent/10 text-accent px-4 py-2 rounded-full border border-accent/30">
+                <Icon name="beer" className="w-5 h-5" />
+                <span className="text-sm font-medium">Fresh kegs every meetup</span>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6 relative">
+              {taplistLinks.map((item, idx) => (
+                <a
+                  key={item.title}
+                  href={item.href}
+                  target={item.href.startsWith("http") ? "_blank" : undefined}
+                  rel={item.href.startsWith("http") ? "noopener noreferrer" : undefined}
+                  aria-label={`${item.title}${item.href.startsWith("http") ? " (opens in a new tab)" : ""}`}
+                  className="group relative p-5 rounded-2xl border border-border/50 hover:border-accent/60 bg-card-bg/50 hover:bg-card-hover transition-colors link-card"
+                >
+                  <div className="absolute inset-0 rounded-2xl border border-white/5 opacity-0 group-hover:opacity-100 transition-opacity" />
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs bg-foreground/5 text-foreground/70 border border-border/60 mb-3">
+                        <span className="inline-block h-2 w-2 rounded-full bg-accent" />
+                        {idx === 0 ? "Live" : idx === 1 ? "Submit" : "Schedule"}
+                      </div>
+                      <h3 className="text-lg font-semibold mb-1">{item.title}</h3>
+                      <p className="text-sm text-foreground/60 leading-relaxed">{item.desc}</p>
+                    </div>
+                    <div className="w-10 h-10 rounded-full bg-accent/10 flex items-center justify-center text-accent border border-accent/30 group-hover:translate-x-1 transition-transform">
+                      <Icon name="arrow" className="w-4 h-4" />
+                    </div>
+                  </div>
+                </a>
+              ))}
+            </div>
+
+            <div className="mt-10 grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
+              <div className="rounded-2xl border border-border/60 bg-background/70 p-4 md:p-5 shadow-inner">
+                <div className="flex items-center justify-between mb-3">
+                  <div>
+                    <p className="text-xs uppercase tracking-[0.2em] text-foreground/50">Live Preview</p>
+                    <h3 className="text-lg font-semibold">What&apos;s on tap right now</h3>
+                  </div>
+                  <span className="inline-flex items-center gap-2 text-xs text-accent bg-accent/10 px-3 py-1 rounded-full border border-accent/30">
+                    <span className="inline-block h-2 w-2 rounded-full bg-accent animate-pulse" />
+                    Refreshes on open
+                  </span>
+                </div>
+                <div className="aspect-[4/3] rounded-xl overflow-hidden border border-border/70 bg-foreground/5">
+                  <iframe
+                    src="https://sites.google.com/view/wake-county-brusaders/taplist"
+                    title="Live taplist"
+                    loading="lazy"
+                    className="w-full h-full"
+                  />
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-border/60 bg-background/70 p-4 md:p-5">
+                <div className="flex items-center gap-3 mb-3">
+                  <Icon name="beer" className="w-5 h-5 text-accent" />
+                  <div>
+                    <p className="text-xs uppercase tracking-[0.2em] text-foreground/50">Quick instructions</p>
+                    <h3 className="text-lg font-semibold">Share your keg in under 1 minute</h3>
+                  </div>
+                </div>
+                <ol className="space-y-3 text-sm text-foreground/70 list-decimal list-inside">
+                  <li>Tap the “Submit Your Beer” card above to open the pre-addressed email.</li>
+                  <li>Include the beer name, style, ABV, keg size, and any pour notes.</li>
+                  <li>We&apos;ll update the live taplist within the next officer check-in.</li>
+                </ol>
+                <a
+                  href="mailto:club@wcbrusaders.com?subject=Taplist%20Submission"
+                  className="inline-flex items-center gap-2 text-sm font-semibold text-accent mt-4"
+                >
+                  Submit now
+                  <Icon name="arrow" className="w-4 h-4" />
+                </a>
+              </div>
+            </div>
+
+            <div className="mt-10 rounded-2xl border border-border/50 bg-card-bg/60 p-5 md:p-6">
+              <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-4">
+                <div>
+                  <p className="text-xs uppercase tracking-[0.2em] text-foreground/50">Ops &amp; Docs</p>
+                  <h3 className="text-lg font-semibold">Community documents straight from the taplist page</h3>
+                </div>
+                <div className="inline-flex items-center gap-2 text-sm text-foreground/60 bg-foreground/5 border border-border/60 px-3 py-1 rounded-full">
+                  <span className="inline-block h-2 w-2 rounded-full bg-foreground/50" />
+                  Updated by the officers
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {taplistSupportingLinks.map((link) => (
+                  <a
+                    key={link.title}
+                    href={link.href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    aria-label={`${link.title} (opens in a new tab)`}
+                    className="group flex flex-col gap-1 rounded-xl border border-border/60 hover:border-accent/60 bg-background/60 px-4 py-3 transition-colors"
+                  >
+                    <div className="flex items-center justify-between">
+                      <p className="text-sm font-semibold text-foreground/90">{link.title}</p>
+                      <Icon name="arrow" className="w-4 h-4 text-foreground/50 group-hover:text-accent transition-colors" />
+                    </div>
+                    <p className="text-xs text-foreground/60 leading-relaxed">{link.desc}</p>
+                  </a>
+                ))}
+              </div>
+            </div>
+          </div>
         </div>
       </section>
 
