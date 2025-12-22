@@ -33,7 +33,7 @@ const taplistLinks = [
   {
     title: "Tapping Schedule",
     desc: "Plan what&apos;s coming on deck and when to grab your pour.",
-    href: "#taplist-preview",
+    href: "#taplist-schedule",
   },
 ];
 
@@ -52,6 +52,24 @@ const taplistPreview = [
     name: "Mosaic Hazy IPA",
     abv: "6.4% ABV",
     note: "Juicy mango and blueberry aromatics with pillowy mouthfeel.",
+  },
+];
+
+const taplistSchedule = [
+  {
+    name: "Festbier",
+    when: "Next Meetup",
+    detail: "Clean, toasty lager tapped first for early arrivers.",
+  },
+  {
+    name: "Citra Pale",
+    when: "Mid-Session",
+    detail: "Crisp citrus pop once the lager kicks.",
+  },
+  {
+    name: "Maple Brown",
+    when: "Late Share",
+    detail: "Dessert pour to wrap up the night.",
   },
 ];
 
@@ -438,6 +456,38 @@ export default function Home() {
                   Submit now
                   <Icon name="arrow" className="w-4 h-4" />
                 </a>
+              </div>
+            </div>
+
+            <div className="mt-10 rounded-2xl border border-border/60 bg-background/70 p-4 md:p-5" id="taplist-schedule">
+              <div className="flex items-center justify-between gap-3 mb-4">
+                <div>
+                  <p className="text-xs uppercase tracking-[0.2em] text-foreground/50">Tap rotation</p>
+                  <h3 className="text-lg font-semibold">What&apos;s coming on deck</h3>
+                </div>
+                <div className="inline-flex items-center gap-2 text-xs text-accent bg-accent/10 px-3 py-1 rounded-full border border-accent/30">
+                  <span className="inline-block h-2 w-2 rounded-full bg-accent" />
+                  On this site
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                {taplistSchedule.map((slot) => (
+                  <div
+                    key={slot.name}
+                    className="rounded-xl border border-border/60 bg-card-bg/60 p-4 flex flex-col gap-2"
+                  >
+                    <div className="flex items-center justify-between text-xs text-foreground/60">
+                      <span className="font-semibold text-foreground/80">{slot.when}</span>
+                      <span className="inline-flex items-center gap-1 text-accent">
+                        <Icon name="beer" className="w-4 h-4" />
+                        Taplist
+                      </span>
+                    </div>
+                    <p className="text-sm font-semibold text-foreground/90">{slot.name}</p>
+                    <p className="text-xs text-foreground/60 leading-relaxed">{slot.detail}</p>
+                  </div>
+                ))}
               </div>
             </div>
 
