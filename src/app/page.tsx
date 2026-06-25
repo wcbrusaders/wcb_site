@@ -236,6 +236,26 @@ export default function Home() {
         </div>
       </section>
 
+      {/* ===== MORE THAN BEER ===== */}
+      <section className="py-24 md:py-32 border-t border-border/30">
+        <div className="max-w-3xl mx-auto px-6 text-center">
+          <h2 className="text-2xl md:text-3xl font-bold mb-6">
+            Beer is just where it starts
+          </h2>
+          <p className="text-lg text-foreground/60 leading-relaxed mb-6">
+            We don&apos;t just bring brewers and beer lovers together. Mead, cider,
+            kombucha, hot sauce, sourdough, pickles, kraut — if it ferments, it has a
+            home here. Anything fermentable, including food, is fair game.
+          </p>
+          <p className="text-lg text-foreground/60 leading-relaxed">
+            And honestly? The best thing we make isn&apos;t in a glass. Making real
+            friends as an adult is hard. A shared craft, a regular table, and people who
+            actually show up — that&apos;s how lifelong friendships get built. We can
+            help there too.
+          </p>
+        </div>
+      </section>
+
       {/* ===== WHAT MEMBERS GET ===== */}
       <section id="benefits" className="py-24 md:py-32">
         <div className="max-w-5xl mx-auto px-6">
@@ -413,7 +433,7 @@ export default function Home() {
 
           <div className="bg-card-bg border border-border rounded-2xl overflow-hidden">
             <iframe
-              src="https://calendar.google.com/calendar/embed?src=club%40wcbrusaders.com&ctz=America%2FNew_York&mode=AGENDA&showTitle=0&showNav=1&showPrint=0&showTabs=0&showCalendars=0&bgcolor=%231a1a1a"
+              src="https://calendar.google.com/calendar/embed?src=club%40wcbrusaders.com&src=c_f9713ce58c0973c9d1228c2e66c0e5a276c4f4539765744f0e41bf69636194af%40group.calendar.google.com&ctz=America%2FNew_York&mode=AGENDA&showTitle=0&showNav=1&showPrint=0&showTabs=0&showCalendars=0&bgcolor=%231a1a1a"
               style={{ border: 0 }}
               width="100%"
               height="400"
