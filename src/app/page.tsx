@@ -22,17 +22,17 @@ const pathways = [
 const taplistLinks = [
   {
     title: "Live Taplist",
-    desc: "See what the club is pouring right now — freshest kegs, ciders, and meads.",
+    desc: "The club's running board of go-to links — tapped and ready whenever you need them.",
     href: "https://sites.google.com/view/wake-county-brusaders/taplist",
   },
   {
-    title: "Submit Your Beer",
-    desc: "Share your keg details so we can add it to the board before the next meetup.",
-    href: "mailto:club@wcbrusaders.com?subject=Taplist%20Submission",
+    title: "Submit a Link",
+    desc: "Got a resource worth sharing? Send it over and we'll tap it onto the board.",
+    href: "mailto:club@wcbrusaders.com?subject=Taplist%20Link%20Submission",
   },
   {
-    title: "Tapping Schedule",
-    desc: "Plan what&apos;s coming on deck and when to grab your pour.",
+    title: "What's on Deck",
+    desc: "New links and resources lined up to join the list.",
     href: "https://sites.google.com/view/wake-county-brusaders/taplist",
   },
 ];
@@ -40,7 +40,7 @@ const taplistLinks = [
 const taplistSupportingLinks = [
   {
     title: "Community Documents",
-    desc: "Bylaws, checklists, and shared planning docs for pours and events.",
+    desc: "Bylaws, checklists, and shared planning docs for club events.",
     href: "https://drive.google.com/drive/folders/1Von8YTFkyQ3fGC8DbC-Augwlwvhe0rRA",
   },
   {
@@ -55,7 +55,7 @@ const taplistSupportingLinks = [
   },
   {
     title: "Meeting Notes",
-    desc: "What was tapped, key decisions, and follow-ups from each meetup.",
+    desc: "Key decisions, takeaways, and follow-ups from each meetup.",
     href: "https://drive.google.com/drive/u/1/folders/1hYiIV6NnhFHCItJuZ4Je2KjDUz0Ktk8h",
   },
 ];
@@ -350,14 +350,14 @@ export default function Home() {
             <div className="relative flex flex-col md:flex-row md:items-center md:justify-between gap-6 mb-10">
               <div>
                 <p className="text-xs uppercase tracking-[0.2em] text-foreground/50 mb-3">Taplist</p>
-                <h2 className="text-2xl md:text-3xl font-bold mb-3">On Tap &amp; On Deck</h2>
+                <h2 className="text-2xl md:text-3xl font-bold mb-3">Resources On Tap</h2>
                 <p className="text-foreground/60 max-w-2xl">
-                  Live-updated links from the club&apos;s taplist page — built for quick check-ins before you pour.
+                  The club&apos;s most-used links and shared docs, all in one place — tap in whenever you need them.
                 </p>
               </div>
               <div className="flex items-center gap-3 bg-accent/10 text-accent px-4 py-2 rounded-full border border-accent/30">
-                <Icon name="beer" className="w-5 h-5" />
-                <span className="text-sm font-medium">Fresh kegs every meetup</span>
+                <Icon name="arrow" className="w-5 h-5" />
+                <span className="text-sm font-medium">Curated by the club</span>
               </div>
             </div>
 
@@ -376,7 +376,7 @@ export default function Home() {
                     <div>
                       <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs bg-foreground/5 text-foreground/70 border border-border/60 mb-3">
                         <span className="inline-block h-2 w-2 rounded-full bg-accent" />
-                        {idx === 0 ? "Live" : idx === 1 ? "Submit" : "Schedule"}
+                        {idx === 0 ? "Live" : idx === 1 ? "Submit" : "On Deck"}
                       </div>
                       <h3 className="text-lg font-semibold mb-1">{item.title}</h3>
                       <p className="text-sm text-foreground/60 leading-relaxed">{item.desc}</p>
@@ -393,7 +393,7 @@ export default function Home() {
               <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-4">
                 <div>
                   <p className="text-xs uppercase tracking-[0.2em] text-foreground/50">Ops &amp; Docs</p>
-                  <h3 className="text-lg font-semibold">Community documents straight from the taplist page</h3>
+                  <h3 className="text-lg font-semibold">Shared club documents and reference material</h3>
                 </div>
                 <div className="inline-flex items-center gap-2 text-sm text-foreground/60 bg-foreground/5 border border-border/60 px-3 py-1 rounded-full">
                   <span className="inline-block h-2 w-2 rounded-full bg-foreground/50" />
