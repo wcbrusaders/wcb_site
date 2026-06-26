@@ -68,6 +68,22 @@ const taplistSupportingLinks = [
   },
 ];
 
+// Subscribable club calendars (Google + iCal/webcal for Apple & Outlook)
+const calendars = [
+  {
+    name: "WCB Events",
+    desc: "Meetings, workshops, and club happenings",
+    google: "https://calendar.google.com/calendar/render?cid=club%40wcbrusaders.com",
+    ical: "webcal://calendar.google.com/calendar/ical/club%40wcbrusaders.com/public/basic.ics",
+  },
+  {
+    name: "Competitions",
+    desc: "Homebrewing competitions and deadlines",
+    google: "https://calendar.google.com/calendar/render?cid=c_f9713ce58c0973c9d1228c2e66c0e5a276c4f4539765744f0e41bf69636194af%40group.calendar.google.com",
+    ical: "webcal://calendar.google.com/calendar/ical/c_f9713ce58c0973c9d1228c2e66c0e5a276c4f4539765744f0e41bf69636194af%40group.calendar.google.com/public/basic.ics",
+  },
+];
+
 // Footer resources
 const resources = [
   { title: "Knowledge Base", href: "https://drive.google.com/drive/folders/1Von8YTFkyQ3fGC8DbC-Augwlwvhe0rRA" },
@@ -449,6 +465,42 @@ export default function Home() {
               scrolling="no"
               className="w-full"
             />
+          </div>
+
+          {/* Subscribe to calendars */}
+          <div className="mt-8">
+            <p className="text-center text-foreground/60 mb-6">
+              Never miss an event — add our calendars to your own:
+            </p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-3xl mx-auto">
+              {calendars.map((cal) => (
+                <div key={cal.name} className="rounded-2xl border border-border bg-card-bg/50 p-5">
+                  <div className="flex items-start gap-2 mb-4">
+                    <Icon name="calendar" className="w-5 h-5 text-accent flex-shrink-0 mt-0.5" />
+                    <div>
+                      <h3 className="font-semibold leading-tight">{cal.name}</h3>
+                      <p className="text-sm text-foreground/50">{cal.desc}</p>
+                    </div>
+                  </div>
+                  <div className="flex flex-col sm:flex-row gap-3">
+                    <a
+                      href={cal.google}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center justify-center gap-2 bg-accent hover:bg-accent-hover text-background text-sm font-medium px-4 py-2 rounded-full transition-colors"
+                    >
+                      Add to Google
+                    </a>
+                    <a
+                      href={cal.ical}
+                      className="inline-flex items-center justify-center gap-2 bg-foreground/5 hover:bg-foreground/10 text-foreground text-sm font-medium px-4 py-2 rounded-full border border-border transition-colors"
+                    >
+                      Apple / Outlook
+                    </a>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       </section>
