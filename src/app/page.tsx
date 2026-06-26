@@ -254,7 +254,7 @@ export default function Home() {
             <div className="hidden md:block w-px h-8 bg-border/50" />
             <div>
               <p className="text-accent font-semibold">Growing 20%</p>
-              <p className="text-sm text-foreground/50">While other clubs shrink</p>
+              <p className="text-sm text-foreground/50">Fresh energy, different vibe</p>
             </div>
           </div>
         </div>
@@ -287,7 +287,7 @@ export default function Home() {
             What Members Get
           </h2>
           <p className="text-center text-foreground/50 mb-16 max-w-xl mx-auto">
-            Deep roots in the Triangle brewing scene. Access, opportunities, and community that isolated clubs can&apos;t offer.
+            Deep roots in the Triangle brewing scene — access to people and places, opportunities only a club can deliver like pro-brewery collabs, and a community that can&apos;t be replicated anywhere else.
           </p>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-12">
