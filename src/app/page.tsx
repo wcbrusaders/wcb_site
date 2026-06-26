@@ -144,7 +144,7 @@ export default function Home() {
               rel="noopener noreferrer"
               className="hidden sm:inline-flex bg-accent hover:bg-accent-hover text-background text-sm font-medium px-5 py-2 rounded-full transition-colors"
             >
-              Join — $40/yr
+              Become a Brusader
             </a>
 
             <button
@@ -171,7 +171,7 @@ export default function Home() {
                 rel="noopener noreferrer"
                 className="bg-accent text-background text-center font-medium px-5 py-3 rounded-full mt-2"
               >
-                Join — $40/yr
+                Become a Brusader
               </a>
             </nav>
           </div>
@@ -204,7 +204,7 @@ export default function Home() {
               rel="noopener noreferrer"
               className="inline-flex items-center justify-center gap-2 bg-accent hover:bg-accent-hover text-background font-medium px-8 py-4 rounded-full transition-all"
             >
-              Become a Brusader — $40/yr
+              Become a Brusader
               <Icon name="arrow" className="w-4 h-4" />
             </a>
             <a
@@ -217,7 +217,7 @@ export default function Home() {
           </div>
 
           <p className="text-foreground/40 text-sm">
-            $65/yr for couples · No experience required
+            No experience required
           </p>
         </div>
       </section>
