@@ -21,42 +21,50 @@ const pathways = [
 
 const taplistLinks = [
   {
-    title: "Live Taplist",
-    desc: "The club's running board of go-to links — tapped and ready whenever you need them.",
-    href: "https://sites.google.com/view/wake-county-brusaders/taplist",
+    tag: "Docs",
+    title: "Community Documents",
+    desc: "Bylaws, officer docs, and the club's shared planning files.",
+    href: "https://drive.google.com/drive/u/1/folders/0AH3fezsxCD4DUk9PVA",
   },
   {
-    title: "Submit a Link",
-    desc: "Got a resource worth sharing? Send it over and we'll tap it onto the board.",
-    href: "mailto:club@wcbrusaders.com?subject=Taplist%20Link%20Submission",
+    tag: "Learn",
+    title: "Brewing Knowledge Base",
+    desc: "The club's growing reference library on process, ingredients, and technique.",
+    href: "https://drive.google.com/drive/folders/1Von8YTFkyQ3fGC8DbC-Augwlwvhe0rRA",
   },
   {
-    title: "What's on Deck",
-    desc: "New links and resources lined up to join the list.",
-    href: "https://sites.google.com/view/wake-county-brusaders/taplist",
+    tag: "Recipes",
+    title: "Recipe Library",
+    desc: "House recipes, medal winners, and member-shared brews.",
+    href: "https://drive.google.com/drive/folders/1NGuf6ImU6UxivQPbPGWl91tETUzzzN77",
   },
 ];
 
 const taplistSupportingLinks = [
-  {
-    title: "Community Documents",
-    desc: "Bylaws, checklists, and shared planning docs for club events.",
-    href: "https://drive.google.com/drive/folders/1Von8YTFkyQ3fGC8DbC-Augwlwvhe0rRA",
-  },
-  {
-    title: "Recipe Library",
-    desc: "House beers, medal winners, and member-shared fermentables inspiration.",
-    href: "https://drive.google.com/drive/folders/1NGuf6ImU6UxivQPbPGWl91tETUzzzN77",
-  },
   {
     title: "Workshop Guides",
     desc: "One-pagers for off-flavor classes, water labs, and seasonal projects.",
     href: "https://drive.google.com/drive/folders/1hLeWLw-6kGqwccWdsPTzO32eW_5FKk18",
   },
   {
-    title: "Meeting Notes",
-    desc: "Key decisions, takeaways, and follow-ups from each meetup.",
+    title: "Meeting Agendas & Notes",
+    desc: "Decisions, takeaways, and follow-ups from each meetup.",
     href: "https://drive.google.com/drive/u/1/folders/1hYiIV6NnhFHCItJuZ4Je2KjDUz0Ktk8h",
+  },
+  {
+    title: "Buy Merch",
+    desc: "Grab a club shirt and rep the Brusaders.",
+    href: "https://www.paypal.com/ncp/payment/FCVUVRTUH3VH6",
+  },
+  {
+    title: "Master Homebrewer Program",
+    desc: "External certification track for serious homebrewers.",
+    href: "https://www.masterhomebrewerprogram.com/",
+  },
+  {
+    title: "Southeastern Homebrewers Association",
+    desc: "Regional homebrew association (SEHBA) and its resources.",
+    href: "https://southeasternhomebrewersassociation.com/sehba/",
   },
 ];
 
@@ -362,7 +370,7 @@ export default function Home() {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6 relative">
-              {taplistLinks.map((item, idx) => (
+              {taplistLinks.map((item) => (
                 <a
                   key={item.title}
                   href={item.href}
@@ -376,7 +384,7 @@ export default function Home() {
                     <div>
                       <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs bg-foreground/5 text-foreground/70 border border-border/60 mb-3">
                         <span className="inline-block h-2 w-2 rounded-full bg-accent" />
-                        {idx === 0 ? "Live" : idx === 1 ? "Submit" : "On Deck"}
+                        {item.tag}
                       </div>
                       <h3 className="text-lg font-semibold mb-1">{item.title}</h3>
                       <p className="text-sm text-foreground/60 leading-relaxed">{item.desc}</p>
@@ -392,12 +400,12 @@ export default function Home() {
             <div className="mt-10 rounded-2xl border border-border/50 bg-card-bg/60 p-5 md:p-6">
               <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-4">
                 <div>
-                  <p className="text-xs uppercase tracking-[0.2em] text-foreground/50">Ops &amp; Docs</p>
-                  <h3 className="text-lg font-semibold">Shared club documents and reference material</h3>
+                  <p className="text-xs uppercase tracking-[0.2em] text-foreground/50">More Resources</p>
+                  <h3 className="text-lg font-semibold">Guides, notes, merch, and partner organizations</h3>
                 </div>
                 <div className="inline-flex items-center gap-2 text-sm text-foreground/60 bg-foreground/5 border border-border/60 px-3 py-1 rounded-full">
                   <span className="inline-block h-2 w-2 rounded-full bg-foreground/50" />
-                  Updated by the officers
+                  Curated by the club
                 </div>
               </div>
 
