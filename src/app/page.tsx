@@ -73,7 +73,7 @@ const calendars = [
   {
     name: "WCB Events",
     desc: "Meetings, workshops, and club happenings",
-    google: "https://calendar.google.com/calendar/render?cid=club%40wcbrusaders.com",
+    google: "https://calendar.google.com/calendar/render?cid=Y2x1YkB3Y2JydXNhZGVycy5jb20",
     ical: "webcal://calendar.google.com/calendar/ical/club%40wcbrusaders.com/public/basic.ics",
   },
   {
