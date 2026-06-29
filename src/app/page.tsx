@@ -620,7 +620,7 @@ export default function Home() {
                   <Image src="/images/MHP.jpg" alt="Master Homebrewer Program" width={80} height={40} className="h-8 w-auto grayscale hover:grayscale-0 transition-all" />
                 </a>
                 <a
-                  href="https://southeasternhomebrewersassociation.com/sehba/"
+                  href="https://www.southeasternhomebrewersassociation.com/competitions"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="opacity-50 hover:opacity-100 transition-opacity"
