@@ -64,7 +64,7 @@ const taplistSupportingLinks = [
   {
     title: "Southeastern Homebrewers Association",
     desc: "Regional homebrew association (SEHBA) and its resources.",
-    href: "https://southeasternhomebrewersassociation.com/sehba/",
+    href: "https://www.southeasternhomebrewersassociation.com/competitions",
   },
 ];
 
