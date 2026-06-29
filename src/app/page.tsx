@@ -24,19 +24,19 @@ const taplistLinks = [
     tag: "Docs",
     title: "Community Documents",
     desc: "Bylaws, officer docs, and the club's shared planning files.",
-    href: "https://drive.google.com/drive/u/1/folders/0AH3fezsxCD4DUk9PVA",
+    href: "https://drive.google.com/drive/folders/0AH3fezsxCD4DUk9PVA",
   },
   {
     tag: "Learn",
     title: "Brewing Knowledge Base",
     desc: "The club's growing reference library on process, ingredients, and technique.",
-    href: "https://drive.google.com/drive/folders/1Von8YTFkyQ3fGC8DbC-Augwlwvhe0rRA",
+    href: "https://drive.google.com/drive/folders/1VPpxxr5sz-cREJiWNC7fRq46N7tewWC_",
   },
   {
     tag: "Recipes",
     title: "Recipe Library",
     desc: "House recipes, medal winners, and member-shared brews.",
-    href: "https://drive.google.com/drive/folders/1NGuf6ImU6UxivQPbPGWl91tETUzzzN77",
+    href: "https://drive.google.com/drive/folders/1b-7-hMPgU6gBNqnNmIxSNROgUILW1jwc",
   },
 ];
 
@@ -44,12 +44,12 @@ const taplistSupportingLinks = [
   {
     title: "Workshop Guides",
     desc: "One-pagers for off-flavor classes, water labs, and seasonal projects.",
-    href: "https://drive.google.com/drive/folders/1hLeWLw-6kGqwccWdsPTzO32eW_5FKk18",
+    href: "https://drive.google.com/drive/folders/1_I7Po8n9d1gBCze9xphoB5cVTZrLtBhf",
   },
   {
     title: "Meeting Agendas & Notes",
     desc: "Decisions, takeaways, and follow-ups from each meetup.",
-    href: "https://drive.google.com/drive/u/1/folders/1hYiIV6NnhFHCItJuZ4Je2KjDUz0Ktk8h",
+    href: "https://drive.google.com/drive/folders/1Jysdr3jXicNqMgtFRuUBcmDG9_djtWqw",
   },
   {
     title: "Buy Merch",
@@ -86,10 +86,10 @@ const calendars = [
 
 // Footer resources
 const resources = [
-  { title: "Knowledge Base", href: "https://drive.google.com/drive/folders/1Von8YTFkyQ3fGC8DbC-Augwlwvhe0rRA" },
-  { title: "Recipe Library", href: "https://drive.google.com/drive/folders/1NGuf6ImU6UxivQPbPGWl91tETUzzzN77" },
-  { title: "Workshop Guides", href: "https://drive.google.com/drive/folders/1hLeWLw-6kGqwccWdsPTzO32eW_5FKk18" },
-  { title: "Meeting Notes", href: "https://drive.google.com/drive/u/1/folders/1hYiIV6NnhFHCItJuZ4Je2KjDUz0Ktk8h" },
+  { title: "Knowledge Base", href: "https://drive.google.com/drive/folders/1VPpxxr5sz-cREJiWNC7fRq46N7tewWC_" },
+  { title: "Recipe Library", href: "https://drive.google.com/drive/folders/1b-7-hMPgU6gBNqnNmIxSNROgUILW1jwc" },
+  { title: "Workshop Guides", href: "https://drive.google.com/drive/folders/1_I7Po8n9d1gBCze9xphoB5cVTZrLtBhf" },
+  { title: "Meeting Notes", href: "https://drive.google.com/drive/folders/1Jysdr3jXicNqMgtFRuUBcmDG9_djtWqw" },
 ];
 
 // Simple icon components
