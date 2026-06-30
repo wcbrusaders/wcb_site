@@ -38,6 +38,12 @@ const taplistLinks = [
     desc: "House recipes, medal winners, and member-shared brews.",
     href: "https://drive.google.com/drive/folders/1b-7-hMPgU6gBNqnNmIxSNROgUILW1jwc",
   },
+  {
+    tag: "Train",
+    title: "Brusaders Academy (LMS)",
+    desc: "Structured courses and lessons to level up your brewing.",
+    href: "https://academy.wcbrusaders.com/",
+  },
 ];
 
 const taplistSupportingLinks = [
@@ -385,7 +391,7 @@ export default function Home() {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6 relative">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6 relative">
               {taplistLinks.map((item) => (
                 <a
                   key={item.title}
