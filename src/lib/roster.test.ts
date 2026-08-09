@@ -97,15 +97,27 @@ test('syncRoster does not call updateMany when no absent members', async () => {
 
 const M = (over = {}) => ({ emailAddress: 'a@x.com', googleEmail: null, name: 'A', tier: null, current: true, isBoard: false, partnerEmail: null, expires: null, ...over })
 
-function fakeDb(row: any) {
+function fakeDb(row: any, honorsWhere = false) {
   return { member: {
-    findFirst: async () => row,
+    findFirst: async (args: any) => {
+      if (honorsWhere && args?.where?.current !== true) {
+        return null
+      }
+      return row
+    },
     upsert: async () => {},
   } } as any
 }
 
 test('isCurrentMember: DB hit (current) allows', async () => {
-  const r = await isCurrentMember('A@X.com', { db: fakeDb(M()), fetchByEmail: async () => null })
+  const currentRow = M()
+  const db = {
+    member: {
+      findFirst: async ({ where }: any) => (where.current === true ? currentRow : null),
+      upsert: async () => {},
+    },
+  } as any
+  const r = await isCurrentMember('A@X.com', { db, fetchByEmail: async () => null })
   expect(r.ok).toBe(true)
   if (r.ok) {
     expect(r.member.emailAddress).toBe('a@x.com')
@@ -113,20 +125,41 @@ test('isCurrentMember: DB hit (current) allows', async () => {
 })
 
 test('isCurrentMember: DB miss + live fallback finds current -> allow', async () => {
-  const r = await isCurrentMember('new@x.com', { db: fakeDb(null), fetchByEmail: async () => M({ emailAddress: 'new@x.com' }) })
+  let upsertCalled = false
+  const db = {
+    member: {
+      findFirst: async () => null,
+      upsert: async () => { upsertCalled = true },
+    },
+  } as any
+  const r = await isCurrentMember('new@x.com', { db, fetchByEmail: async () => M({ emailAddress: 'new@x.com' }) })
   expect(r.ok).toBe(true)
   if (r.ok) {
     expect(r.member.emailAddress).toBe('new@x.com')
   }
+  // Verify upsert was called (caching the new member)
+  expect(upsertCalled).toBe(true)
 })
 
 test('isCurrentMember: DB miss + fallback lapsed -> deny', async () => {
-  const r = await isCurrentMember('lapsed@x.com', { db: fakeDb(null), fetchByEmail: async () => M({ emailAddress: 'lapsed@x.com', current: false }) })
+  const db = {
+    member: {
+      findFirst: async () => null,
+      upsert: async () => {},
+    },
+  } as any
+  const r = await isCurrentMember('lapsed@x.com', { db, fetchByEmail: async () => M({ emailAddress: 'lapsed@x.com', current: false }) })
   expect(r.ok).toBe(false)
 })
 
 test('isCurrentMember: DB miss + fallback stranger -> deny', async () => {
-  const r = await isCurrentMember('nobody@x.com', { db: fakeDb(null), fetchByEmail: async () => null })
+  const db = {
+    member: {
+      findFirst: async () => null,
+      upsert: async () => {},
+    },
+  } as any
+  const r = await isCurrentMember('nobody@x.com', { db, fetchByEmail: async () => null })
   expect(r.ok).toBe(false)
 })
 
