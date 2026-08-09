@@ -32,3 +32,27 @@ test('mapSheetRow parses board member true', () => {
   const row = ['Chair','Full','chair@x.com','2027-01-01','yes','','','Yes']
   expect(mapSheetRow(HEADERS, row)!.isBoard).toBe(true)
 })
+
+test('syncRoster upserts fetched rows and deactivates absent members', async () => {
+  const { syncRoster } = await import('./roster')
+  const fetched = [
+    { emailAddress: 'a@x.com', googleEmail: null, name: 'A', tier: null, current: true, isBoard: false, partnerEmail: null, expires: null },
+    { emailAddress: 'b@x.com', googleEmail: null, name: 'B', tier: null, current: false, isBoard: false, partnerEmail: null, expires: null },
+  ]
+  const upserts: string[] = []
+  const deactivated: string[] = []
+  const db = {
+    member: {
+      upsert: async ({ where }: any) => { upserts.push(where.emailAddress) },
+      updateMany: async ({ where }: any) => {
+        deactivated.push('c@x.com')
+        return { count: 1 }
+      },
+      findMany: async () => [{ emailAddress: 'c@x.com' }],
+    },
+  }
+  const res = await syncRoster({ fetchAll: async () => fetched, db: db as any })
+  expect(upserts).toEqual(['a@x.com', 'b@x.com'])
+  expect(res.synced).toBe(2)
+  expect(res.deactivated).toBe(1)
+})

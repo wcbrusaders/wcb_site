@@ -1,4 +1,5 @@
 import { google } from 'googleapis'
+import { prisma } from './db'
 
 export type MemberRecord = {
   emailAddress: string
@@ -77,4 +78,34 @@ export async function fetchRosterRowByEmail(email: string): Promise<MemberRecord
   const target = normalizeEmail(email)
   const rows = await fetchAllRosterRows()
   return rows.find((m) => m.emailAddress === target || m.googleEmail === target) ?? null
+}
+
+type SyncDeps = {
+  fetchAll?: () => Promise<MemberRecord[]>
+  db?: typeof prisma
+}
+
+export async function syncRoster(deps: SyncDeps = {}): Promise<{ synced: number; deactivated: number }> {
+  const fetchAll = deps.fetchAll ?? fetchAllRosterRows
+  const db = deps.db ?? prisma
+  const rows = await fetchAll()
+  let synced = 0
+  const seen = new Set<string>()
+  for (const m of rows) {
+    await db.member.upsert({
+      where: { emailAddress: m.emailAddress },
+      update: { googleEmail: m.googleEmail, name: m.name, tier: m.tier, current: m.current, isBoard: m.isBoard, partnerEmail: m.partnerEmail, expires: m.expires },
+      create: { emailAddress: m.emailAddress, googleEmail: m.googleEmail, name: m.name, tier: m.tier, current: m.current, isBoard: m.isBoard, partnerEmail: m.partnerEmail, expires: m.expires },
+    })
+    seen.add(m.emailAddress)
+    synced++
+  }
+  const existing = await db.member.findMany({ select: { emailAddress: true } })
+  const toDeactivate = existing.map((e) => e.emailAddress).filter((e) => !seen.has(e))
+  let deactivated = 0
+  if (toDeactivate.length) {
+    const r = await db.member.updateMany({ where: { emailAddress: { in: toDeactivate }, current: true }, data: { current: false } })
+    deactivated = r.count
+  }
+  return { synced, deactivated }
 }
