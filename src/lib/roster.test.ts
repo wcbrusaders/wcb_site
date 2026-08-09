@@ -40,19 +40,55 @@ test('syncRoster upserts fetched rows and deactivates absent members', async () 
     { emailAddress: 'b@x.com', googleEmail: null, name: 'B', tier: null, current: false, isBoard: false, partnerEmail: null, expires: null },
   ]
   const upserts: string[] = []
-  const deactivated: string[] = []
+  let updateManyWhereIn: string[] = []
   const db = {
     member: {
       upsert: async ({ where }: any) => { upserts.push(where.emailAddress) },
       updateMany: async ({ where }: any) => {
-        deactivated.push('c@x.com')
-        return { count: 1 }
+        // Capture the actual `in` list from the where clause
+        updateManyWhereIn = where.emailAddress.in ?? []
+        return { count: updateManyWhereIn.length }
       },
-      findMany: async () => [{ emailAddress: 'c@x.com' }],
+      findMany: async () => [
+        { emailAddress: 'a@x.com' },
+        { emailAddress: 'b@x.com' },
+        { emailAddress: 'c@x.com' }, // absent from fetch
+      ],
+    },
+  }
+  const res = await syncRoster({ fetchAll: async () => fetched, db: db as any })
+  // Upsert called for each fetched row
+  expect(upserts).toEqual(['a@x.com', 'b@x.com'])
+  expect(res.synced).toBe(2)
+  // Deactivation: only absent member c@x.com, not the present ones
+  expect(updateManyWhereIn).toEqual(['c@x.com'])
+  expect(res.deactivated).toBe(1)
+})
+
+test('syncRoster does not call updateMany when no absent members', async () => {
+  const { syncRoster } = await import('./roster')
+  const fetched = [
+    { emailAddress: 'a@x.com', googleEmail: null, name: 'A', tier: null, current: true, isBoard: false, partnerEmail: null, expires: null },
+    { emailAddress: 'b@x.com', googleEmail: null, name: 'B', tier: null, current: false, isBoard: false, partnerEmail: null, expires: null },
+  ]
+  const upserts: string[] = []
+  let updateManyWasCalled = false
+  const db = {
+    member: {
+      upsert: async ({ where }: any) => { upserts.push(where.emailAddress) },
+      updateMany: async () => {
+        updateManyWasCalled = true
+        return { count: 0 }
+      },
+      findMany: async () => [
+        { emailAddress: 'a@x.com' },
+        { emailAddress: 'b@x.com' },
+      ],
     },
   }
   const res = await syncRoster({ fetchAll: async () => fetched, db: db as any })
   expect(upserts).toEqual(['a@x.com', 'b@x.com'])
   expect(res.synced).toBe(2)
-  expect(res.deactivated).toBe(1)
+  expect(updateManyWasCalled).toBe(false)
+  expect(res.deactivated).toBe(0)
 })
