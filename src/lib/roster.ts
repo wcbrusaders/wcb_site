@@ -1,3 +1,5 @@
+import { google } from 'googleapis'
+
 export type MemberRecord = {
   emailAddress: string
   googleEmail: string | null
@@ -42,4 +44,37 @@ export function mapSheetRow(headers: string[], row: string[]): MemberRecord | nu
     partnerEmail: p ? normalizeEmail(p) : null,
     expires: expires && !isNaN(expires.getTime()) ? expires : null,
   }
+}
+
+const SHEET_ID = process.env.MEMBER_ROSTER_SHEET_ID
+const TAB = 'Sheet1'
+
+function sheetsClient() {
+  const oauth = new google.auth.OAuth2(
+    process.env.GOOGLE_CLIENT_ID,
+    process.env.GOOGLE_CLIENT_SECRET,
+  )
+  oauth.setCredentials({ refresh_token: process.env.GOOGLE_REFRESH_TOKEN })
+  return google.sheets({ version: 'v4', auth: oauth })
+}
+
+export async function fetchAllRosterRows(): Promise<MemberRecord[]> {
+  if (!SHEET_ID) throw new Error('MEMBER_ROSTER_SHEET_ID not set')
+  const sheets = sheetsClient()
+  const res = await sheets.spreadsheets.values.get({
+    spreadsheetId: SHEET_ID,
+    range: TAB,
+  })
+  const values = res.data.values ?? []
+  if (values.length < 2) return []
+  const headers = values[0].map((h) => String(h).trim())
+  return values.slice(1)
+    .map((r) => mapSheetRow(headers, r.map((c) => String(c ?? ''))))
+    .filter((m): m is MemberRecord => m !== null)
+}
+
+export async function fetchRosterRowByEmail(email: string): Promise<MemberRecord | null> {
+  const target = normalizeEmail(email)
+  const rows = await fetchAllRosterRows()
+  return rows.find((m) => m.emailAddress === target || m.googleEmail === target) ?? null
 }
