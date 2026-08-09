@@ -109,3 +109,41 @@ export async function syncRoster(deps: SyncDeps = {}): Promise<{ synced: number;
   }
   return { synced, deactivated }
 }
+
+type GateDeps = {
+  db?: typeof prisma
+  fetchByEmail?: (email: string) => Promise<MemberRecord | null>
+}
+
+export async function isCurrentMember(email: string, deps: GateDeps = {}): Promise<GateResult> {
+  const db = deps.db ?? prisma
+  const fetchByEmail = deps.fetchByEmail ?? fetchRosterRowByEmail
+  const e = normalizeEmail(email)
+
+  const devList = process.env.DEV_ALLOWED_EMAILS?.split(',').map((x) => x.trim().toLowerCase())
+  if (devList?.includes(e)) {
+    return { ok: true, member: { emailAddress: e, googleEmail: null, name: 'DEV', tier: null, current: true, isBoard: false, partnerEmail: null, expires: null } }
+  }
+
+  try {
+    const hit = await db.member.findFirst({
+      where: { current: true, OR: [{ emailAddress: e }, { googleEmail: e }] },
+    })
+    if (hit) return { ok: true, member: hit as MemberRecord }
+
+    // fallback: live Sheet read for a just-added member
+    const row = await fetchByEmail(e)
+    if (row && row.current) {
+      await db.member.upsert({
+        where: { emailAddress: row.emailAddress },
+        update: { ...row },
+        create: { ...row },
+      })
+      return { ok: true, member: row }
+    }
+    return { ok: false }
+  } catch (err) {
+    console.error('isCurrentMember error (fail-closed):', err)
+    return { ok: false }
+  }
+}

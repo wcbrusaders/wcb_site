@@ -1,5 +1,5 @@
 import { test, expect } from 'vitest'
-import { normalizeEmail, mapSheetRow } from './roster'
+import { normalizeEmail, mapSheetRow, isCurrentMember } from './roster'
 
 test('normalizeEmail lowercases and trims', () => {
   expect(normalizeEmail('  Foo@Bar.COM ')).toBe('foo@bar.com')
@@ -91,4 +91,47 @@ test('syncRoster does not call updateMany when no absent members', async () => {
   expect(res.synced).toBe(2)
   expect(updateManyWasCalled).toBe(false)
   expect(res.deactivated).toBe(0)
+})
+
+// isCurrentMember tests
+
+const M = (over = {}) => ({ emailAddress: 'a@x.com', googleEmail: null, name: 'A', tier: null, current: true, isBoard: false, partnerEmail: null, expires: null, ...over })
+
+function fakeDb(row: any) {
+  return { member: {
+    findFirst: async () => row,
+    upsert: async () => {},
+  } } as any
+}
+
+test('isCurrentMember: DB hit (current) allows', async () => {
+  const r = await isCurrentMember('A@X.com', { db: fakeDb(M()), fetchByEmail: async () => null })
+  expect(r.ok).toBe(true)
+  if (r.ok) {
+    expect(r.member.emailAddress).toBe('a@x.com')
+  }
+})
+
+test('isCurrentMember: DB miss + live fallback finds current -> allow', async () => {
+  const r = await isCurrentMember('new@x.com', { db: fakeDb(null), fetchByEmail: async () => M({ emailAddress: 'new@x.com' }) })
+  expect(r.ok).toBe(true)
+  if (r.ok) {
+    expect(r.member.emailAddress).toBe('new@x.com')
+  }
+})
+
+test('isCurrentMember: DB miss + fallback lapsed -> deny', async () => {
+  const r = await isCurrentMember('lapsed@x.com', { db: fakeDb(null), fetchByEmail: async () => M({ emailAddress: 'lapsed@x.com', current: false }) })
+  expect(r.ok).toBe(false)
+})
+
+test('isCurrentMember: DB miss + fallback stranger -> deny', async () => {
+  const r = await isCurrentMember('nobody@x.com', { db: fakeDb(null), fetchByEmail: async () => null })
+  expect(r.ok).toBe(false)
+})
+
+test('isCurrentMember: fail-closed on error', async () => {
+  const db = { member: { findFirst: async () => { throw new Error('db down') } } } as any
+  const r = await isCurrentMember('a@x.com', { db, fetchByEmail: async () => { throw new Error('sheet down') } })
+  expect(r.ok).toBe(false)
 })
