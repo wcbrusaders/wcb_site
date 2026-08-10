@@ -1,9 +1,9 @@
 import { test, expect, vi, afterEach } from 'vitest'
+import { normalizeEmail, mapSheetRow, isCurrentMember } from './roster'
 
 afterEach(() => {
   vi.unstubAllEnvs()
 })
-import { normalizeEmail, mapSheetRow, isCurrentMember } from './roster'
 
 test('normalizeEmail lowercases and trims', () => {
   expect(normalizeEmail('  Foo@Bar.COM ')).toBe('foo@bar.com')
