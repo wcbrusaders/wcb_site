@@ -68,3 +68,48 @@ model VerificationToken {
   expires    DateTime
   @@unique([identifier, token])
 }
+
+model LoanableItem {
+  id          String   @id @default(cuid())
+  category    String   // "book" | "equipment"
+  title       String
+  description String?
+  addedById   String   // Member.id (no relation)
+  author      String?  // book
+  isbn        String?  // book
+  notes       String?  // equipment
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  copies      Copy[]
+  @@index([category])
+}
+
+model Copy {
+  id               String       @id @default(cuid())
+  itemId           String
+  item             LoanableItem @relation(fields: [itemId], references: [id])
+  status           String       @default("available") // "available" | "out" | "archived"
+  label            String?
+  currentCondition String?      // equipment: last return's conditionIn
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+  loans            Loan[]
+  @@index([itemId, status])
+}
+
+model Loan {
+  id           String   @id @default(cuid())
+  copyId       String
+  copy         Copy     @relation(fields: [copyId], references: [id])
+  memberId     String   // Member.id (no relation)
+  checkedOutAt DateTime @default(now())
+  dueAt        DateTime
+  returnedAt   DateTime?
+  renewedCount Int      @default(0)
+  conditionOut String?
+  noteOut      String?
+  conditionIn  String?
+  noteIn       String?
+  @@index([copyId])
+  @@index([memberId])
+}
