@@ -60,7 +60,7 @@ test('syncRoster upserts fetched rows and deactivates absent members', async () 
       ],
     },
   }
-  const res = await syncRoster({ fetchAll: async () => fetched, db: db as any })
+  const res = await syncRoster({ fetchAll: async () => fetched, db: db as any, fetchGroupMembers: async () => new Set() })
   // Upsert called for each fetched row
   expect(upserts).toEqual(['a@x.com', 'b@x.com'])
   expect(res.synced).toBe(2)
@@ -90,7 +90,7 @@ test('syncRoster does not call updateMany when no absent members', async () => {
       ],
     },
   }
-  const res = await syncRoster({ fetchAll: async () => fetched, db: db as any })
+  const res = await syncRoster({ fetchAll: async () => fetched, db: db as any, fetchGroupMembers: async () => new Set() })
   expect(upserts).toEqual(['a@x.com', 'b@x.com'])
   expect(res.synced).toBe(2)
   expect(updateManyWasCalled).toBe(false)

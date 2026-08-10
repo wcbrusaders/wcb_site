@@ -13,6 +13,7 @@ export default async function MembersPage() {
   if (!session?.user?.email) redirect('/login')
   const email = session.user.email
   const rec = await getMemberDashboard(email)
+  const cards = rec ? visibleCards(rec) : []
 
   return (
     <div className="min-h-screen bg-background">
@@ -32,14 +33,14 @@ export default async function MembersPage() {
           </div>
         ) : (
           <div className="grid gap-4 md:grid-cols-2 mb-12">
-            {visibleCards(rec).includes('membership') && (
+            {cards.includes('membership') && (
               <InfoCard title="Membership">
                 <Row label="Status" value={membershipStatus(rec)} />
                 <Row label="Tier" value={rec.tier} />
                 <Row label="Board" value={rec.isBoard ? 'Board Member' : null} />
               </InfoCard>
             )}
-            {visibleCards(rec).includes('timeline') && (
+            {cards.includes('timeline') && (
               <InfoCard title="Timeline">
                 <Row label="Joined" value={fmtDate(rec.joinDate)} />
                 <Row label="Member for" value={formatTenure(rec.joinDate) || null} />
@@ -47,12 +48,12 @@ export default async function MembersPage() {
                 <Row label="Last payment" value={fmtDate(rec.paymentDate)} />
               </InfoCard>
             )}
-            {visibleCards(rec).includes('connections') && (
+            {cards.includes('connections') && (
               <InfoCard title="Connections">
                 <Row label="Linked partner" value={rec.partnerEmail} />
               </InfoCard>
             )}
-            {visibleCards(rec).includes('access') && (
+            {cards.includes('access') && (
               <InfoCard title="Resources Access">
                 <Row
                   label="Drive & Calendar"
