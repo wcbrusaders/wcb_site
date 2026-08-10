@@ -1,5 +1,5 @@
 import { test, expect, vi, afterEach } from 'vitest'
-import { normalizeEmail, mapSheetRow, isCurrentMember } from './roster'
+import { normalizeEmail, mapSheetRow, isCurrentMember, syncRoster } from './roster'
 
 afterEach(() => {
   vi.unstubAllEnvs()
@@ -215,4 +215,37 @@ test('mapSheetRow: blank/invalid dashboard fields become null', () => {
   expect(m.paymentDate).toBeNull()   // invalid date -> null (isNaN guard)
   expect(m.joinDate).toBeNull()      // blank -> null
   expect(m.referredBy).toBeNull()
+})
+
+// resourceAccess from Google Group membership (fail-soft)
+
+test('syncRoster sets resourceAccess from group membership', async () => {
+  const upserts: any[] = []
+  const db = { member: {
+    upsert: async (a: any) => { upserts.push(a); },
+    findMany: async () => [],
+    updateMany: async () => ({ count: 0 }),
+  } } as any
+  const rows = [
+    { emailAddress:'in@x.com', googleEmail:null, name:'A', tier:null, current:true, isBoard:false, partnerEmail:null, expires:null, joinDate:null, paymentDate:null, referredBy:null },
+    { emailAddress:'out@x.com', googleEmail:null, name:'B', tier:null, current:true, isBoard:false, partnerEmail:null, expires:null, joinDate:null, paymentDate:null, referredBy:null },
+  ]
+  await syncRoster({ db, fetchAll: async () => rows, fetchGroupMembers: async () => new Set(['in@x.com']) })
+  const inU = upserts.find(u => u.where.emailAddress === 'in@x.com')
+  const outU = upserts.find(u => u.where.emailAddress === 'out@x.com')
+  expect(inU.update.resourceAccess).toBe(true)
+  expect(outU.update.resourceAccess).toBe(false)  // absent from set -> false, NOT skipped
+})
+
+test('syncRoster is fail-soft when the group read throws (resourceAccess untouched, sheet sync completes)', async () => {
+  const upserts: any[] = []
+  const db = { member: {
+    upsert: async (a: any) => { upserts.push(a); },
+    findMany: async () => [],
+    updateMany: async () => ({ count: 0 }),
+  } } as any
+  const rows = [{ emailAddress:'a@x.com', googleEmail:null, name:'A', tier:null, current:true, isBoard:false, partnerEmail:null, expires:null, joinDate:null, paymentDate:null, referredBy:null }]
+  const r = await syncRoster({ db, fetchAll: async () => rows, fetchGroupMembers: async () => { throw new Error('directory down') } })
+  expect(r.synced).toBe(1)                                  // sheet sync still completed
+  expect('resourceAccess' in upserts[0].update).toBe(false) // omitted -> left unchanged
 })
