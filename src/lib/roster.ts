@@ -10,6 +10,9 @@ export type MemberRecord = {
   isBoard: boolean
   partnerEmail: string | null
   expires: Date | null
+  joinDate: Date | null
+  paymentDate: Date | null
+  referredBy: string | null
 }
 
 export type GateResult = { ok: false } | { ok: true; member: MemberRecord }
@@ -28,13 +31,18 @@ function cell(headers: string[], row: string[], name: string): string {
   return i >= 0 ? (row[i] ?? '').trim() : ''
 }
 
+function parseDate(v: string): Date | null {
+  if (!v) return null
+  const d = new Date(v)
+  return isNaN(d.getTime()) ? null : d
+}
+
 export function mapSheetRow(headers: string[], row: string[]): MemberRecord | null {
   const email = cell(headers, row, 'Email Address')
   if (!email) return null
   const g = cell(headers, row, 'Google Email')
   const p = cell(headers, row, 'Partner Email')
   const exp = cell(headers, row, 'Expires')
-  const expires = exp ? new Date(exp) : null
   return {
     emailAddress: normalizeEmail(email),
     googleEmail: g ? normalizeEmail(g) : null,
@@ -43,7 +51,10 @@ export function mapSheetRow(headers: string[], row: string[]): MemberRecord | nu
     current: truthy(cell(headers, row, 'Current')),
     isBoard: truthy(cell(headers, row, 'Board Member')),
     partnerEmail: p ? normalizeEmail(p) : null,
-    expires: expires && !isNaN(expires.getTime()) ? expires : null,
+    expires: parseDate(exp),
+    joinDate: parseDate(cell(headers, row, 'Join Date')),
+    paymentDate: parseDate(cell(headers, row, 'Payment Date')),
+    referredBy: cell(headers, row, 'Referred By') || null,
   }
 }
 
@@ -94,8 +105,8 @@ export async function syncRoster(deps: SyncDeps = {}): Promise<{ synced: number;
   for (const m of rows) {
     await db.member.upsert({
       where: { emailAddress: m.emailAddress },
-      update: { googleEmail: m.googleEmail, name: m.name, tier: m.tier, current: m.current, isBoard: m.isBoard, partnerEmail: m.partnerEmail, expires: m.expires },
-      create: { emailAddress: m.emailAddress, googleEmail: m.googleEmail, name: m.name, tier: m.tier, current: m.current, isBoard: m.isBoard, partnerEmail: m.partnerEmail, expires: m.expires },
+      update: { googleEmail: m.googleEmail, name: m.name, tier: m.tier, current: m.current, isBoard: m.isBoard, partnerEmail: m.partnerEmail, expires: m.expires, joinDate: m.joinDate, paymentDate: m.paymentDate, referredBy: m.referredBy },
+      create: { emailAddress: m.emailAddress, googleEmail: m.googleEmail, name: m.name, tier: m.tier, current: m.current, isBoard: m.isBoard, partnerEmail: m.partnerEmail, expires: m.expires, joinDate: m.joinDate, paymentDate: m.paymentDate, referredBy: m.referredBy },
     })
     seen.add(m.emailAddress)
     synced++
@@ -126,7 +137,7 @@ export async function isCurrentMember(email: string, deps: GateDeps = {}): Promi
       ? process.env.DEV_ALLOWED_EMAILS?.split(',').map((x) => x.trim().toLowerCase())
       : undefined
   if (devList?.includes(e)) {
-    return { ok: true, member: { emailAddress: e, googleEmail: null, name: 'DEV', tier: null, current: true, isBoard: false, partnerEmail: null, expires: null } }
+    return { ok: true, member: { emailAddress: e, googleEmail: null, name: 'DEV', tier: null, current: true, isBoard: false, partnerEmail: null, expires: null, joinDate: null, paymentDate: null, referredBy: null } }
   }
 
   try {
