@@ -141,3 +141,35 @@ test('renewLoan: at cap -> cap_reached, no change', async () => {
 })
 
 test('canRenew: seam returns true', () => { expect(canRenew({ id: 'c1' })).toBe(true) })
+
+import { addTitle, archiveCopy } from './lending'
+
+test('addTitle: creates title + N available copies with addedById', async () => {
+  let title: any = null; const copies: any[] = []
+  const db = { loanableItem: { create: async ({ data }: any) => { title = data; return { id: 'T1' } } },
+    copy: { create: async ({ data }: any) => { copies.push(data); return { id: 'c' + copies.length } } } } as any
+  const r = await addTitle({ category: 'book', title: 'Dune', author: 'H', isbn: '1', copies: 3 }, 'officer', { db })
+  expect(r.id).toBe('T1')
+  expect(title.addedById).toBe('officer')
+  expect(copies.length).toBe(3)
+  expect(copies.every(c => c.status === 'available' && c.itemId === 'T1')).toBe(true)
+})
+
+test('addTitle: defaults to 1 copy; equipment seeds currentCondition', async () => {
+  const copies: any[] = []
+  const db = { loanableItem: { create: async () => ({ id: 'T1' }) },
+    copy: { create: async ({ data }: any) => { copies.push(data); return { id: 'c1' } } } } as any
+  await addTitle({ category: 'equipment', title: 'pH Meter', initialCondition: 'New' }, 'officer', { db })
+  expect(copies.length).toBe(1)
+  expect(copies[0].currentCondition).toBe('New')
+})
+
+test('archiveCopy: available -> archived; out -> blocked (no update)', async () => {
+  const okDb = { copy: { findUnique: async () => ({ id: 'c1', status: 'available' }), update: async ({ data }: any) => data } } as any
+  expect((await archiveCopy('c1', { db: okDb })).ok).toBe(true)
+  let updated = false
+  const outDb = { copy: { findUnique: async () => ({ id: 'c1', status: 'out' }), update: async () => { updated = true; return {} } } } as any
+  const r = await archiveCopy('c1', { db: outDb })
+  expect(r.ok).toBe(false); if (!r.ok) expect(r.reason).toBe('out')
+  expect(updated).toBe(false)
+})

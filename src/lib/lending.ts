@@ -124,3 +124,50 @@ export async function renewLoan(loanId: string, actingMemberId: string, deps: { 
   await db.loan.update({ where: { id: loanId }, data: { dueAt, renewedCount: loan.renewedCount + 1 } })
   return { ok: true, dueAt }
 }
+
+export type NewTitleInput = {
+  category: ItemCategory; title: string; description?: string
+  author?: string; isbn?: string; notes?: string
+  copies?: number; initialCondition?: Condition
+}
+
+export async function addTitle(input: NewTitleInput, addedById: string, deps: { db?: typeof prisma } = {}): Promise<{ id: string }> {
+  const db = deps.db ?? prisma
+  const title = await db.loanableItem.create({
+    data: {
+      category: input.category, title: input.title, description: input.description ?? null,
+      author: input.author ?? null, isbn: input.isbn ?? null, notes: input.notes ?? null, addedById,
+    },
+  })
+  const n = Math.max(1, input.copies ?? 1)
+  const seed = input.category === 'equipment' ? (input.initialCondition ?? null) : null
+  for (let i = 0; i < n; i++) {
+    await db.copy.create({ data: { itemId: title.id, status: 'available', currentCondition: seed } })
+  }
+  return { id: title.id }
+}
+
+export async function addCopies(itemId: string, count: number, initialCondition: Condition | undefined, deps: { db?: typeof prisma } = {}): Promise<{ added: number }> {
+  const db = deps.db ?? prisma
+  const n = Math.max(1, count)
+  for (let i = 0; i < n; i++) {
+    await db.copy.create({ data: { itemId, status: 'available', currentCondition: initialCondition ?? null } })
+  }
+  return { added: n }
+}
+
+export async function editTitle(id: string, patch: Partial<Omit<NewTitleInput, 'category' | 'copies' | 'initialCondition'>>, deps: { db?: typeof prisma } = {}): Promise<void> {
+  const db = deps.db ?? prisma
+  await db.loanableItem.update({ where: { id }, data: { ...patch } })
+}
+
+export type ArchiveResult = { ok: true } | { ok: false; reason: 'not_found' | 'out' }
+
+export async function archiveCopy(copyId: string, deps: { db?: typeof prisma } = {}): Promise<ArchiveResult> {
+  const db = deps.db ?? prisma
+  const copy = await db.copy.findUnique({ where: { id: copyId } })
+  if (!copy) return { ok: false, reason: 'not_found' }
+  if (copy.status === 'out') return { ok: false, reason: 'out' }
+  await db.copy.update({ where: { id: copyId }, data: { status: 'archived' } })
+  return { ok: true }
+}
