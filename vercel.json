@@ -3,6 +3,6 @@
   "buildCommand": "npm run build",
   "outputDirectory": ".next",
   "crons": [
-    { "path": "/api/cron/sync-roster", "schedule": "*/15 * * * *" }
+    { "path": "/api/cron/sync-roster", "schedule": "0 4 * * *" }
   ]
 }
