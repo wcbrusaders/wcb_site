@@ -81,3 +81,46 @@ export async function checkoutTitle(
   }
   return { ok: false, reason: 'unavailable' }
 }
+
+export const RENEW_CAP = 2
+
+// Holds seam: today any holder may renew. A future hold queue overrides this
+// to return false when someone is waiting on the copy.
+export function canRenew(_copy: { id: string }): boolean { return true }
+
+export type ReturnResult = { ok: true } | { ok: false; reason: 'not_found' | 'forbidden' | 'already_returned' }
+
+export async function returnLoan(
+  loanId: string, actingMemberId: string, isBoard: boolean,
+  cond: { conditionIn?: Condition; noteIn?: string } = {},
+  deps: { db?: typeof prisma; now?: Date } = {},
+): Promise<ReturnResult> {
+  const db = deps.db ?? prisma
+  const now = deps.now ?? new Date()
+  const loan = await db.loan.findUnique({ where: { id: loanId }, include: { copy: { include: { item: true } } } })
+  if (!loan) return { ok: false, reason: 'not_found' }
+  if (loan.returnedAt) return { ok: false, reason: 'already_returned' }
+  if (!isBoard && loan.memberId !== actingMemberId) return { ok: false, reason: 'forbidden' }
+  const isEquip = loan.copy?.item?.category === 'equipment'
+  await db.loan.update({ where: { id: loanId }, data: { returnedAt: now, ...(isEquip && cond.conditionIn ? { conditionIn: cond.conditionIn, noteIn: cond.noteIn ?? null } : {}) } })
+  await db.copy.update({ where: { id: loan.copyId }, data: { status: 'available', ...(isEquip && cond.conditionIn ? { currentCondition: cond.conditionIn } : {}) } })
+  return { ok: true }
+}
+
+export type RenewResult =
+  | { ok: true; dueAt: Date }
+  | { ok: false; reason: 'not_found' | 'forbidden' | 'already_returned' | 'cap_reached' | 'blocked' }
+
+export async function renewLoan(loanId: string, actingMemberId: string, deps: { db?: typeof prisma } = {}): Promise<RenewResult> {
+  const db = deps.db ?? prisma
+  const loan = await db.loan.findUnique({ where: { id: loanId }, include: { copy: { include: { item: true } } } })
+  if (!loan) return { ok: false, reason: 'not_found' }
+  if (loan.returnedAt) return { ok: false, reason: 'already_returned' }
+  if (loan.memberId !== actingMemberId) return { ok: false, reason: 'forbidden' }
+  if (loan.renewedCount >= RENEW_CAP) return { ok: false, reason: 'cap_reached' }
+  if (!canRenew({ id: loan.copyId })) return { ok: false, reason: 'blocked' }
+  const days = DUE_DAYS[(loan.copy?.item?.category as ItemCategory)] ?? 14
+  const dueAt = new Date(loan.dueAt.getTime() + days * 86_400_000)
+  await db.loan.update({ where: { id: loanId }, data: { dueAt, renewedCount: loan.renewedCount + 1 } })
+  return { ok: true, dueAt }
+}

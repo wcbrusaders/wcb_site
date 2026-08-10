@@ -1,6 +1,7 @@
 import { test, expect } from 'vitest'
 import { coverUrl, listTitles } from './lending'
 import { checkoutTitle } from './lending'
+import { returnLoan, renewLoan, canRenew, RENEW_CAP } from './lending'
 
 test('coverUrl: valid ISBN -> Open Library URL; trims; null/blank -> null', () => {
   expect(coverUrl(' 9780312429980 ')).toBe('https://covers.openlibrary.org/b/isbn/9780312429980-L.jpg')
@@ -89,3 +90,54 @@ test('checkoutTitle: equipment records conditionOut, dueAt now+14d', async () =>
   if (r.ok) expect(r.dueAt.toISOString().slice(0,10)).toBe('2026-08-24')
   expect(db._created[0].conditionOut).toBe('Good')
 })
+
+function fakeLoanDb(loan: any) {
+  const upd: any = { loan: {}, copy: {} }
+  return {
+    _upd: upd,
+    loan: { findUnique: async () => loan, update: async ({ data }: any) => { Object.assign(upd.loan, data); return { ...loan, ...data } } },
+    copy: { update: async ({ data }: any) => { Object.assign(upd.copy, data); return data } },
+  } as any
+}
+
+test('returnLoan: holder returns equipment -> returnedAt set, copy available + currentCondition updated', async () => {
+  const loan = { id: 'L1', copyId: 'c1', memberId: 'm1', returnedAt: null, copy: { id: 'c1', item: { category: 'equipment' } } }
+  const db = fakeLoanDb(loan)
+  const r = await returnLoan('L1', 'm1', false, { conditionIn: 'Fair', noteIn: 'scuffed' }, { db, now: new Date('2026-08-10') })
+  expect(r.ok).toBe(true)
+  expect(db._upd.loan.conditionIn).toBe('Fair')
+  expect(db._upd.copy.status).toBe('available')
+  expect(db._upd.copy.currentCondition).toBe('Fair')
+})
+
+test('returnLoan: non-holder non-board -> forbidden, no change', async () => {
+  const loan = { id: 'L1', copyId: 'c1', memberId: 'm1', returnedAt: null, copy: { id: 'c1', item: { category: 'book' } } }
+  const db = fakeLoanDb(loan)
+  const r = await returnLoan('L1', 'other', false, {}, { db })
+  expect(r.ok).toBe(false); if (!r.ok) expect(r.reason).toBe('forbidden')
+  expect(db._upd.loan.returnedAt).toBeUndefined()
+})
+
+test('returnLoan: board returns anyone', async () => {
+  const loan = { id: 'L1', copyId: 'c1', memberId: 'm1', returnedAt: null, copy: { id: 'c1', item: { category: 'book' } } }
+  const db = fakeLoanDb(loan)
+  expect((await returnLoan('L1', 'officer', true, {}, { db, now: new Date('2026-08-10') })).ok).toBe(true)
+})
+
+test('renewLoan: holder under cap -> extends dueAt +30d (book), bumps count', async () => {
+  const loan = { id: 'L1', copyId: 'c1', memberId: 'm1', returnedAt: null, renewedCount: 0, dueAt: new Date('2026-08-20'), copy: { id: 'c1', item: { category: 'book' } } }
+  const db = fakeLoanDb(loan)
+  const r = await renewLoan('L1', 'm1', { db })
+  expect(r.ok).toBe(true); if (r.ok) expect(r.dueAt.toISOString().slice(0,10)).toBe('2026-09-19')
+  expect(db._upd.loan.renewedCount).toBe(1)
+})
+
+test('renewLoan: at cap -> cap_reached, no change', async () => {
+  const loan = { id: 'L1', copyId: 'c1', memberId: 'm1', returnedAt: null, renewedCount: RENEW_CAP, dueAt: new Date('2026-08-20'), copy: { id: 'c1', item: { category: 'book' } } }
+  const db = fakeLoanDb(loan)
+  const r = await renewLoan('L1', 'm1', { db })
+  expect(r.ok).toBe(false); if (!r.ok) expect(r.reason).toBe('cap_reached')
+  expect(db._upd.loan.renewedCount).toBeUndefined()
+})
+
+test('canRenew: seam returns true', () => { expect(canRenew({ id: 'c1' })).toBe(true) })
