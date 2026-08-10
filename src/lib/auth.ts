@@ -2,7 +2,7 @@ import NextAuth from 'next-auth'
 import type { EmailConfig } from '@auth/core/providers/email'
 import { PrismaAdapter } from '@auth/prisma-adapter'
 import { prisma } from './db'
-import { isCurrentMember } from './roster'
+import { isCurrentMember, normalizeEmail } from './roster'
 import { sendLoginCode } from './email'
 
 // Augment the session's user with member info looked up from our own `Member` table.
@@ -72,8 +72,9 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     signIn: makeSignInCallback({ isMember: isCurrentMember }),
     async session({ session }) {
       if (session.user?.email) {
+        const e = normalizeEmail(session.user.email)
         const m = await prisma.member.findFirst({
-          where: { OR: [{ emailAddress: session.user.email }, { googleEmail: session.user.email }] },
+          where: { OR: [{ emailAddress: e }, { googleEmail: e }] },
           select: { id: true, tier: true, isBoard: true },
         })
         session.user.memberId = m?.id

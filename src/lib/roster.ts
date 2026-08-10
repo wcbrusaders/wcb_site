@@ -120,7 +120,11 @@ export async function isCurrentMember(email: string, deps: GateDeps = {}): Promi
   const fetchByEmail = deps.fetchByEmail ?? fetchRosterRowByEmail
   const e = normalizeEmail(email)
 
-  const devList = process.env.DEV_ALLOWED_EMAILS?.split(',').map((x) => x.trim().toLowerCase())
+  // DEV bypass: never honored in production, even if the env var leaks into prod.
+  const devList =
+    process.env.NODE_ENV !== 'production'
+      ? process.env.DEV_ALLOWED_EMAILS?.split(',').map((x) => x.trim().toLowerCase())
+      : undefined
   if (devList?.includes(e)) {
     return { ok: true, member: { emailAddress: e, googleEmail: null, name: 'DEV', tier: null, current: true, isBoard: false, partnerEmail: null, expires: null } }
   }

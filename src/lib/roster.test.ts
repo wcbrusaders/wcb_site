@@ -1,4 +1,8 @@
-import { test, expect } from 'vitest'
+import { test, expect, vi, afterEach } from 'vitest'
+
+afterEach(() => {
+  vi.unstubAllEnvs()
+})
 import { normalizeEmail, mapSheetRow, isCurrentMember } from './roster'
 
 test('normalizeEmail lowercases and trims', () => {
@@ -166,5 +170,29 @@ test('isCurrentMember: DB miss + fallback stranger -> deny', async () => {
 test('isCurrentMember: fail-closed on error', async () => {
   const db = { member: { findFirst: async () => { throw new Error('db down') } } } as any
   const r = await isCurrentMember('a@x.com', { db, fetchByEmail: async () => { throw new Error('sheet down') } })
+  expect(r.ok).toBe(false)
+})
+
+// DEV_ALLOWED_EMAILS bypass: works in dev, MUST be inert in production.
+// A db/fetch that throws proves the bypass is short-circuiting BEFORE any roster check.
+const throwingDeps = {
+  db: { member: { findFirst: async () => { throw new Error('should not query') } } } as any,
+  fetchByEmail: async () => { throw new Error('should not fetch') },
+}
+
+test('isCurrentMember: DEV_ALLOWED_EMAILS bypass allows a listed email in non-production', async () => {
+  vi.stubEnv('NODE_ENV', 'development')
+  vi.stubEnv('DEV_ALLOWED_EMAILS', 'Dev@Example.com')
+  const r = await isCurrentMember('dev@example.com', throwingDeps)
+  expect(r.ok).toBe(true) // bypassed the (throwing) roster check entirely
+})
+
+test('isCurrentMember: DEV_ALLOWED_EMAILS bypass is IGNORED in production even when set', async () => {
+  vi.stubEnv('NODE_ENV', 'production')
+  vi.stubEnv('DEV_ALLOWED_EMAILS', 'dev@example.com')
+  // In prod the bypass must not fire, so the gate falls through to the roster check.
+  // A non-throwing db that returns no match must then DENY (not allow via the dev list).
+  const db = { member: { findFirst: async () => null, upsert: async () => {} } } as any
+  const r = await isCurrentMember('dev@example.com', { db, fetchByEmail: async () => null })
   expect(r.ok).toBe(false)
 })
