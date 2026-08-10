@@ -105,8 +105,10 @@ export async function returnLoan(
   if (loan.returnedAt) return { ok: false, reason: 'already_returned' }
   if (!isBoard && loan.memberId !== actingMemberId) return { ok: false, reason: 'forbidden' }
   const isEquip = loan.copy?.item?.category === 'equipment'
-  await db.loan.update({ where: { id: loanId }, data: { returnedAt: now, ...(isEquip && cond.conditionIn ? { conditionIn: cond.conditionIn, noteIn: cond.noteIn ?? null } : {}) } })
-  await db.copy.update({ where: { id: loan.copyId }, data: { status: 'available', ...(isEquip && cond.conditionIn ? { currentCondition: cond.conditionIn } : {}) } })
+  await db.$transaction(async (tx: any) => {
+    await tx.loan.update({ where: { id: loanId }, data: { returnedAt: now, ...(isEquip && cond.conditionIn ? { conditionIn: cond.conditionIn, noteIn: cond.noteIn ?? null } : {}) } })
+    await tx.copy.update({ where: { id: loan.copyId }, data: { status: 'available', ...(isEquip && cond.conditionIn ? { currentCondition: cond.conditionIn } : {}) } })
+  })
   return { ok: true }
 }
 

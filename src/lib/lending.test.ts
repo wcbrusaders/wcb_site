@@ -106,10 +106,15 @@ test('checkoutTitle: equipment records conditionOut, dueAt now+14d', async () =>
 
 function fakeLoanDb(loan: any) {
   const upd: any = { loan: {}, copy: {} }
+  const txLike = {
+    loan: { update: async ({ data }: any) => { Object.assign(upd.loan, data); return { ...loan, ...data } } },
+    copy: { update: async ({ data }: any) => { Object.assign(upd.copy, data); return data } },
+  }
   return {
     _upd: upd,
-    loan: { findUnique: async () => loan, update: async ({ data }: any) => { Object.assign(upd.loan, data); return { ...loan, ...data } } },
-    copy: { update: async ({ data }: any) => { Object.assign(upd.copy, data); return data } },
+    loan: { findUnique: async () => loan, update: txLike.loan.update },
+    copy: { update: txLike.copy.update },
+    $transaction: async (fn: any) => fn(txLike),
   } as any
 }
 
