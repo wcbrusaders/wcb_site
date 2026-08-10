@@ -47,3 +47,4 @@ seed-command.local.txt
 *.out
 .deploy-*.out
 .vercel/
+sync-cron-command.local.txt
