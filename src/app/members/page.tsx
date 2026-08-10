@@ -1,8 +1,12 @@
+import { redirect } from 'next/navigation'
 import { auth } from '@/lib/auth'
 
 export default async function MembersPage() {
   const session = await auth()
-  const user = session?.user
+  // Defense-in-depth: middleware already gates /members/*, but never render
+  // this page without a session (e.g. if the matcher is ever misconfigured).
+  if (!session?.user) redirect('/login')
+  const user = session.user
 
   return (
     <div className="min-h-screen bg-background">
