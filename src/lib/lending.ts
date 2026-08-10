@@ -46,3 +46,38 @@ export async function listTitles(
   }
   return views
 }
+
+export const DUE_DAYS: Record<ItemCategory, number> = { book: 30, equipment: 14 }
+
+export type CheckoutResult =
+  | { ok: true; loanId: string; copyId: string; dueAt: Date }
+  | { ok: false; reason: 'unavailable' | 'not_found' }
+
+export async function checkoutTitle(
+  itemId: string,
+  memberId: string,
+  cond: { conditionOut?: Condition; noteOut?: string } = {},
+  deps: { db?: typeof prisma; now?: Date } = {},
+): Promise<CheckoutResult> {
+  const db = deps.db ?? prisma
+  const now = deps.now ?? new Date()
+  const item = await db.loanableItem.findUnique({ where: { id: itemId } })
+  if (!item) return { ok: false, reason: 'not_found' }
+  const days = DUE_DAYS[item.category as ItemCategory] ?? 14
+  const dueAt = new Date(now.getTime() + days * 86_400_000)
+  const isEquip = item.category === 'equipment'
+
+  const candidates = await db.copy.findMany({ where: { itemId, status: 'available' } })
+  for (const c of candidates as any[]) {
+    const result = await db.$transaction(async (tx: any) => {
+      const claim = await tx.copy.updateMany({ where: { id: c.id, status: 'available' }, data: { status: 'out' } })
+      if (claim.count !== 1) return null // lost this copy; try the next candidate
+      const loan = await tx.loan.create({
+        data: { copyId: c.id, memberId, dueAt, ...(isEquip && cond.conditionOut ? { conditionOut: cond.conditionOut, noteOut: cond.noteOut ?? null } : {}) },
+      })
+      return { loanId: loan.id, copyId: c.id }
+    })
+    if (result) return { ok: true, loanId: result.loanId, copyId: result.copyId, dueAt }
+  }
+  return { ok: false, reason: 'unavailable' }
+}

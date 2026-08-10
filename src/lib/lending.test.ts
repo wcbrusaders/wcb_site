@@ -1,5 +1,6 @@
 import { test, expect } from 'vitest'
 import { coverUrl, listTitles } from './lending'
+import { checkoutTitle } from './lending'
 
 test('coverUrl: valid ISBN -> Open Library URL; trims; null/blank -> null', () => {
   expect(coverUrl(' 9780312429980 ')).toBe('https://covers.openlibrary.org/b/isbn/9780312429980-L.jpg')
@@ -29,4 +30,62 @@ test('listTitles: per-title available/total counts, excludes all-archived, maps 
   expect(out[0].availableCount).toBe(1)
   expect(out[0].totalCount).toBe(3) // non-archived copies only (c1,c2,c3 are non-archived => 3)
   expect(out[0].myLoan?.loanId).toBe('L2')
+})
+
+function fakeCheckoutDb(category: string, availableCopyIds: string[], claimable: Set<string>) {
+  const created: any[] = []
+  const flipped: string[] = []
+  return {
+    _created: created, _flipped: flipped,
+    loanableItem: { findUnique: async () => ({ id: 'T1', category }) },
+    copy: {
+      findMany: async ({ where }: any) => {
+        expect(where.itemId).toBe('T1'); expect(where.status).toBe('available')
+        return availableCopyIds.map(id => ({ id }))
+      },
+      updateMany: async ({ where }: any) => {
+        // claim succeeds only if this copy is in `claimable`
+        if (where.status === 'available' && claimable.has(where.id)) { flipped.push(where.id); return { count: 1 } }
+        return { count: 0 }
+      },
+    },
+    loan: { create: async ({ data }: any) => { created.push(data); return { id: 'L1', ...data } } },
+    $transaction: async (fn: any) => fn({
+      copy: { updateMany: async ({ where }: any) => (where.status === 'available' && claimable.has(where.id) ? (flipped.push(where.id), { count: 1 }) : { count: 0 }) },
+      loan: { create: async ({ data }: any) => { created.push(data); return { id: 'L1', ...data } } },
+    }),
+  } as any
+}
+
+const NOW = new Date('2026-08-10T00:00:00Z')
+
+test('checkoutTitle: book with an available copy -> claims it, loan created, dueAt now+30d', async () => {
+  const db = fakeCheckoutDb('book', ['c1', 'c2'], new Set(['c1']))
+  const r = await checkoutTitle('T1', 'm1', {}, { db, now: NOW })
+  expect(r.ok).toBe(true)
+  if (r.ok) { expect(r.copyId).toBe('c1'); expect(r.dueAt.toISOString().slice(0,10)).toBe('2026-09-09') }
+  expect(db._created[0].conditionOut).toBeUndefined()
+})
+
+test('checkoutTitle: race — first candidate lost, retries next available copy', async () => {
+  const db = fakeCheckoutDb('book', ['c1', 'c2'], new Set(['c2'])) // c1 not claimable (taken), c2 is
+  const r = await checkoutTitle('T1', 'm1', {}, { db, now: NOW })
+  expect(r.ok).toBe(true)
+  if (r.ok) expect(r.copyId).toBe('c2')
+})
+
+test('checkoutTitle: no copies claimable -> unavailable, no loan', async () => {
+  const db = fakeCheckoutDb('book', ['c1'], new Set()) // c1 lost the race
+  const r = await checkoutTitle('T1', 'm1', {}, { db, now: NOW })
+  expect(r.ok).toBe(false)
+  if (!r.ok) expect(r.reason).toBe('unavailable')
+  expect(db._created.length).toBe(0)
+})
+
+test('checkoutTitle: equipment records conditionOut, dueAt now+14d', async () => {
+  const db = fakeCheckoutDb('equipment', ['c1'], new Set(['c1']))
+  const r = await checkoutTitle('T1', 'm1', { conditionOut: 'Good', noteOut: 'clean' }, { db, now: NOW })
+  expect(r.ok).toBe(true)
+  if (r.ok) expect(r.dueAt.toISOString().slice(0,10)).toBe('2026-08-24')
+  expect(db._created[0].conditionOut).toBe('Good')
 })
