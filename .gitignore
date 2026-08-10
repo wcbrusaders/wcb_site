@@ -48,3 +48,4 @@ seed-command.local.txt
 .deploy-*.out
 .vercel/
 sync-cron-command.local.txt
+lending-seed.local.json
