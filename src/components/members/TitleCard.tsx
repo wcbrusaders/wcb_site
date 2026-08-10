@@ -2,16 +2,24 @@
 import { useState, useTransition } from 'react'
 import type { TitleView, Condition } from '@/lib/lending'
 import { coverUrl } from '@/lib/lending'
-import { checkoutAction, returnAction, renewAction } from '@/app/members/_actions/lending-actions'
+import {
+  checkoutAction, returnAction, renewAction,
+  addCopiesAction, editTitleAction, archiveCopyAction,
+} from '@/app/members/_actions/lending-actions'
 
 const CONDITIONS = ['New', 'Good', 'Fair', 'Poor', 'Damaged'] as const
 
-// `isBoard` is accepted for interface parity with the page (board-only affordances
-// like per-copy archive are a later refinement per the v1 scope note); unused here.
-export function TitleCard({ item }: { item: TitleView; isBoard: boolean }) {
+type EditFields = { title: string; author: string; isbn: string; description: string; notes: string }
+
+export function TitleCard({ item, isBoard }: { item: TitleView; isBoard: boolean }) {
   const [pending, start] = useTransition()
   const [err, setErr] = useState<string | null>(null)
   const [cond, setCond] = useState<string>('Good')
+  const [editing, setEditing] = useState(false)
+  const [edit, setEdit] = useState<EditFields>({
+    title: item.title, author: item.author ?? '', isbn: item.isbn ?? '',
+    description: item.description ?? '', notes: item.notes ?? '',
+  })
   const isEquip = item.category === 'equipment'
   const cover = coverUrl(item.isbn)
   // eslint-disable-next-line react-hooks/purity -- "overdue" is inherently time-dependent; a stale read here is harmless
@@ -20,6 +28,20 @@ export function TitleCard({ item }: { item: TitleView; isBoard: boolean }) {
   function run(fn: () => Promise<{ ok: boolean; reason?: string }>) {
     setErr(null)
     start(async () => { const r = await fn(); if (!r.ok) setErr(r.reason === 'unavailable' ? 'Just taken — refresh.' : (r.reason ?? 'Action failed.')) })
+  }
+
+  function saveEdit() {
+    setErr(null)
+    start(async () => {
+      await editTitleAction(item.id, {
+        title: edit.title,
+        description: edit.description || undefined,
+        author: !isEquip ? (edit.author || undefined) : undefined,
+        isbn: !isEquip ? (edit.isbn || undefined) : undefined,
+        notes: isEquip ? (edit.notes || undefined) : undefined,
+      })
+      setEditing(false)
+    })
   }
 
   return (
@@ -53,6 +75,46 @@ export function TitleCard({ item }: { item: TitleView; isBoard: boolean }) {
           </>
         )}
       </div>
+
+      {isBoard && (
+        <div className="mt-4 pt-4 border-t border-border/40 flex flex-wrap gap-2">
+          <button disabled={pending} onClick={() => run(() => addCopiesAction(item.id, 1, isEquip ? (cond as Condition) : undefined))}
+            className="border border-border px-4 py-1.5 rounded-full text-sm disabled:opacity-50">Add copy</button>
+          <button disabled={pending} onClick={() => setEditing(v => !v)}
+            className="border border-border px-4 py-1.5 rounded-full text-sm disabled:opacity-50">Edit</button>
+          <button disabled={pending || !item.archivableCopyId}
+            onClick={() => item.archivableCopyId && run(() => archiveCopyAction(item.archivableCopyId!))}
+            className="border border-border px-4 py-1.5 rounded-full text-sm disabled:opacity-50">Archive a copy</button>
+        </div>
+      )}
+
+      {isBoard && editing && (
+        <div className="mt-3 space-y-2">
+          <input value={edit.title} onChange={e => setEdit({ ...edit, title: e.target.value })} placeholder="Title"
+            className="w-full rounded-xl border border-border bg-background/60 px-4 py-2 text-sm" />
+          {!isEquip && (
+            <>
+              <input value={edit.author} onChange={e => setEdit({ ...edit, author: e.target.value })} placeholder="Author"
+                className="w-full rounded-xl border border-border bg-background/60 px-4 py-2 text-sm" />
+              <input value={edit.isbn} onChange={e => setEdit({ ...edit, isbn: e.target.value })} placeholder="ISBN"
+                className="w-full rounded-xl border border-border bg-background/60 px-4 py-2 text-sm" />
+            </>
+          )}
+          <input value={edit.description} onChange={e => setEdit({ ...edit, description: e.target.value })} placeholder="Description"
+            className="w-full rounded-xl border border-border bg-background/60 px-4 py-2 text-sm" />
+          {isEquip && (
+            <input value={edit.notes} onChange={e => setEdit({ ...edit, notes: e.target.value })} placeholder="Notes"
+              className="w-full rounded-xl border border-border bg-background/60 px-4 py-2 text-sm" />
+          )}
+          <div className="flex gap-2">
+            <button disabled={pending} onClick={saveEdit}
+              className="bg-accent hover:bg-accent-hover text-background font-medium px-4 py-1.5 rounded-full text-sm disabled:opacity-50">Save</button>
+            <button disabled={pending} onClick={() => setEditing(false)}
+              className="border border-border px-4 py-1.5 rounded-full text-sm disabled:opacity-50">Cancel</button>
+          </div>
+        </div>
+      )}
+
       {err && <p className="mt-2 text-sm text-red-400">{err}</p>}
     </div>
   )

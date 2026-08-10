@@ -31,6 +31,19 @@ test('listTitles: per-title available/total counts, excludes all-archived, maps 
   expect(out[0].availableCount).toBe(1)
   expect(out[0].totalCount).toBe(3) // non-archived copies only (c1,c2,c3 are non-archived => 3)
   expect(out[0].myLoan?.loanId).toBe('L2')
+  expect(out[0].archivableCopyId).toBe('c1') // one available copy -> archivable
+})
+
+test('listTitles: no available copies -> archivableCopyId null', async () => {
+  const titles = [
+    { id: 'T1', category: 'book', title: 'Dune', description: null, author: 'H', isbn: '111', notes: null,
+      copies: [
+        { id: 'c2', status: 'out', loans: [{ id: 'L2', copyId: 'c2', memberId: 'me', dueAt: new Date('2027-01-01'), renewedCount: 1, returnedAt: null }] },
+      ] },
+  ]
+  const db = { loanableItem: { findMany: async () => titles } } as any
+  const out = await listTitles('book', 'me', {}, { db })
+  expect(out[0].archivableCopyId).toBeNull()
 })
 
 function fakeCheckoutDb(category: string, availableCopyIds: string[], claimable: Set<string>) {
