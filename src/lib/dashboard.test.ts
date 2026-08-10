@@ -39,3 +39,44 @@ test('getMemberDashboard: miss returns null', async () => {
   const db = { member: { findFirst: async () => null } } as any
   expect(await getMemberDashboard('nobody@x.com', { db })).toBeNull()
 })
+
+import { membershipStatus, visibleCards } from './dashboard'
+
+const NOW2 = new Date('2026-08-10T00:00:00Z')
+
+test('membershipStatus: inactive when current=false', () => {
+  expect(membershipStatus({ current: false, expires: null }, NOW2)).toBe('Inactive')
+})
+test('membershipStatus: active', () => {
+  expect(membershipStatus({ current: true, expires: new Date('2027-01-01') }, NOW2)).toBe('Active')
+})
+test('membershipStatus: renews soon when expires within 30d', () => {
+  const s = membershipStatus({ current: true, expires: new Date('2026-08-25T00:00:00Z') }, NOW2)
+  expect(s.startsWith('Active — renews soon')).toBe(true)
+})
+
+const EMPTY = {
+  name: null,
+  tier: null,
+  current: false,
+  isBoard: false,
+  expires: null,
+  joinDate: null,
+  paymentDate: null,
+  partnerEmail: null,
+  resourceAccess: null,
+}
+
+test('visibleCards: membership always shown; empty record shows only membership', () => {
+  expect(visibleCards(EMPTY)).toEqual(['membership'])
+})
+test('visibleCards: access hidden when resourceAccess is null (never determined)', () => {
+  expect(visibleCards({ ...EMPTY, resourceAccess: null })).toEqual(['membership'])
+})
+test('visibleCards: access shown when resourceAccess is false (determined: no access)', () => {
+  expect(visibleCards({ ...EMPTY, resourceAccess: false })).toEqual(['membership', 'access'])
+})
+test('visibleCards: timeline/connections/access appear when they have data', () => {
+  const r = { ...EMPTY, joinDate: new Date('2022-01-01'), partnerEmail: 'p@x.com', resourceAccess: true }
+  expect(visibleCards(r)).toEqual(['membership', 'timeline', 'connections', 'access'])
+})

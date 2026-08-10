@@ -35,3 +35,27 @@ export async function getMemberDashboard(
   })
   return m ?? null
 }
+
+export function membershipStatus(
+  r: { current: boolean; expires: Date | null },
+  now: Date = new Date(),
+): string {
+  if (!r.current) return 'Inactive'
+  if (r.expires && !isNaN(r.expires.getTime())) {
+    const days = (r.expires.getTime() - now.getTime()) / 86_400_000
+    if (days >= 0 && days <= 30) {
+      return `Active — renews soon (${r.expires.toISOString().slice(0, 10)})`
+    }
+  }
+  return 'Active'
+}
+
+export type CardKey = 'membership' | 'timeline' | 'connections' | 'access'
+
+export function visibleCards(r: DashboardRecord): CardKey[] {
+  const cards: CardKey[] = ['membership'] // always
+  if (r.joinDate || r.expires || r.paymentDate) cards.push('timeline')
+  if (r.partnerEmail) cards.push('connections')
+  if (r.resourceAccess !== null) cards.push('access') // null = never determined -> hide
+  return cards
+}
