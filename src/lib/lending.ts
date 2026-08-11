@@ -100,6 +100,15 @@ export function canSetPhoto(opts: { isBoard: boolean; hasPhoto: boolean }): bool
   return opts.isBoard || !opts.hasPhoto
 }
 
+export function isBlobUrl(url: string): boolean {
+  try {
+    const u = new URL(url)
+    return u.protocol === 'https:' && u.hostname.endsWith('.public.blob.vercel-storage.com')
+  } catch {
+    return false
+  }
+}
+
 export type ReturnResult = { ok: true } | { ok: false; reason: 'not_found' | 'forbidden' | 'already_returned' }
 
 export async function returnLoan(

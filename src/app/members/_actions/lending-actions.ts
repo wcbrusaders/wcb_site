@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { del } from '@vercel/blob'
 import { auth } from '@/lib/auth'
 import {
-  checkoutTitle, returnLoan, renewLoan, addTitle, addCopies, editTitle, archiveCopy, canSetPhoto,
+  checkoutTitle, returnLoan, renewLoan, addTitle, addCopies, editTitle, archiveCopy, canSetPhoto, isBlobUrl,
   type NewTitleInput, type Condition,
 } from '@/lib/lending'
 import { notifyOfficersCheckout } from '@/lib/notify'
@@ -72,6 +72,7 @@ export async function setItemPhotoAction(itemId: string, url: string) {
   const item = await prisma.loanableItem.findUnique({ where: { id: itemId } })
   if (!item) return { ok: false as const, reason: 'not_found' as const }
   if (item.category !== 'equipment') return { ok: false as const, reason: 'not_equipment' as const }
+  if (!isBlobUrl(url)) return { ok: false as const, reason: 'invalid_url' as const }
   if (!canSetPhoto({ isBoard, hasPhoto: !!item.photoUrl })) return { ok: false as const, reason: 'forbidden' as const }
   // board replacing an existing photo → delete the old blob (member path never has an existing photo)
   if (item.photoUrl && item.photoUrl !== url) { try { await del(item.photoUrl) } catch { /* best-effort */ } }
