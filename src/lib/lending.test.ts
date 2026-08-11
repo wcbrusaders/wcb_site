@@ -191,3 +191,19 @@ test('archiveCopy: available -> archived; out -> blocked (no update)', async () 
   expect(r.ok).toBe(false); if (!r.ok) expect(r.reason).toBe('out')
   expect(updated).toBe(false)
 })
+
+import { EQUIPMENT_SUBCATEGORIES } from './lending'
+
+test('EQUIPMENT_SUBCATEGORIES: 8 categories, Other is last', () => {
+  expect(EQUIPMENT_SUBCATEGORIES.length).toBe(8)
+  expect(EQUIPMENT_SUBCATEGORIES[EQUIPMENT_SUBCATEGORIES.length - 1]).toBe('Other')
+  expect(EQUIPMENT_SUBCATEGORIES[0]).toBe('Kegging & Serving')
+})
+
+test('listTitles: returns subcategory on each title', async () => {
+  const rows = [{ id:'i1', category:'equipment', title:'CO2 regulator', description:null, author:null, isbn:null, notes:null, subcategory:'Kegging & Serving',
+    copies:[{ id:'c1', status:'available', loans:[] }] }]
+  const db = { loanableItem: { findMany: async () => rows } } as any
+  const out = await listTitles('equipment', 'me', {}, { db })
+  expect(out[0].subcategory).toBe('Kegging & Serving')
+})
