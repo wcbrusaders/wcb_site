@@ -79,6 +79,7 @@ model LoanableItem {
   isbn        String?  // book
   notes       String?  // equipment
   subcategory String?  // equipment group (one of EQUIPMENT_SUBCATEGORIES) or null
+  photoUrl    String?  // Vercel Blob URL of the equipment photo, or null
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   copies      Copy[]

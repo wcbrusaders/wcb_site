@@ -225,3 +225,34 @@ test('groupBySubcategory: canonical order, empties dropped, null/unknown -> Othe
 test('groupBySubcategory: empty input -> empty array', () => {
   expect(groupBySubcategory([])).toEqual([])
 })
+
+import { canSetPhoto, isBlobUrl } from './lending'
+
+test('canSetPhoto: board can always; member only when no photo', () => {
+  expect(canSetPhoto({ isBoard: true, hasPhoto: true })).toBe(true)
+  expect(canSetPhoto({ isBoard: true, hasPhoto: false })).toBe(true)
+  expect(canSetPhoto({ isBoard: false, hasPhoto: false })).toBe(true)
+  expect(canSetPhoto({ isBoard: false, hasPhoto: true })).toBe(false) // member cannot overwrite
+})
+
+test('isBlobUrl: accepts a real Vercel Blob https URL', () => {
+  expect(isBlobUrl('https://abc123.public.blob.vercel-storage.com/equipment/x-9fj2.jpg')).toBe(true)
+})
+
+test('isBlobUrl: rejects non-blob hosts, wrong scheme, and junk', () => {
+  expect(isBlobUrl('https://evil.example.com/x.jpg')).toBe(false)          // wrong host
+  expect(isBlobUrl('http://abc.public.blob.vercel-storage.com/x.jpg')).toBe(false)  // not https
+  expect(isBlobUrl('https://public.blob.vercel-storage.com/x.jpg')).toBe(false)     // no store subdomain (no leading-dot match)
+  expect(isBlobUrl('https://abc.public.blob.vercel-storage.com.attacker.com/x.jpg')).toBe(false) // suffix spoof
+  expect(isBlobUrl('data:image/png;base64,AAAA')).toBe(false)             // data: URI
+  expect(isBlobUrl('javascript:alert(1)')).toBe(false)                    // js scheme
+  expect(isBlobUrl('not a url')).toBe(false)                              // unparseable
+})
+
+test('listTitles: returns photoUrl on each title', async () => {
+  const rows = [{ id:'i1', category:'equipment', title:'Kettle', description:null, author:null, isbn:null, notes:null, subcategory:'Other', photoUrl:'https://blob/x.jpg',
+    copies:[{ id:'c1', status:'available', loans:[] }] }]
+  const db = { loanableItem: { findMany: async () => rows } } as any
+  const out = await listTitles('equipment', 'me', {}, { db })
+  expect(out[0].photoUrl).toBe('https://blob/x.jpg')
+})

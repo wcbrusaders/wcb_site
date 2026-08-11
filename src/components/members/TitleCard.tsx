@@ -1,11 +1,14 @@
 'use client'
-import { useState, useTransition } from 'react'
+import { useRef, useState, useTransition } from 'react'
 import type { TitleView, Condition } from '@/lib/lending'
 import { coverUrl, EQUIPMENT_SUBCATEGORIES } from '@/lib/lending'
 import {
   checkoutAction, returnAction, renewAction,
   addCopiesAction, editTitleAction, archiveCopyAction,
+  setItemPhotoAction, removeItemPhotoAction,
 } from '@/app/members/_actions/lending-actions'
+import { upload } from '@vercel/blob/client'
+import { downscaleImage } from '@/lib/image'
 
 const CONDITIONS = ['New', 'Good', 'Fair', 'Poor', 'Damaged'] as const
 
@@ -24,11 +27,43 @@ export function TitleCard({ item, isBoard }: { item: TitleView; isBoard: boolean
   const cover = coverUrl(item.isbn)
   // eslint-disable-next-line react-hooks/purity -- "overdue" is inherently time-dependent; a stale read here is harmless
   const overdue = item.myLoan && item.myLoan.dueAt.getTime() < Date.now()
+  const [candidate, setCandidate] = useState<{ blob: Blob; preview: string } | null>(null)
+  const [uploading, setUploading] = useState(false)
+  const fileRef = useRef<HTMLInputElement>(null)
 
   function run(fn: () => Promise<{ ok: boolean; reason?: string }>) {
     setErr(null)
     start(async () => { const r = await fn(); if (!r.ok) setErr(r.reason === 'unavailable' ? 'Just taken — refresh.' : (r.reason ?? 'Action failed.')) })
   }
+
+  async function onPick(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    e.target.value = '' // allow re-picking the same file
+    if (!file) return
+    setErr(null)
+    if (file.size > 20 * 1024 * 1024) { setErr('That image is too large (max ~20MB).'); return }
+    try {
+      const blob = await downscaleImage(file)
+      setCandidate({ blob, preview: URL.createObjectURL(blob) })
+    } catch { setErr("Couldn't process that image. Try another.") }
+  }
+
+  async function confirmUpload() {
+    if (!candidate) return
+    setUploading(true); setErr(null)
+    try {
+      const res = await upload(`equipment/${item.id}.jpg`, candidate.blob, {
+        access: 'public',
+        handleUploadUrl: '/api/members/equipment/photo',
+      })
+      const r = await setItemPhotoAction(item.id, res.url)
+      if (!r.ok) setErr(r.reason === 'forbidden' ? 'A photo already exists.' : 'Could not save the photo.')
+      else { URL.revokeObjectURL(candidate.preview); setCandidate(null) }
+    } catch { setErr('Upload failed — try again.') }
+    finally { setUploading(false) }
+  }
+
+  function retake() { if (candidate) URL.revokeObjectURL(candidate.preview); setCandidate(null); fileRef.current?.click() }
 
   function saveEdit() {
     setErr(null)
@@ -51,6 +86,12 @@ export function TitleCard({ item, isBoard }: { item: TitleView; isBoard: boolean
         // eslint-disable-next-line @next/next/no-img-element -- external Open Library covers; next/image not worth it here
         ? <img src={cover} alt="" className="w-20 h-28 object-cover rounded mb-3 bg-card-bg" />
         : <div className="w-20 h-28 rounded mb-3 bg-card-bg/60 border border-border/40" />)}
+      {isEquip && (
+        item.photoUrl
+          // eslint-disable-next-line @next/next/no-img-element -- external Blob URL; next/image not worth it here
+          ? <img src={item.photoUrl} alt="" className="w-28 h-20 object-cover rounded mb-3 bg-card-bg" />
+          : <div className="w-28 h-20 rounded mb-3 bg-card-bg/60 border border-border/40" />
+      )}
       <p className="font-semibold">{item.title}</p>
       {item.author && <p className="text-foreground/50 text-sm">{item.author}</p>}
       {item.description && <p className="text-foreground/60 text-sm mt-1">{item.description}</p>}
@@ -75,7 +116,27 @@ export function TitleCard({ item, isBoard }: { item: TitleView; isBoard: boolean
               className="border border-border px-4 py-1.5 rounded-full text-sm disabled:opacity-50">Renew</button>
           </>
         )}
+        <input ref={fileRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={onPick} />
+        {isEquip && !candidate && !item.photoUrl && (
+          <button disabled={uploading} onClick={() => fileRef.current?.click()} className="border border-border px-4 py-1.5 rounded-full text-sm disabled:opacity-50">Add photo</button>
+        )}
+        {isEquip && isBoard && item.photoUrl && !candidate && (
+          <>
+            <button disabled={uploading} onClick={() => fileRef.current?.click()} className="border border-border px-4 py-1.5 rounded-full text-sm">Replace photo</button>
+            <button disabled={uploading} onClick={() => run(() => removeItemPhotoAction(item.id))} className="border border-red-500/40 text-red-400 px-4 py-1.5 rounded-full text-sm">Remove photo</button>
+          </>
+        )}
       </div>
+      {candidate && (
+        <div className="mt-2">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={candidate.preview} alt="" className="w-28 h-20 object-cover rounded mb-2 bg-card-bg" />
+          <div className="flex gap-2">
+            <button disabled={uploading} onClick={confirmUpload} className="bg-accent hover:bg-accent-hover text-background px-4 py-1.5 rounded-full text-sm disabled:opacity-50">{uploading ? 'Uploading…' : 'Use this photo'}</button>
+            <button disabled={uploading} onClick={retake} className="border border-border px-4 py-1.5 rounded-full text-sm">Retake</button>
+          </div>
+        </div>
+      )}
 
       {isBoard && (
         <div className="mt-4 pt-4 border-t border-border/40 flex flex-wrap gap-2">
