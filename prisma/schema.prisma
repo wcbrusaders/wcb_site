@@ -115,3 +115,34 @@ model Loan {
   @@index([copyId])
   @@index([memberId])
 }
+
+model Competition {
+  id                   String      @id @default(cuid())
+  name                 String
+  homepageUrl          String
+  registrationDeadline DateTime
+  shippingDeadline     DateTime
+  bottlesRequired      Int
+  shippingAddress      String
+  dropoffAddress       String?
+  addedById            String
+  entries              CompEntry[]
+  createdAt            DateTime    @default(now())
+  updatedAt            DateTime    @updatedAt
+  @@index([shippingDeadline])
+}
+
+model CompEntry {
+  id            String      @id @default(cuid())
+  competitionId String
+  competition   Competition @relation(fields: [competitionId], references: [id], onDelete: Cascade)
+  memberId      String
+  beerName      String
+  style         String
+  channel       String      // 'club_ship' | 'self_ship' | 'dropoff'
+  registered    Boolean     @default(false)
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+  @@index([competitionId])
+  @@index([memberId])
+}
