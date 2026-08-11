@@ -197,3 +197,9 @@ export function groupBySubcategory(
     .map((cat) => ({ subcategory: cat, items: buckets.get(cat) ?? [] }))
     .filter((g) => g.items.length > 0)
 }
+
+// Stable DOM id for an equipment category section (shared by the equipment
+// page's <section id> and the client jump-nav's anchor hrefs). Pure.
+export function categorySlug(subcategory: string): string {
+  return 'cat-' + subcategory.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
+}

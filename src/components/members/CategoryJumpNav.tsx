@@ -1,11 +1,10 @@
 'use client'
 
-// Sticky chip row that jump-scrolls to each equipment category section.
-// Anchors target the section ids produced by `categorySlug` (shared with the page).
-export function categorySlug(subcategory: string): string {
-  return 'cat-' + subcategory.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
-}
+import { categorySlug } from '@/lib/lending'
 
+// Sticky chip row that jump-scrolls to each equipment category section.
+// Anchors target the section ids produced by `categorySlug` (shared with the page,
+// which lives in the framework-free lib so a server component can also call it).
 export function CategoryJumpNav({ categories }: { categories: string[] }) {
   if (categories.length <= 1) return null
   return (

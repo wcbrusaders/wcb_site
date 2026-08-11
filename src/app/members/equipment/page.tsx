@@ -1,9 +1,9 @@
 import { redirect } from 'next/navigation'
 import { auth } from '@/lib/auth'
-import { listTitles, groupBySubcategory } from '@/lib/lending'
+import { listTitles, groupBySubcategory, categorySlug } from '@/lib/lending'
 import { TitleCard } from '@/components/members/TitleCard'
 import { AddTitleForm } from '@/components/members/AddTitleForm'
-import { CategoryJumpNav, categorySlug } from '@/components/members/CategoryJumpNav'
+import { CategoryJumpNav } from '@/components/members/CategoryJumpNav'
 
 export default async function EquipmentPage() {
   const session = await auth()
