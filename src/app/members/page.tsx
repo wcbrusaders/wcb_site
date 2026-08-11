@@ -1,8 +1,10 @@
 import { redirect } from 'next/navigation'
 import { auth } from '@/lib/auth'
 import { getMemberDashboard, formatTenure, membershipStatus, visibleCards } from '@/lib/dashboard'
+import { listOfficerComps, computeBannerItems } from '@/lib/competitions'
 import { InfoCard, Row } from '@/components/members/InfoCard'
 import { FeatureNav } from '@/components/members/FeatureNav'
+import { CompBanner } from '@/components/members/CompBanner'
 
 function fmtDate(d: Date | null): string | null {
   return d && !isNaN(d.getTime()) ? d.toISOString().slice(0, 10) : null
@@ -14,6 +16,9 @@ export default async function MembersPage() {
   const email = session.user.email
   const rec = await getMemberDashboard(email)
   const cards = rec ? visibleCards(rec) : []
+  const bannerItems = session.user.memberId
+    ? computeBannerItems(await listOfficerComps(), session.user.memberId, !!session.user.isBoard, new Date())
+    : []
 
   return (
     <div className="min-h-screen bg-background">
@@ -23,6 +28,8 @@ export default async function MembersPage() {
           Welcome{rec?.name ? `, ${rec.name}` : ''}
         </h1>
         <p className="text-foreground/50 mb-10">{email}</p>
+
+        <CompBanner items={bannerItems} />
 
         {!rec ? (
           <div className="rounded-2xl border border-border/50 bg-card-bg/30 p-6 md:p-8 mb-12">
