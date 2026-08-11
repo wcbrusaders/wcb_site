@@ -49,3 +49,4 @@ seed-command.local.txt
 .vercel/
 sync-cron-command.local.txt
 lending-seed.local.json
+eq-map.local.json
