@@ -3,6 +3,7 @@ import { auth } from '@/lib/auth'
 import { listTitles, groupBySubcategory } from '@/lib/lending'
 import { TitleCard } from '@/components/members/TitleCard'
 import { AddTitleForm } from '@/components/members/AddTitleForm'
+import { CategoryJumpNav, categorySlug } from '@/components/members/CategoryJumpNav'
 
 export default async function EquipmentPage() {
   const session = await auth()
@@ -19,9 +20,11 @@ export default async function EquipmentPage() {
         {items.length === 0 ? (
           <p className="text-foreground/50">No equipment yet.</p>
         ) : (
+          <>
+          <CategoryJumpNav categories={groups.map((g) => g.subcategory)} />
           <div className="space-y-10">
             {groups.map((g) => (
-              <section key={g.subcategory}>
+              <section key={g.subcategory} id={categorySlug(g.subcategory)} className="scroll-mt-32">
                 <p className="text-accent font-medium tracking-wide uppercase text-sm mb-4">{g.subcategory}</p>
                 <div className="grid gap-4 md:grid-cols-2">
                   {g.items.map((i) => <TitleCard key={i.id} item={i} isBoard={isBoard} />)}
@@ -29,6 +32,7 @@ export default async function EquipmentPage() {
               </section>
             ))}
           </div>
+          </>
         )}
       </main>
     </div>
