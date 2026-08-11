@@ -24,7 +24,7 @@ export function CompetitionCard({ comp, viewerIsBoard, viewerId }: { comp: Membe
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
           <a href={comp.homepageUrl} target="_blank" rel="noreferrer" className="font-semibold hover:text-accent">{comp.name}</a>
-          <p className="text-foreground/50 text-sm mt-1">Register by {iso(comp.registrationDeadline)} · Ships by {iso(comp.shippingDeadline)} · {comp.bottlesRequired} bottles/entry</p>
+          <p className="text-foreground/50 text-sm mt-1">Entry reg by {iso(comp.registrationDeadline)} · Beer arrives by {iso(comp.shippingDeadline)} · {comp.bottlesRequired} bottles/entry</p>
           <p className="text-sm mt-1">
             <a href={mapsUrl(comp.shippingAddress)} target="_blank" rel="noreferrer" className="text-accent/80 hover:text-accent">Ship-to map</a>
             {comp.dropoffAddress && <> · <a href={mapsUrl(comp.dropoffAddress)} target="_blank" rel="noreferrer" className="text-accent/80 hover:text-accent">Drop-off map</a></>}

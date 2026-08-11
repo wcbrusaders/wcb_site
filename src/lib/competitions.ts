@@ -99,7 +99,7 @@ export function computeBannerItems(comps: OfficerCompView[], memberId: string, i
     if (mine.length) {
       const reg = daysAway(c.registrationDeadline)
       if (reg >= 0 && reg <= BANNER_WINDOW_DAYS && mine.some((e) => !e.registered))
-        items.push({ competitionId: c.id, competitionName: c.name, kind: 'register', date: c.registrationDeadline, daysAway: reg, detail: `Register your ${mine.length} entr${mine.length === 1 ? 'y' : 'ies'}` })
+        items.push({ competitionId: c.id, competitionName: c.name, kind: 'register', date: c.registrationDeadline, daysAway: reg, detail: `Register your ${mine.length} entr${mine.length === 1 ? 'y' : 'ies'} on the comp site` })
       if (myClubShip.length) {
         const del = daysAway(c.deliverByDate)
         if (del >= 0 && del <= BANNER_WINDOW_DAYS)
