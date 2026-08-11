@@ -181,3 +181,19 @@ export async function archiveCopy(copyId: string, deps: { db?: typeof prisma } =
   await db.copy.update({ where: { id: copyId }, data: { status: 'archived' } })
   return { ok: true }
 }
+
+export function groupBySubcategory(
+  titles: TitleView[],
+): { subcategory: string; items: TitleView[] }[] {
+  const known = new Set<string>(EQUIPMENT_SUBCATEGORIES)
+  const buckets = new Map<string, TitleView[]>()
+  for (const t of titles) {
+    const key = t.subcategory && known.has(t.subcategory) ? t.subcategory : 'Other'
+    const arr = buckets.get(key) ?? []
+    arr.push(t)
+    buckets.set(key, arr)
+  }
+  return EQUIPMENT_SUBCATEGORIES
+    .map((cat) => ({ subcategory: cat, items: buckets.get(cat) ?? [] }))
+    .filter((g) => g.items.length > 0)
+}

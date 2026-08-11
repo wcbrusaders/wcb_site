@@ -207,3 +207,21 @@ test('listTitles: returns subcategory on each title', async () => {
   const out = await listTitles('equipment', 'me', {}, { db })
   expect(out[0].subcategory).toBe('Kegging & Serving')
 })
+
+import { groupBySubcategory } from './lending'
+
+const T = (id: string, subcategory: string | null): any => ({ id, category:'equipment', title:id, description:null, author:null, isbn:null, notes:null, subcategory, availableCount:1, totalCount:1, myLoan:null, archivableCopyId:'c'+id })
+
+test('groupBySubcategory: canonical order, empties dropped, null/unknown -> Other last', () => {
+  const titles = [ T('a','Measurement'), T('b','Kegging & Serving'), T('c',null), T('d','ZzzUnknown'), T('e','Kegging & Serving') ]
+  const groups = groupBySubcategory(titles)
+  // order follows EQUIPMENT_SUBCATEGORIES, not input order; empty cats absent
+  expect(groups.map(g => g.subcategory)).toEqual(['Kegging & Serving','Measurement','Other'])
+  expect(groups[0].items.map(i => i.id)).toEqual(['b','e']) // both Kegging items
+  // null AND unrecognized both land in Other
+  expect(groups[2].items.map(i => i.id).sort()).toEqual(['c','d'])
+})
+
+test('groupBySubcategory: empty input -> empty array', () => {
+  expect(groupBySubcategory([])).toEqual([])
+})
