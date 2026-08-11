@@ -1,7 +1,7 @@
 'use client'
 import { useState, useTransition } from 'react'
 import type { TitleView, Condition } from '@/lib/lending'
-import { coverUrl } from '@/lib/lending'
+import { coverUrl, EQUIPMENT_SUBCATEGORIES } from '@/lib/lending'
 import {
   checkoutAction, returnAction, renewAction,
   addCopiesAction, editTitleAction, archiveCopyAction,
@@ -9,7 +9,7 @@ import {
 
 const CONDITIONS = ['New', 'Good', 'Fair', 'Poor', 'Damaged'] as const
 
-type EditFields = { title: string; author: string; isbn: string; description: string; notes: string }
+type EditFields = { title: string; author: string; isbn: string; description: string; notes: string; subcategory: string }
 
 export function TitleCard({ item, isBoard }: { item: TitleView; isBoard: boolean }) {
   const [pending, start] = useTransition()
@@ -18,7 +18,7 @@ export function TitleCard({ item, isBoard }: { item: TitleView; isBoard: boolean
   const [editing, setEditing] = useState(false)
   const [edit, setEdit] = useState<EditFields>({
     title: item.title, author: item.author ?? '', isbn: item.isbn ?? '',
-    description: item.description ?? '', notes: item.notes ?? '',
+    description: item.description ?? '', notes: item.notes ?? '', subcategory: item.subcategory ?? 'Other',
   })
   const isEquip = item.category === 'equipment'
   const cover = coverUrl(item.isbn)
@@ -39,6 +39,7 @@ export function TitleCard({ item, isBoard }: { item: TitleView; isBoard: boolean
         author: !isEquip ? (edit.author || undefined) : undefined,
         isbn: !isEquip ? (edit.isbn || undefined) : undefined,
         notes: isEquip ? (edit.notes || undefined) : undefined,
+        ...(isEquip ? { subcategory: edit.subcategory } : {}),
       })
       setEditing(false)
     })
@@ -105,6 +106,11 @@ export function TitleCard({ item, isBoard }: { item: TitleView; isBoard: boolean
           {isEquip && (
             <input value={edit.notes} onChange={e => setEdit({ ...edit, notes: e.target.value })} placeholder="Notes"
               className="w-full rounded-xl border border-border bg-background/60 px-4 py-2 text-sm" />
+          )}
+          {isEquip && (
+            <select value={edit.subcategory} onChange={e => setEdit({ ...edit, subcategory: e.target.value })} className="rounded-lg border border-border bg-background/60 px-2 py-1 text-sm">
+              {EQUIPMENT_SUBCATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+            </select>
           )}
           <div className="flex gap-2">
             <button disabled={pending} onClick={saveEdit}
