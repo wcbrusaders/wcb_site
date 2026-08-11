@@ -5,7 +5,8 @@ import { del } from '@vercel/blob'
 import { auth } from '@/lib/auth'
 import {
   checkoutTitle, returnLoan, renewLoan, addTitle, addCopies, editTitle, archiveCopy, canSetPhoto, isBlobUrl,
-  type NewTitleInput, type Condition,
+  listMemberHistory,
+  type NewTitleInput, type Condition, type HistoryLoan,
 } from '@/lib/lending'
 import { notifyOfficersCheckout } from '@/lib/notify'
 import { prisma } from '@/lib/db'
@@ -79,6 +80,21 @@ export async function setItemPhotoAction(itemId: string, url: string) {
   await prisma.loanableItem.update({ where: { id: itemId }, data: { photoUrl: url } })
   revalidateBrowse()
   return { ok: true as const }
+}
+
+export async function boardReturnLoanAction(loanId: string, cond?: { conditionIn?: Condition; noteIn?: string }) {
+  const { memberId } = await requireBoard()
+  // returnLoan already skips the ownership check when isBoard=true, so a board
+  // member may return ANY member's loan. We pass the board member's own id as
+  // actingMemberId (unused for the ownership branch when isBoard is true).
+  const r = await returnLoan(loanId, memberId, true, cond)
+  if (r.ok) { revalidateBrowse(); revalidatePath('/members/holdings') }
+  return r
+}
+
+export async function listMemberHistoryAction(memberId: string): Promise<HistoryLoan[]> {
+  await requireBoard()
+  return listMemberHistory(memberId)
 }
 
 export async function removeItemPhotoAction(itemId: string) {
