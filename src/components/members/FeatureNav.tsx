@@ -5,7 +5,7 @@ const LIVE = [
   { name: 'Equipment', desc: 'Check out shared brewing equipment.', href: '/members/equipment' },
 ]
 
-export function FeatureNav() {
+export function FeatureNav({ isBoard }: { isBoard: boolean }) {
   return (
     <div className="grid gap-4 sm:grid-cols-3">
       {LIVE.map((f) => (
@@ -14,6 +14,15 @@ export function FeatureNav() {
           <p className="text-foreground/50 text-sm">{f.desc}</p>
         </Link>
       ))}
+      {isBoard && (
+        <Link href="/members/holdings" className="rounded-2xl border border-accent/30 bg-card-bg/20 p-6 hover:bg-card-bg/40 transition-colors">
+          <div className="flex items-center justify-between mb-2">
+            <p className="font-semibold">Holdings</p>
+            <span className="text-xs text-accent/70 border border-accent/30 rounded-full px-2 py-0.5">Board</span>
+          </div>
+          <p className="text-foreground/50 text-sm">Who currently has which club items.</p>
+        </Link>
+      )}
       <div className="rounded-2xl border border-border/40 bg-card-bg/20 p-6 opacity-60">
         <div className="flex items-center justify-between mb-2">
           <p className="font-semibold">Shop</p>

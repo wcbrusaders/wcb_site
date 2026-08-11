@@ -7,6 +7,7 @@ import { auth, signOut } from '@/lib/auth'
 export async function SiteHeader() {
   const session = await auth()
   const signedIn = !!session?.user?.memberId
+  const isBoard = !!session?.user?.isBoard
 
   return (
     <header className="sticky top-0 z-50 w-full border-b border-border/40 bg-background/80 backdrop-blur">
@@ -29,6 +30,11 @@ export async function SiteHeader() {
               <Link href="/members/equipment" className="text-foreground/70 hover:text-foreground transition-colors">
                 Equipment
               </Link>
+              {isBoard && (
+                <Link href="/members/holdings" className="text-foreground/70 hover:text-foreground transition-colors">
+                  Holdings
+                </Link>
+              )}
               <form
                 action={async () => {
                   'use server'
