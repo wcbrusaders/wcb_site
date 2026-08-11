@@ -50,3 +50,6 @@ seed-command.local.txt
 sync-cron-command.local.txt
 lending-seed.local.json
 eq-map.local.json
+
+# Superpowers SDD workspaces + brainstorm mockups (scratch)
+.superpowers/
