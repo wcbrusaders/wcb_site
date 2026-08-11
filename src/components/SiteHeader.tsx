@@ -1,66 +1,41 @@
 import Link from 'next/link'
-import { auth, signOut } from '@/lib/auth'
+import Image from 'next/image'
+import { auth } from '@/lib/auth'
+import { visibleLinks } from '@/lib/nav'
+import { DesktopTabs } from '@/components/DesktopTabs'
+import { MobileNav } from '@/components/MobileNav'
 
-// Global header rendered on every page (via the root layout).
-// Left: WCB home link (always). Right: member nav + auth.
-// Server component: reads the session directly.
+// Global header on every page (root layout). Server component: reads the
+// session, filters board links server-side, and passes ONLY plain NavLink[]
+// data to the client tab/drawer components (no auth/prisma/JSX crossing).
 export async function SiteHeader() {
   const session = await auth()
   const signedIn = !!session?.user?.memberId
   const isBoard = !!session?.user?.isBoard
+  const links = signedIn ? visibleLinks(isBoard) : []
 
   return (
     <header className="sticky top-0 z-50 w-full border-b border-border/40 bg-background/80 backdrop-blur">
-      <nav className="max-w-6xl mx-auto flex items-center justify-between gap-4 px-4 md:px-6 py-3 text-sm">
-        {/* Left: always a way home */}
-        <Link href="/" className="font-bold tracking-tight hover:text-accent transition-colors">
-          WCB
+      <nav className="max-w-6xl mx-auto flex items-center justify-between gap-4 px-4 md:px-6 py-3">
+        {/* Brand: crest + wordmark, links home */}
+        <Link href="/" className="flex items-center gap-2.5 group">
+          <Image src="/images/wcb-crest.png" alt="Wake County Brusaders" width={40} height={42} className="h-8 w-auto" priority />
+          <span className="font-extrabold tracking-tight leading-[1.02] text-[13px] hidden sm:block">
+            WAKE COUNTY<br /><span className="text-accent">BRUSADERS</span>
+          </span>
         </Link>
 
-        {/* Right: member nav + auth */}
-        <div className="flex items-center gap-2 md:gap-4">
-          {signedIn ? (
-            <>
-              <Link href="/members" className="text-foreground/70 hover:text-foreground transition-colors">
-                Hub
-              </Link>
-              <Link href="/members/library" className="text-foreground/70 hover:text-foreground transition-colors">
-                Library
-              </Link>
-              <Link href="/members/equipment" className="text-foreground/70 hover:text-foreground transition-colors">
-                Equipment
-              </Link>
-              <Link href="/members/competitions" className="text-foreground/70 hover:text-foreground transition-colors">
-                Competitions
-              </Link>
-              {isBoard && (
-                <Link href="/members/holdings" className="text-foreground/70 hover:text-foreground transition-colors">
-                  Holdings
-                </Link>
-              )}
-              <form
-                action={async () => {
-                  'use server'
-                  await signOut({ redirectTo: '/' })
-                }}
-              >
-                <button
-                  type="submit"
-                  className="text-foreground/50 hover:text-foreground px-3 py-1.5 rounded-full border border-border/50 transition-colors"
-                >
-                  Sign out
-                </button>
-              </form>
-            </>
-          ) : (
-            <Link
-              href="/login"
-              className="bg-accent hover:bg-accent-hover text-background font-medium px-4 py-1.5 rounded-full transition-colors"
-            >
-              Member Login
-            </Link>
-          )}
-        </div>
+        {/* Desktop tabs (client, for active-state) — hidden on mobile */}
+        {signedIn ? (
+          <DesktopTabs links={links} />
+        ) : (
+          <Link href="/login" className="hidden md:inline-flex bg-accent hover:bg-accent-hover text-background font-medium px-4 py-1.5 rounded-full text-sm transition-colors">
+            Member Login
+          </Link>
+        )}
+
+        {/* Mobile hamburger/drawer (client) — hidden on desktop */}
+        <MobileNav links={links} signedIn={signedIn} />
       </nav>
     </header>
   )
