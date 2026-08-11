@@ -256,3 +256,91 @@ test('listTitles: returns photoUrl on each title', async () => {
   const out = await listTitles('equipment', 'me', {}, { db })
   expect(out[0].photoUrl).toBe('https://blob/x.jpg')
 })
+
+import { listActiveHoldings, listMemberHistory } from './lending'
+
+// Fixed clock so overdue is deterministic
+const NOW_HOLDINGS = new Date('2026-08-15T00:00:00Z')
+
+// A fake db exposing only what these helpers call: loan.findMany + member.findMany
+function holdingsDb(loans: any[], members: any[]) {
+  return {
+    loan: {
+      findMany: async ({ where }: any) => {
+        // returnedAt null vs not-null is the only filter the helpers use
+        const wantReturnedNull = where?.returnedAt === null
+        const wantMember = where?.memberId
+        return loans.filter((l) =>
+          (wantReturnedNull ? l.returnedAt === null : l.returnedAt !== null) &&
+          (wantMember ? l.memberId === wantMember : true)
+        )
+      },
+    },
+    member: {
+      findMany: async ({ where }: any) => {
+        const ids: string[] = where?.id?.in ?? []
+        return members.filter((m) => ids.includes(m.id))
+      },
+    },
+  } as any
+}
+
+const loanRow = (over: any = {}) => ({
+  id: 'l1', memberId: 'm1', checkedOutAt: new Date('2026-08-01T00:00:00Z'),
+  dueAt: new Date('2026-08-20T00:00:00Z'), returnedAt: null, conditionIn: null,
+  copy: { label: null, item: { title: 'Wine thief', category: 'equipment' } },
+  ...over,
+})
+
+test('listActiveHoldings: groups active loans by member, computes overdue, sorts overdue-members-first then name', async () => {
+  const loans = [
+    loanRow({ id: 'a', memberId: 'm1', dueAt: new Date('2026-08-10T00:00:00Z') }), // overdue (before NOW)
+    loanRow({ id: 'b', memberId: 'm2', dueAt: new Date('2026-08-20T00:00:00Z') }), // not overdue
+    loanRow({ id: 'c', memberId: 'm2', dueAt: new Date('2026-08-25T00:00:00Z') }), // not overdue
+    loanRow({ id: 'd', memberId: 'x9', dueAt: new Date('2026-08-01T00:00:00Z') }), // overdue, member missing
+  ]
+  const members = [
+    { id: 'm1', name: 'Zed', emailAddress: 'zed@x.com' },
+    { id: 'm2', name: 'Amy', emailAddress: 'amy@x.com' },
+  ]
+  const res = await listActiveHoldings({ db: holdingsDb(loans, members), now: NOW_HOLDINGS })
+  // overdue members first: m1 (Zed, overdue) and x9 (unknown, overdue) before m2 (Amy, none overdue)
+  const overdueFirst = res.slice(0, 2).map((r) => r.memberId).sort()
+  expect(overdueFirst).toEqual(['m1', 'x9'])
+  expect(res[res.length - 1].memberId).toBe('m2') // no overdue -> last
+  const m2 = res.find((r) => r.memberId === 'm2')!
+  expect(m2.loans.length).toBe(2)
+  expect(m2.overdueCount).toBe(0)
+  expect(m2.loans[0].dueAt.getTime()).toBeLessThanOrEqual(m2.loans[1].dueAt.getTime()) // dueAt asc
+  const m1 = res.find((r) => r.memberId === 'm1')!
+  expect(m1.overdueCount).toBe(1)
+  expect(m1.loans[0].overdue).toBe(true)
+  expect(m1.name).toBe('Zed')
+  expect(m1.email).toBe('zed@x.com')
+})
+
+test('listActiveHoldings: a loan whose member is missing is kept with null name/email (unknown member)', async () => {
+  const loans = [loanRow({ id: 'd', memberId: 'ghost' })]
+  const res = await listActiveHoldings({ db: holdingsDb(loans, []), now: NOW_HOLDINGS })
+  expect(res.length).toBe(1)
+  expect(res[0].memberId).toBe('ghost')
+  expect(res[0].name).toBeNull()
+  expect(res[0].email).toBeNull()
+})
+
+test('listActiveHoldings: empty when no active loans', async () => {
+  const res = await listActiveHoldings({ db: holdingsDb([], []), now: NOW })
+  expect(res).toEqual([])
+})
+
+test('listMemberHistory: returns only that member returned loans, newest-returned first', async () => {
+  const loans = [
+    loanRow({ id: 'r1', memberId: 'm1', returnedAt: new Date('2026-07-01T00:00:00Z'), conditionIn: 'Good' }),
+    loanRow({ id: 'r2', memberId: 'm1', returnedAt: new Date('2026-08-01T00:00:00Z'), conditionIn: 'Fair' }),
+    loanRow({ id: 'active', memberId: 'm1', returnedAt: null }),
+    loanRow({ id: 'other', memberId: 'm2', returnedAt: new Date('2026-08-02T00:00:00Z') }),
+  ]
+  const res = await listMemberHistory('m1', { db: holdingsDb(loans, []) })
+  expect(res.map((h) => h.loanId)).toEqual(['r2', 'r1']) // m1 only, newest returnedAt first, no active/other
+  expect(res[0].conditionIn).toBe('Fair')
+})

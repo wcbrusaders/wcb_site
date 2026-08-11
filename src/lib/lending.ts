@@ -148,6 +148,104 @@ export async function renewLoan(loanId: string, actingMemberId: string, deps: { 
   return { ok: true, dueAt }
 }
 
+export type HoldingLoan = {
+  loanId: string
+  itemTitle: string
+  category: ItemCategory
+  copyLabel: string | null
+  checkedOutAt: Date
+  dueAt: Date
+  overdue: boolean
+}
+export type MemberHoldings = {
+  memberId: string
+  name: string | null
+  email: string | null
+  loans: HoldingLoan[]
+  overdueCount: number
+}
+export type HistoryLoan = {
+  loanId: string
+  itemTitle: string
+  category: ItemCategory
+  copyLabel: string | null
+  checkedOutAt: Date
+  returnedAt: Date
+  conditionIn: string | null
+}
+
+export async function listActiveHoldings(
+  deps: { db?: typeof prisma; now?: Date } = {},
+): Promise<MemberHoldings[]> {
+  const db = deps.db ?? prisma
+  const now = deps.now ?? new Date()
+  const loans = await db.loan.findMany({
+    where: { returnedAt: null },
+    include: { copy: { include: { item: true } } },
+    orderBy: { dueAt: 'asc' },
+  })
+  // Batch-load member details (memberId has no relation)
+  const ids = [...new Set((loans as any[]).map((l) => l.memberId))]
+  const members = ids.length
+    ? await db.member.findMany({ where: { id: { in: ids } }, select: { id: true, name: true, emailAddress: true } })
+    : []
+  const mMap = new Map((members as any[]).map((m) => [m.id, m]))
+  const byMember = new Map<string, MemberHoldings>()
+  for (const l of loans as any[]) {
+    const overdue = l.dueAt.getTime() < now.getTime()
+    const hl: HoldingLoan = {
+      loanId: l.id,
+      itemTitle: l.copy?.item?.title ?? '(unknown item)',
+      category: (l.copy?.item?.category ?? 'equipment') as ItemCategory,
+      copyLabel: l.copy?.label ?? null,
+      checkedOutAt: l.checkedOutAt,
+      dueAt: l.dueAt,
+      overdue,
+    }
+    let mh = byMember.get(l.memberId)
+    if (!mh) {
+      const m = mMap.get(l.memberId)
+      mh = { memberId: l.memberId, name: m?.name ?? null, email: m?.emailAddress ?? null, loans: [], overdueCount: 0 }
+      byMember.set(l.memberId, mh)
+    }
+    mh.loans.push(hl) // loans arrive dueAt-asc from the query, preserved per member
+    if (overdue) mh.overdueCount++
+  }
+  return [...byMember.values()].sort((a, b) => {
+    // overdue members first, then by name (nulls last), then memberId for stability
+    const ao = a.overdueCount > 0 ? 0 : 1
+    const bo = b.overdueCount > 0 ? 0 : 1
+    if (ao !== bo) return ao - bo
+    const an = a.name ?? '￿'
+    const bn = b.name ?? '￿'
+    if (an !== bn) return an.localeCompare(bn)
+    return a.memberId.localeCompare(b.memberId)
+  })
+}
+
+export async function listMemberHistory(
+  memberId: string,
+  deps: { db?: typeof prisma } = {},
+): Promise<HistoryLoan[]> {
+  const db = deps.db ?? prisma
+  const loans = await db.loan.findMany({
+    where: { memberId, returnedAt: { not: null } },
+    include: { copy: { include: { item: true } } },
+    orderBy: { returnedAt: 'desc' },
+  })
+  const mapped = (loans as any[]).map((l) => ({
+    loanId: l.id,
+    itemTitle: l.copy?.item?.title ?? '(unknown item)',
+    category: (l.copy?.item?.category ?? 'equipment') as ItemCategory,
+    copyLabel: l.copy?.label ?? null,
+    checkedOutAt: l.checkedOutAt,
+    returnedAt: l.returnedAt as Date,
+    conditionIn: l.conditionIn ?? null,
+  }))
+  mapped.sort((a, b) => b.returnedAt.getTime() - a.returnedAt.getTime())
+  return mapped
+}
+
 export type NewTitleInput = {
   category: ItemCategory; title: string; description?: string
   author?: string; isbn?: string; notes?: string; subcategory?: string

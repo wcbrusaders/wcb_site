@@ -65,7 +65,7 @@ export default async function MembersPage() {
         )}
 
         <h2 className="text-xl font-semibold mb-4">Member Features</h2>
-        <FeatureNav />
+        <FeatureNav isBoard={!!session.user.isBoard} />
       </main>
     </div>
   )
