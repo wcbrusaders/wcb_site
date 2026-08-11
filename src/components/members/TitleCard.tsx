@@ -116,7 +116,11 @@ export function TitleCard({ item, isBoard }: { item: TitleView; isBoard: boolean
               className="border border-border px-4 py-1.5 rounded-full text-sm disabled:opacity-50">Renew</button>
           </>
         )}
-        <input ref={fileRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={onPick} />
+        {/* No `capture` attribute: on mobile it forces camera-only and hides the
+            photo-library picker. Plain accept="image/*" makes mobile show the
+            native Camera / Photo Library / Files chooser (snap OR upload, per
+            spec); desktop gets the file picker either way. */}
+        <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={onPick} />
         {isEquip && !candidate && !item.photoUrl && (
           <button disabled={uploading} onClick={() => fileRef.current?.click()} className="border border-border px-4 py-1.5 rounded-full text-sm disabled:opacity-50">Add photo</button>
         )}
