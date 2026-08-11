@@ -15,9 +15,13 @@ export function channelBadge(channel: string): { label: string; variant: BadgeVa
 }
 
 const DAY = 86400000
-export function daysUntil(date: Date, now: Date = new Date()): number {
-  return Math.ceil((date.getTime() - now.getTime()) / DAY)
+// `date` may arrive as a Date OR an ISO string: when a server component passes a
+// Prisma Date to a client component, the RSC boundary serializes it to a string.
+// Normalize with `new Date(...)` (a Date passes through unchanged) so we never
+// call `.getTime()` on a raw string. `now` is always a real Date (server-created).
+export function daysUntil(date: Date | string | number, now: Date = new Date()): number {
+  return Math.ceil((new Date(date).getTime() - now.getTime()) / DAY)
 }
-export function isUrgent(date: Date, now: Date = new Date()): boolean {
+export function isUrgent(date: Date | string | number, now: Date = new Date()): boolean {
   return daysUntil(date, now) <= 7
 }
