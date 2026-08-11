@@ -1,5 +1,5 @@
 import { test, expect, vi, afterEach } from 'vitest'
-import { normalizeEmail, mapSheetRow, isCurrentMember } from './roster'
+import { normalizeEmail, mapSheetRow, isCurrentMember, syncRoster } from './roster'
 
 afterEach(() => {
   vi.unstubAllEnvs()
@@ -40,8 +40,8 @@ test('mapSheetRow parses board member true', () => {
 test('syncRoster upserts fetched rows and deactivates absent members', async () => {
   const { syncRoster } = await import('./roster')
   const fetched = [
-    { emailAddress: 'a@x.com', googleEmail: null, name: 'A', tier: null, current: true, isBoard: false, partnerEmail: null, expires: null },
-    { emailAddress: 'b@x.com', googleEmail: null, name: 'B', tier: null, current: false, isBoard: false, partnerEmail: null, expires: null },
+    { emailAddress: 'a@x.com', googleEmail: null, name: 'A', tier: null, current: true, isBoard: false, partnerEmail: null, expires: null, joinDate: null, paymentDate: null, referredBy: null },
+    { emailAddress: 'b@x.com', googleEmail: null, name: 'B', tier: null, current: false, isBoard: false, partnerEmail: null, expires: null, joinDate: null, paymentDate: null, referredBy: null },
   ]
   const upserts: string[] = []
   let updateManyWhereIn: string[] = []
@@ -60,7 +60,7 @@ test('syncRoster upserts fetched rows and deactivates absent members', async () 
       ],
     },
   }
-  const res = await syncRoster({ fetchAll: async () => fetched, db: db as any })
+  const res = await syncRoster({ fetchAll: async () => fetched, db: db as any, fetchGroupMembers: async () => new Set() })
   // Upsert called for each fetched row
   expect(upserts).toEqual(['a@x.com', 'b@x.com'])
   expect(res.synced).toBe(2)
@@ -72,8 +72,8 @@ test('syncRoster upserts fetched rows and deactivates absent members', async () 
 test('syncRoster does not call updateMany when no absent members', async () => {
   const { syncRoster } = await import('./roster')
   const fetched = [
-    { emailAddress: 'a@x.com', googleEmail: null, name: 'A', tier: null, current: true, isBoard: false, partnerEmail: null, expires: null },
-    { emailAddress: 'b@x.com', googleEmail: null, name: 'B', tier: null, current: false, isBoard: false, partnerEmail: null, expires: null },
+    { emailAddress: 'a@x.com', googleEmail: null, name: 'A', tier: null, current: true, isBoard: false, partnerEmail: null, expires: null, joinDate: null, paymentDate: null, referredBy: null },
+    { emailAddress: 'b@x.com', googleEmail: null, name: 'B', tier: null, current: false, isBoard: false, partnerEmail: null, expires: null, joinDate: null, paymentDate: null, referredBy: null },
   ]
   const upserts: string[] = []
   let updateManyWasCalled = false
@@ -90,7 +90,7 @@ test('syncRoster does not call updateMany when no absent members', async () => {
       ],
     },
   }
-  const res = await syncRoster({ fetchAll: async () => fetched, db: db as any })
+  const res = await syncRoster({ fetchAll: async () => fetched, db: db as any, fetchGroupMembers: async () => new Set() })
   expect(upserts).toEqual(['a@x.com', 'b@x.com'])
   expect(res.synced).toBe(2)
   expect(updateManyWasCalled).toBe(false)
@@ -99,7 +99,7 @@ test('syncRoster does not call updateMany when no absent members', async () => {
 
 // isCurrentMember tests
 
-const M = (over = {}) => ({ emailAddress: 'a@x.com', googleEmail: null, name: 'A', tier: null, current: true, isBoard: false, partnerEmail: null, expires: null, ...over })
+const M = (over = {}) => ({ emailAddress: 'a@x.com', googleEmail: null, name: 'A', tier: null, current: true, isBoard: false, partnerEmail: null, expires: null, joinDate: null, paymentDate: null, referredBy: null, ...over })
 
 function fakeDb(row: any, honorsWhere = false) {
   return { member: {
@@ -195,4 +195,57 @@ test('isCurrentMember: DEV_ALLOWED_EMAILS bypass is IGNORED in production even w
   const db = { member: { findFirst: async () => null, upsert: async () => {} } } as any
   const r = await isCurrentMember('dev@example.com', { db, fetchByEmail: async () => null })
   expect(r.ok).toBe(false)
+})
+
+// Dashboard fields tests
+
+const HEADERS_FULL = ['Name','Tier','Payment Date','Expires','Current','Partner Email','Board Member','Join Date','Referred By','Email Address','Google Email']
+
+test('mapSheetRow maps the dashboard sheet fields', () => {
+  const row = ['Jane Doe','Full','2026-01-15','2027-01-01','TRUE','partner@x.com','No','2022-05-10','Bob','jane@example.com','jane.g@gmail.com']
+  const m = mapSheetRow(HEADERS_FULL, row)!
+  expect(m.joinDate?.toISOString().slice(0,10)).toBe('2022-05-10')
+  expect(m.paymentDate?.toISOString().slice(0,10)).toBe('2026-01-15')
+  expect(m.referredBy).toBe('Bob')
+})
+
+test('mapSheetRow: blank/invalid dashboard fields become null', () => {
+  const row = ['Bob','Full','not-a-date','','TRUE','','No','','','bob@x.com','']
+  const m = mapSheetRow(HEADERS_FULL, row)!
+  expect(m.paymentDate).toBeNull()   // invalid date -> null (isNaN guard)
+  expect(m.joinDate).toBeNull()      // blank -> null
+  expect(m.referredBy).toBeNull()
+})
+
+// resourceAccess from Google Group membership (fail-soft)
+
+test('syncRoster sets resourceAccess from group membership', async () => {
+  const upserts: any[] = []
+  const db = { member: {
+    upsert: async (a: any) => { upserts.push(a); },
+    findMany: async () => [],
+    updateMany: async () => ({ count: 0 }),
+  } } as any
+  const rows = [
+    { emailAddress:'in@x.com', googleEmail:null, name:'A', tier:null, current:true, isBoard:false, partnerEmail:null, expires:null, joinDate:null, paymentDate:null, referredBy:null },
+    { emailAddress:'out@x.com', googleEmail:null, name:'B', tier:null, current:true, isBoard:false, partnerEmail:null, expires:null, joinDate:null, paymentDate:null, referredBy:null },
+  ]
+  await syncRoster({ db, fetchAll: async () => rows, fetchGroupMembers: async () => new Set(['in@x.com']) })
+  const inU = upserts.find(u => u.where.emailAddress === 'in@x.com')
+  const outU = upserts.find(u => u.where.emailAddress === 'out@x.com')
+  expect(inU.update.resourceAccess).toBe(true)
+  expect(outU.update.resourceAccess).toBe(false)  // absent from set -> false, NOT skipped
+})
+
+test('syncRoster is fail-soft when the group read throws (resourceAccess untouched, sheet sync completes)', async () => {
+  const upserts: any[] = []
+  const db = { member: {
+    upsert: async (a: any) => { upserts.push(a); },
+    findMany: async () => [],
+    updateMany: async () => ({ count: 0 }),
+  } } as any
+  const rows = [{ emailAddress:'a@x.com', googleEmail:null, name:'A', tier:null, current:true, isBoard:false, partnerEmail:null, expires:null, joinDate:null, paymentDate:null, referredBy:null }]
+  const r = await syncRoster({ db, fetchAll: async () => rows, fetchGroupMembers: async () => { throw new Error('directory down') } })
+  expect(r.synced).toBe(1)                                  // sheet sync still completed
+  expect('resourceAccess' in upserts[0].update).toBe(false) // omitted -> left unchanged
 })

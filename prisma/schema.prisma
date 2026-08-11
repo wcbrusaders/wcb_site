@@ -17,6 +17,10 @@ model Member {
   isBoard      Boolean   @default(false)
   partnerEmail String?
   expires      DateTime?
+  joinDate     DateTime?
+  paymentDate  DateTime?
+  referredBy   String?
+  resourceAccess Boolean?
   updatedAt    DateTime  @updatedAt
 
   @@index([emailAddress])

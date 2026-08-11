@@ -10,6 +10,9 @@ export type MemberRecord = {
   isBoard: boolean
   partnerEmail: string | null
   expires: Date | null
+  joinDate: Date | null
+  paymentDate: Date | null
+  referredBy: string | null
 }
 
 export type GateResult = { ok: false } | { ok: true; member: MemberRecord }
@@ -28,13 +31,18 @@ function cell(headers: string[], row: string[], name: string): string {
   return i >= 0 ? (row[i] ?? '').trim() : ''
 }
 
+function parseDate(v: string): Date | null {
+  if (!v) return null
+  const d = new Date(v)
+  return isNaN(d.getTime()) ? null : d
+}
+
 export function mapSheetRow(headers: string[], row: string[]): MemberRecord | null {
   const email = cell(headers, row, 'Email Address')
   if (!email) return null
   const g = cell(headers, row, 'Google Email')
   const p = cell(headers, row, 'Partner Email')
   const exp = cell(headers, row, 'Expires')
-  const expires = exp ? new Date(exp) : null
   return {
     emailAddress: normalizeEmail(email),
     googleEmail: g ? normalizeEmail(g) : null,
@@ -43,7 +51,10 @@ export function mapSheetRow(headers: string[], row: string[]): MemberRecord | nu
     current: truthy(cell(headers, row, 'Current')),
     isBoard: truthy(cell(headers, row, 'Board Member')),
     partnerEmail: p ? normalizeEmail(p) : null,
-    expires: expires && !isNaN(expires.getTime()) ? expires : null,
+    expires: parseDate(exp),
+    joinDate: parseDate(cell(headers, row, 'Join Date')),
+    paymentDate: parseDate(cell(headers, row, 'Payment Date')),
+    referredBy: cell(headers, row, 'Referred By') || null,
   }
 }
 
@@ -80,22 +91,60 @@ export async function fetchRosterRowByEmail(email: string): Promise<MemberRecord
   return rows.find((m) => m.emailAddress === target || m.googleEmail === target) ?? null
 }
 
+const ACCESS_GROUP = process.env.MEMBER_ACCESS_GROUP_EMAIL
+
+// Reuses the bot's admin.directory.group creds (domain-wide delegation).
+// GOOGLE_ADMIN_SUBJECT = the Workspace admin to impersonate (as the bot does).
+export async function fetchAccessGroupMembers(): Promise<Set<string>> {
+  if (!ACCESS_GROUP) throw new Error('MEMBER_ACCESS_GROUP_EMAIL not set')
+  const auth = new google.auth.OAuth2(
+    process.env.GOOGLE_CLIENT_ID,
+    process.env.GOOGLE_CLIENT_SECRET,
+  )
+  auth.setCredentials({ refresh_token: process.env.GOOGLE_REFRESH_TOKEN })
+  const dir = google.admin({ version: 'directory_v1', auth })
+  const out = new Set<string>()
+  let pageToken: string | undefined
+  do {
+    const res = await dir.members.list({ groupKey: ACCESS_GROUP, maxResults: 200, pageToken })
+    for (const m of res.data.members ?? []) {
+      if (m.email) out.add(normalizeEmail(m.email))
+    }
+    pageToken = res.data.nextPageToken ?? undefined
+  } while (pageToken)
+  return out
+}
+
 type SyncDeps = {
   fetchAll?: () => Promise<MemberRecord[]>
+  fetchGroupMembers?: () => Promise<Set<string>>
   db?: typeof prisma
 }
 
 export async function syncRoster(deps: SyncDeps = {}): Promise<{ synced: number; deactivated: number }> {
   const fetchAll = deps.fetchAll ?? fetchAllRosterRows
+  const fetchGroupMembers = deps.fetchGroupMembers ?? fetchAccessGroupMembers
   const db = deps.db ?? prisma
   const rows = await fetchAll()
+
+  let groupSet: Set<string> | null = null
+  try {
+    groupSet = await fetchGroupMembers()
+  } catch (e) {
+    console.error('access group read failed (resourceAccess left unchanged):', e)
+    groupSet = null
+  }
+
   let synced = 0
   const seen = new Set<string>()
   for (const m of rows) {
+    const access = groupSet === null
+      ? {}
+      : { resourceAccess: groupSet.has(m.emailAddress) || (m.googleEmail ? groupSet.has(m.googleEmail) : false) }
     await db.member.upsert({
       where: { emailAddress: m.emailAddress },
-      update: { googleEmail: m.googleEmail, name: m.name, tier: m.tier, current: m.current, isBoard: m.isBoard, partnerEmail: m.partnerEmail, expires: m.expires },
-      create: { emailAddress: m.emailAddress, googleEmail: m.googleEmail, name: m.name, tier: m.tier, current: m.current, isBoard: m.isBoard, partnerEmail: m.partnerEmail, expires: m.expires },
+      update: { googleEmail: m.googleEmail, name: m.name, tier: m.tier, current: m.current, isBoard: m.isBoard, partnerEmail: m.partnerEmail, expires: m.expires, joinDate: m.joinDate, paymentDate: m.paymentDate, referredBy: m.referredBy, ...access },
+      create: { emailAddress: m.emailAddress, googleEmail: m.googleEmail, name: m.name, tier: m.tier, current: m.current, isBoard: m.isBoard, partnerEmail: m.partnerEmail, expires: m.expires, joinDate: m.joinDate, paymentDate: m.paymentDate, referredBy: m.referredBy, ...access },
     })
     seen.add(m.emailAddress)
     synced++
@@ -126,7 +175,7 @@ export async function isCurrentMember(email: string, deps: GateDeps = {}): Promi
       ? process.env.DEV_ALLOWED_EMAILS?.split(',').map((x) => x.trim().toLowerCase())
       : undefined
   if (devList?.includes(e)) {
-    return { ok: true, member: { emailAddress: e, googleEmail: null, name: 'DEV', tier: null, current: true, isBoard: false, partnerEmail: null, expires: null } }
+    return { ok: true, member: { emailAddress: e, googleEmail: null, name: 'DEV', tier: null, current: true, isBoard: false, partnerEmail: null, expires: null, joinDate: null, paymentDate: null, referredBy: null } }
   }
 
   try {
