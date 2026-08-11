@@ -1,8 +1,9 @@
 import { redirect } from 'next/navigation'
 import { auth } from '@/lib/auth'
-import { listMemberComps, listPastComps } from '@/lib/competitions'
+import { listMemberComps, listPastComps, listOfficerComps } from '@/lib/competitions'
 import { AddCompetitionForm } from '@/components/members/AddCompetitionForm'
 import { CompetitionCard } from '@/components/members/CompetitionCard'
+import { OfficerCompetitions } from '@/components/members/OfficerCompetitions'
 
 export default async function CompetitionsPage() {
   const session = await auth()
@@ -36,6 +37,8 @@ export default async function CompetitionsPage() {
           </ul>
         </details>
       )}
+
+      {isBoard && <OfficerCompetitions comps={await listOfficerComps()} />}
     </div>
   )
 }
