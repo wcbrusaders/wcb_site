@@ -30,6 +30,9 @@ export async function SiteHeader() {
               <Link href="/members/equipment" className="text-foreground/70 hover:text-foreground transition-colors">
                 Equipment
               </Link>
+              <Link href="/members/competitions" className="text-foreground/70 hover:text-foreground transition-colors">
+                Competitions
+              </Link>
               {isBoard && (
                 <Link href="/members/holdings" className="text-foreground/70 hover:text-foreground transition-colors">
                   Holdings

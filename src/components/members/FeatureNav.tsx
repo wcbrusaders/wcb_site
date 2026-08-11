@@ -3,6 +3,7 @@ import Link from 'next/link'
 const LIVE = [
   { name: 'Book Library', desc: 'Browse and borrow the club library.', href: '/members/library' },
   { name: 'Equipment', desc: 'Check out shared brewing equipment.', href: '/members/equipment' },
+  { name: 'Competitions', desc: 'Track comps you entered and coordinate shipping.', href: '/members/competitions' },
 ]
 
 export function FeatureNav({ isBoard }: { isBoard: boolean }) {
