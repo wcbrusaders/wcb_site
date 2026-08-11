@@ -29,7 +29,8 @@ export function TitleCard({ item, isBoard }: { item: TitleView; isBoard: boolean
   const overdue = item.myLoan && item.myLoan.dueAt.getTime() < Date.now()
   const [candidate, setCandidate] = useState<{ blob: Blob; preview: string } | null>(null)
   const [uploading, setUploading] = useState(false)
-  const fileRef = useRef<HTMLInputElement>(null)
+  const fileRef = useRef<HTMLInputElement>(null)     // library / files (no capture)
+  const cameraRef = useRef<HTMLInputElement>(null)   // camera (capture="environment")
 
   function run(fn: () => Promise<{ ok: boolean; reason?: string }>) {
     setErr(null)
@@ -63,6 +64,8 @@ export function TitleCard({ item, isBoard }: { item: TitleView; isBoard: boolean
     finally { setUploading(false) }
   }
 
+  // Retake reopens the library picker (safe default; both sources feed the same
+  // candidate→preview→confirm flow, so the source of the retry doesn't matter).
   function retake() { if (candidate) URL.revokeObjectURL(candidate.preview); setCandidate(null); fileRef.current?.click() }
 
   function saveEdit() {
@@ -116,17 +119,24 @@ export function TitleCard({ item, isBoard }: { item: TitleView; isBoard: boolean
               className="border border-border px-4 py-1.5 rounded-full text-sm disabled:opacity-50">Renew</button>
           </>
         )}
-        {/* No `capture` attribute: on mobile it forces camera-only and hides the
-            photo-library picker. Plain accept="image/*" makes mobile show the
-            native Camera / Photo Library / Files chooser (snap OR upload, per
-            spec); desktop gets the file picker either way. */}
+        {/* Two inputs, not one: a single input can't reliably offer BOTH camera
+            and library across browsers (Android Chromium opens the gallery; with
+            `capture` it forces camera-only). So we give explicit buttons — the
+            camera input carries capture="environment", the library input has none.
+            On desktop both just open the file picker (capture is ignored), so the
+            pair is harmless there. */}
+        <input ref={cameraRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={onPick} />
         <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={onPick} />
         {isEquip && !candidate && !item.photoUrl && (
-          <button disabled={uploading} onClick={() => fileRef.current?.click()} className="border border-border px-4 py-1.5 rounded-full text-sm disabled:opacity-50">Add photo</button>
+          <>
+            <button disabled={uploading} onClick={() => cameraRef.current?.click()} className="border border-border px-4 py-1.5 rounded-full text-sm disabled:opacity-50">Take photo</button>
+            <button disabled={uploading} onClick={() => fileRef.current?.click()} className="border border-border px-4 py-1.5 rounded-full text-sm disabled:opacity-50">Upload photo</button>
+          </>
         )}
         {isEquip && isBoard && item.photoUrl && !candidate && (
           <>
-            <button disabled={uploading} onClick={() => fileRef.current?.click()} className="border border-border px-4 py-1.5 rounded-full text-sm">Replace photo</button>
+            <button disabled={uploading} onClick={() => cameraRef.current?.click()} className="border border-border px-4 py-1.5 rounded-full text-sm">Take new photo</button>
+            <button disabled={uploading} onClick={() => fileRef.current?.click()} className="border border-border px-4 py-1.5 rounded-full text-sm">Upload replacement</button>
             <button disabled={uploading} onClick={() => run(() => removeItemPhotoAction(item.id))} className="border border-red-500/40 text-red-400 px-4 py-1.5 rounded-full text-sm">Remove photo</button>
           </>
         )}
