@@ -78,6 +78,7 @@ model LoanableItem {
   author      String?  // book
   isbn        String?  // book
   notes       String?  // equipment
+  subcategory String?  // equipment group (one of EQUIPMENT_SUBCATEGORIES) or null
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   copies      Copy[]

@@ -3,6 +3,11 @@ import { prisma } from './db'
 export type ItemCategory = 'book' | 'equipment'
 export type Condition = 'New' | 'Good' | 'Fair' | 'Poor' | 'Damaged'
 
+export const EQUIPMENT_SUBCATEGORIES = [
+  'Kegging & Serving', 'Fermentation', 'Measurement', 'Transfer & Hoses',
+  'Kettle & Hot-side', 'Bottling', 'Cleaning', 'Other',
+] as const
+
 export function coverUrl(isbn: string | null | undefined): string | null {
   const v = (isbn ?? '').trim()
   return v ? `https://covers.openlibrary.org/b/isbn/${v}-L.jpg` : null
@@ -10,7 +15,7 @@ export function coverUrl(isbn: string | null | undefined): string | null {
 
 export type TitleView = {
   id: string; category: string; title: string; description: string | null
-  author: string | null; isbn: string | null; notes: string | null
+  author: string | null; isbn: string | null; notes: string | null; subcategory: string | null
   availableCount: number; totalCount: number
   myLoan: { loanId: string; copyId: string; dueAt: Date; renewedCount: number } | null
   archivableCopyId: string | null
@@ -42,7 +47,7 @@ export async function listTitles(
     const archivableCopy = copies.find((c: any) => c.status === 'available')
     views.push({
       id: r.id, category: r.category, title: r.title, description: r.description,
-      author: r.author, isbn: r.isbn, notes: r.notes,
+      author: r.author, isbn: r.isbn, notes: r.notes, subcategory: r.subcategory ?? null,
       availableCount: available, totalCount: copies.length, myLoan,
       archivableCopyId: archivableCopy ? archivableCopy.id : null,
     })
@@ -132,7 +137,7 @@ export async function renewLoan(loanId: string, actingMemberId: string, deps: { 
 
 export type NewTitleInput = {
   category: ItemCategory; title: string; description?: string
-  author?: string; isbn?: string; notes?: string
+  author?: string; isbn?: string; notes?: string; subcategory?: string
   copies?: number; initialCondition?: Condition
 }
 
@@ -141,7 +146,7 @@ export async function addTitle(input: NewTitleInput, addedById: string, deps: { 
   const title = await db.loanableItem.create({
     data: {
       category: input.category, title: input.title, description: input.description ?? null,
-      author: input.author ?? null, isbn: input.isbn ?? null, notes: input.notes ?? null, addedById,
+      author: input.author ?? null, isbn: input.isbn ?? null, notes: input.notes ?? null, subcategory: input.subcategory ?? null, addedById,
     },
   })
   const n = Math.max(1, input.copies ?? 1)
@@ -175,4 +180,20 @@ export async function archiveCopy(copyId: string, deps: { db?: typeof prisma } =
   if (copy.status === 'out') return { ok: false, reason: 'out' }
   await db.copy.update({ where: { id: copyId }, data: { status: 'archived' } })
   return { ok: true }
+}
+
+export function groupBySubcategory(
+  titles: TitleView[],
+): { subcategory: string; items: TitleView[] }[] {
+  const known = new Set<string>(EQUIPMENT_SUBCATEGORIES)
+  const buckets = new Map<string, TitleView[]>()
+  for (const t of titles) {
+    const key = t.subcategory && known.has(t.subcategory) ? t.subcategory : 'Other'
+    const arr = buckets.get(key) ?? []
+    arr.push(t)
+    buckets.set(key, arr)
+  }
+  return EQUIPMENT_SUBCATEGORIES
+    .map((cat) => ({ subcategory: cat, items: buckets.get(cat) ?? [] }))
+    .filter((g) => g.items.length > 0)
 }

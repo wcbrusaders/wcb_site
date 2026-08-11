@@ -1,7 +1,7 @@
 'use client'
 import { useState, useTransition, type ChangeEvent } from 'react'
 import { addTitleAction } from '@/app/members/_actions/lending-actions'
-import type { Condition } from '@/lib/lending'
+import { EQUIPMENT_SUBCATEGORIES, type Condition } from '@/lib/lending'
 
 type FormState = {
   title: string
@@ -11,9 +11,10 @@ type FormState = {
   notes: string
   copies: number
   initialCondition: Condition
+  subcategory: string
 }
 
-const INITIAL: FormState = { title: '', author: '', isbn: '', description: '', notes: '', copies: 1, initialCondition: 'New' }
+const INITIAL: FormState = { title: '', author: '', isbn: '', description: '', notes: '', copies: 1, initialCondition: 'New', subcategory: 'Other' }
 
 export function AddTitleForm({ category }: { category: 'book' | 'equipment' }) {
   const [pending, start] = useTransition()
@@ -31,6 +32,7 @@ export function AddTitleForm({ category }: { category: 'book' | 'equipment' }) {
             notes: category === 'equipment' ? (f.notes || undefined) : undefined,
             copies: Number(f.copies) || 1,
             initialCondition: category === 'equipment' ? f.initialCondition : undefined,
+            subcategory: category === 'equipment' ? f.subcategory : undefined,
           })
           setF({ ...f, title: '', author: '', isbn: '', description: '', notes: '' })
         })
@@ -46,6 +48,11 @@ export function AddTitleForm({ category }: { category: 'book' | 'equipment' }) {
         {category === 'equipment' && (
           <select value={f.initialCondition} onChange={set('initialCondition')} className="rounded-lg border border-border bg-background/60 px-2 py-1 text-sm">
             {(['New', 'Good', 'Fair', 'Poor', 'Damaged'] as const).map(c => <option key={c}>{c}</option>)}
+          </select>
+        )}
+        {category === 'equipment' && (
+          <select value={f.subcategory} onChange={set('subcategory')} className="rounded-lg border border-border bg-background/60 px-2 py-1 text-sm">
+            {EQUIPMENT_SUBCATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
           </select>
         )}
       </div>
