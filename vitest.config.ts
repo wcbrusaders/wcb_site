@@ -9,6 +9,9 @@ export default defineConfig({
       // special-cases this resolution). Alias the bare specifier straight to
       // the real file so next-auth is importable under Vitest.
       { find: /^next\/server$/, replacement: 'next/server.js' },
+      // Mirror tsconfig's "@/*" -> "./src/*" path mapping so action files
+      // (which import via the @ alias) resolve under Vitest.
+      { find: /^@\//, replacement: `${new URL('./src/', import.meta.url).pathname}` },
     ],
   },
   test: {
