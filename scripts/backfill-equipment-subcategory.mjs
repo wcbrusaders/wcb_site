@@ -1,4 +1,5 @@
 import { PrismaClient } from '@prisma/client'
+import { pathToFileURL } from 'node:url'
 const prisma = new PrismaClient()
 
 export const MAPPING = {
@@ -32,5 +33,6 @@ async function main() {
   await prisma.$disconnect()
 }
 
-// run only when invoked directly, not when imported by the test
-if (import.meta.url === `file://${process.argv[1]}`) main()
+// run only when invoked directly, not when imported by the test.
+// pathToFileURL handles relative + Windows paths (raw `file://${argv[1]}` did not).
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) main()
