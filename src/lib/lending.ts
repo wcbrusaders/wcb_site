@@ -15,7 +15,7 @@ export function coverUrl(isbn: string | null | undefined): string | null {
 
 export type TitleView = {
   id: string; category: string; title: string; description: string | null
-  author: string | null; isbn: string | null; notes: string | null; subcategory: string | null
+  author: string | null; isbn: string | null; notes: string | null; subcategory: string | null; photoUrl: string | null
   availableCount: number; totalCount: number
   myLoan: { loanId: string; copyId: string; dueAt: Date; renewedCount: number } | null
   archivableCopyId: string | null
@@ -47,7 +47,7 @@ export async function listTitles(
     const archivableCopy = copies.find((c: any) => c.status === 'available')
     views.push({
       id: r.id, category: r.category, title: r.title, description: r.description,
-      author: r.author, isbn: r.isbn, notes: r.notes, subcategory: r.subcategory ?? null,
+      author: r.author, isbn: r.isbn, notes: r.notes, subcategory: r.subcategory ?? null, photoUrl: r.photoUrl ?? null,
       availableCount: available, totalCount: copies.length, myLoan,
       archivableCopyId: archivableCopy ? archivableCopy.id : null,
     })
@@ -95,6 +95,10 @@ export const RENEW_CAP = 2
 // Holds seam: today any holder may renew. A future hold queue overrides this
 // to return false when someone is waiting on the copy.
 export function canRenew(_copy: { id: string }): boolean { return true }
+
+export function canSetPhoto(opts: { isBoard: boolean; hasPhoto: boolean }): boolean {
+  return opts.isBoard || !opts.hasPhoto
+}
 
 export type ReturnResult = { ok: true } | { ok: false; reason: 'not_found' | 'forbidden' | 'already_returned' }
 

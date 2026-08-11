@@ -225,3 +225,20 @@ test('groupBySubcategory: canonical order, empties dropped, null/unknown -> Othe
 test('groupBySubcategory: empty input -> empty array', () => {
   expect(groupBySubcategory([])).toEqual([])
 })
+
+import { canSetPhoto } from './lending'
+
+test('canSetPhoto: board can always; member only when no photo', () => {
+  expect(canSetPhoto({ isBoard: true, hasPhoto: true })).toBe(true)
+  expect(canSetPhoto({ isBoard: true, hasPhoto: false })).toBe(true)
+  expect(canSetPhoto({ isBoard: false, hasPhoto: false })).toBe(true)
+  expect(canSetPhoto({ isBoard: false, hasPhoto: true })).toBe(false) // member cannot overwrite
+})
+
+test('listTitles: returns photoUrl on each title', async () => {
+  const rows = [{ id:'i1', category:'equipment', title:'Kettle', description:null, author:null, isbn:null, notes:null, subcategory:'Other', photoUrl:'https://blob/x.jpg',
+    copies:[{ id:'c1', status:'available', loans:[] }] }]
+  const db = { loanableItem: { findMany: async () => rows } } as any
+  const out = await listTitles('equipment', 'me', {}, { db })
+  expect(out[0].photoUrl).toBe('https://blob/x.jpg')
+})
