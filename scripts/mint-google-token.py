@@ -17,7 +17,12 @@ import os
 from google_auth_oauthlib.flow import InstalledAppFlow
 
 # Hub only reads the roster. Do NOT request Drive/Gmail/Calendar/Admin here.
-SCOPES = ["https://www.googleapis.com/auth/spreadsheets.readonly"]
+SCOPES = [
+    "https://www.googleapis.com/auth/spreadsheets.readonly",
+    # Dashboard "resources access" card: read the members Google Group's membership
+    # (ground truth for Drive/Calendar access). Read-only Directory scope.
+    "https://www.googleapis.com/auth/admin.directory.group.member.readonly",
+]
 
 # Reuse the bot's existing "installed" OAuth client.
 CLIENT_FILE = os.path.join("..", "wcb_bot", "credentials.json")
