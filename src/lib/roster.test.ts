@@ -1,0 +1,198 @@
+import { test, expect, vi, afterEach } from 'vitest'
+import { normalizeEmail, mapSheetRow, isCurrentMember } from './roster'
+
+afterEach(() => {
+  vi.unstubAllEnvs()
+})
+
+test('normalizeEmail lowercases and trims', () => {
+  expect(normalizeEmail('  Foo@Bar.COM ')).toBe('foo@bar.com')
+})
+
+const HEADERS = ['Name','Tier','Email Address','Expires','Current','Google Email','Partner Email','Board Member']
+
+test('mapSheetRow maps a current member with google email', () => {
+  const row = ['Jane Doe','Full','Jane@Example.com','2027-01-01','TRUE','jane.g@gmail.com','partner@x.com','No']
+  const m = mapSheetRow(HEADERS, row)!
+  expect(m.emailAddress).toBe('jane@example.com')      // normalized
+  expect(m.googleEmail).toBe('jane.g@gmail.com')
+  expect(m.current).toBe(true)
+  expect(m.isBoard).toBe(false)
+  expect(m.partnerEmail).toBe('partner@x.com')
+  expect(m.name).toBe('Jane Doe')
+})
+
+test('mapSheetRow marks non-current member', () => {
+  const row = ['Bob','Full','bob@x.com','2020-01-01','FALSE','','','No']
+  expect(mapSheetRow(HEADERS, row)!.current).toBe(false)
+})
+
+test('mapSheetRow returns null when no email', () => {
+  const row = ['NoEmail','Full','','','TRUE','','','No']
+  expect(mapSheetRow(HEADERS, row)).toBeNull()
+})
+
+test('mapSheetRow parses board member true', () => {
+  const row = ['Chair','Full','chair@x.com','2027-01-01','yes','','','Yes']
+  expect(mapSheetRow(HEADERS, row)!.isBoard).toBe(true)
+})
+
+test('syncRoster upserts fetched rows and deactivates absent members', async () => {
+  const { syncRoster } = await import('./roster')
+  const fetched = [
+    { emailAddress: 'a@x.com', googleEmail: null, name: 'A', tier: null, current: true, isBoard: false, partnerEmail: null, expires: null },
+    { emailAddress: 'b@x.com', googleEmail: null, name: 'B', tier: null, current: false, isBoard: false, partnerEmail: null, expires: null },
+  ]
+  const upserts: string[] = []
+  let updateManyWhereIn: string[] = []
+  const db = {
+    member: {
+      upsert: async ({ where }: any) => { upserts.push(where.emailAddress) },
+      updateMany: async ({ where }: any) => {
+        // Capture the actual `in` list from the where clause
+        updateManyWhereIn = where.emailAddress.in ?? []
+        return { count: updateManyWhereIn.length }
+      },
+      findMany: async () => [
+        { emailAddress: 'a@x.com' },
+        { emailAddress: 'b@x.com' },
+        { emailAddress: 'c@x.com' }, // absent from fetch
+      ],
+    },
+  }
+  const res = await syncRoster({ fetchAll: async () => fetched, db: db as any })
+  // Upsert called for each fetched row
+  expect(upserts).toEqual(['a@x.com', 'b@x.com'])
+  expect(res.synced).toBe(2)
+  // Deactivation: only absent member c@x.com, not the present ones
+  expect(updateManyWhereIn).toEqual(['c@x.com'])
+  expect(res.deactivated).toBe(1)
+})
+
+test('syncRoster does not call updateMany when no absent members', async () => {
+  const { syncRoster } = await import('./roster')
+  const fetched = [
+    { emailAddress: 'a@x.com', googleEmail: null, name: 'A', tier: null, current: true, isBoard: false, partnerEmail: null, expires: null },
+    { emailAddress: 'b@x.com', googleEmail: null, name: 'B', tier: null, current: false, isBoard: false, partnerEmail: null, expires: null },
+  ]
+  const upserts: string[] = []
+  let updateManyWasCalled = false
+  const db = {
+    member: {
+      upsert: async ({ where }: any) => { upserts.push(where.emailAddress) },
+      updateMany: async () => {
+        updateManyWasCalled = true
+        return { count: 0 }
+      },
+      findMany: async () => [
+        { emailAddress: 'a@x.com' },
+        { emailAddress: 'b@x.com' },
+      ],
+    },
+  }
+  const res = await syncRoster({ fetchAll: async () => fetched, db: db as any })
+  expect(upserts).toEqual(['a@x.com', 'b@x.com'])
+  expect(res.synced).toBe(2)
+  expect(updateManyWasCalled).toBe(false)
+  expect(res.deactivated).toBe(0)
+})
+
+// isCurrentMember tests
+
+const M = (over = {}) => ({ emailAddress: 'a@x.com', googleEmail: null, name: 'A', tier: null, current: true, isBoard: false, partnerEmail: null, expires: null, ...over })
+
+function fakeDb(row: any, honorsWhere = false) {
+  return { member: {
+    findFirst: async (args: any) => {
+      if (honorsWhere && args?.where?.current !== true) {
+        return null
+      }
+      return row
+    },
+    upsert: async () => {},
+  } } as any
+}
+
+test('isCurrentMember: DB hit (current) allows', async () => {
+  const currentRow = M()
+  const db = {
+    member: {
+      findFirst: async ({ where }: any) => (where.current === true ? currentRow : null),
+      upsert: async () => {},
+    },
+  } as any
+  const r = await isCurrentMember('A@X.com', { db, fetchByEmail: async () => null })
+  expect(r.ok).toBe(true)
+  if (r.ok) {
+    expect(r.member.emailAddress).toBe('a@x.com')
+  }
+})
+
+test('isCurrentMember: DB miss + live fallback finds current -> allow', async () => {
+  let upsertCalled = false
+  const db = {
+    member: {
+      findFirst: async () => null,
+      upsert: async () => { upsertCalled = true },
+    },
+  } as any
+  const r = await isCurrentMember('new@x.com', { db, fetchByEmail: async () => M({ emailAddress: 'new@x.com' }) })
+  expect(r.ok).toBe(true)
+  if (r.ok) {
+    expect(r.member.emailAddress).toBe('new@x.com')
+  }
+  // Verify upsert was called (caching the new member)
+  expect(upsertCalled).toBe(true)
+})
+
+test('isCurrentMember: DB miss + fallback lapsed -> deny', async () => {
+  const db = {
+    member: {
+      findFirst: async () => null,
+      upsert: async () => {},
+    },
+  } as any
+  const r = await isCurrentMember('lapsed@x.com', { db, fetchByEmail: async () => M({ emailAddress: 'lapsed@x.com', current: false }) })
+  expect(r.ok).toBe(false)
+})
+
+test('isCurrentMember: DB miss + fallback stranger -> deny', async () => {
+  const db = {
+    member: {
+      findFirst: async () => null,
+      upsert: async () => {},
+    },
+  } as any
+  const r = await isCurrentMember('nobody@x.com', { db, fetchByEmail: async () => null })
+  expect(r.ok).toBe(false)
+})
+
+test('isCurrentMember: fail-closed on error', async () => {
+  const db = { member: { findFirst: async () => { throw new Error('db down') } } } as any
+  const r = await isCurrentMember('a@x.com', { db, fetchByEmail: async () => { throw new Error('sheet down') } })
+  expect(r.ok).toBe(false)
+})
+
+// DEV_ALLOWED_EMAILS bypass: works in dev, MUST be inert in production.
+// A db/fetch that throws proves the bypass is short-circuiting BEFORE any roster check.
+const throwingDeps = {
+  db: { member: { findFirst: async () => { throw new Error('should not query') } } } as any,
+  fetchByEmail: async () => { throw new Error('should not fetch') },
+}
+
+test('isCurrentMember: DEV_ALLOWED_EMAILS bypass allows a listed email in non-production', async () => {
+  vi.stubEnv('NODE_ENV', 'development')
+  vi.stubEnv('DEV_ALLOWED_EMAILS', 'Dev@Example.com')
+  const r = await isCurrentMember('dev@example.com', throwingDeps)
+  expect(r.ok).toBe(true) // bypassed the (throwing) roster check entirely
+})
+
+test('isCurrentMember: DEV_ALLOWED_EMAILS bypass is IGNORED in production even when set', async () => {
+  vi.stubEnv('NODE_ENV', 'production')
+  vi.stubEnv('DEV_ALLOWED_EMAILS', 'dev@example.com')
+  // In prod the bypass must not fire, so the gate falls through to the roster check.
+  // A non-throwing db that returns no match must then DENY (not allow via the dev list).
+  const db = { member: { findFirst: async () => null, upsert: async () => {} } } as any
+  const r = await isCurrentMember('dev@example.com', { db, fetchByEmail: async () => null })
+  expect(r.ok).toBe(false)
+})
