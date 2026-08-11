@@ -2,7 +2,7 @@
 import { useState, useTransition } from 'react'
 import { addCompetitionAction } from '@/app/members/_actions/competition-actions'
 
-const EMPTY = { name: '', homepageUrl: '', registrationDeadline: '', shippingDeadline: '', bottlesRequired: 3, shippingAddress: '', dropoffAddress: '' }
+const EMPTY = { name: '', homepageUrl: '', registrationDeadline: '', shippingDeadline: '', bottlesRequired: '', shippingAddress: '', dropoffAddress: '' }
 
 export function AddCompetitionForm() {
   const [pending, start] = useTransition()
@@ -33,11 +33,11 @@ export function AddCompetitionForm() {
       }}>
       <input required placeholder="Competition name" value={f.name} onChange={set('name')} className="w-full rounded-lg border border-border bg-background/60 px-3 py-2 text-sm" />
       <input required placeholder="Homepage URL" value={f.homepageUrl} onChange={set('homepageUrl')} className="w-full rounded-lg border border-border bg-background/60 px-3 py-2 text-sm" />
-      <label className="block text-xs text-foreground/50">Registration deadline
+      <label className="block text-xs text-foreground/50">Entry registration deadline <span className="text-foreground/35">— sign up &amp; declare entries on the comp site by</span>
         <input required type="date" value={f.registrationDeadline} onChange={set('registrationDeadline')} className="mt-1 w-full rounded-lg border border-border bg-background/60 px-3 py-2 text-sm" /></label>
-      <label className="block text-xs text-foreground/50">Shipping deadline
+      <label className="block text-xs text-foreground/50">Beer arrival / shipping deadline <span className="text-foreground/35">— bottles must be received by</span>
         <input required type="date" value={f.shippingDeadline} onChange={set('shippingDeadline')} className="mt-1 w-full rounded-lg border border-border bg-background/60 px-3 py-2 text-sm" /></label>
-      <input required type="number" min={1} placeholder="Bottles required" value={f.bottlesRequired} onChange={set('bottlesRequired')} className="w-full rounded-lg border border-border bg-background/60 px-3 py-2 text-sm" />
+      <input required type="number" min={1} placeholder="Bottles required per entry (e.g. 2 or 3)" value={f.bottlesRequired} onChange={set('bottlesRequired')} className="w-full rounded-lg border border-border bg-background/60 px-3 py-2 text-sm" />
       <input required placeholder="Shipping address" value={f.shippingAddress} onChange={set('shippingAddress')} className="w-full rounded-lg border border-border bg-background/60 px-3 py-2 text-sm" />
       <input placeholder="Drop-off address (optional)" value={f.dropoffAddress} onChange={set('dropoffAddress')} className="w-full rounded-lg border border-border bg-background/60 px-3 py-2 text-sm" />
       {err && <p className="text-sm text-red-400">{err}</p>}

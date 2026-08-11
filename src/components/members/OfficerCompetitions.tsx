@@ -13,7 +13,7 @@ export function OfficerCompetitions({ comps }: { comps: OfficerCompView[] }) {
           <div key={c.id} className="rounded-2xl border border-border/50 bg-card-bg/30 p-6">
             <div className="flex items-center justify-between gap-3 flex-wrap">
               <p className="font-semibold">{c.name}</p>
-              <span className="text-sm">Ships by {iso(c.shippingDeadline)} · <span className="text-accent">~{c.podTotal} bottles to pack</span></span>
+              <span className="text-sm">Beer arrives by {iso(c.shippingDeadline)} · <span className="text-accent">~{c.podTotal} bottles to pack</span></span>
             </div>
             <div className="mt-3">
               <p className="text-sm font-medium">Per member</p>
