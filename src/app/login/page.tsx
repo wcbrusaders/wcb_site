@@ -4,6 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useState, type FormEvent } from "react";
 import { signIn } from "next-auth/react";
+import { normalizeLoginEmail } from "@/lib/email-normalize";
 
 type Step = "email" | "code";
 
@@ -47,7 +48,12 @@ export default function LoginPage() {
       // which runs the roster-gate `signIn` callback and, if allowed, sends
       // the 6-digit code via sendVerificationRequest. It never throws; errors
       // come back on the returned object.
-      const res = await signIn("email-code", { email, redirect: false });
+      // Normalize to match @auth/core's stored identifier EXACTLY (it stores the
+      // token under normalize("NFKC")→lowercase→trim). We must send the same
+      // normalized value here AND on the verify callback below, or the identifier
+      // comparison fails and a correct code reads as "wrong or expired". Mobile
+      // auto-capitalization made this bite every fresh phone login.
+      const res = await signIn("email-code", { email: normalizeLoginEmail(email), redirect: false });
       if (res?.error) {
         setError(emailStepErrorMessage(res.error));
         setPending(false);
@@ -76,7 +82,7 @@ export default function LoginPage() {
       // cookie from the response like it would on a normal navigation.
       const url = `/api/auth/callback/email-code?${new URLSearchParams({
         token: code,
-        email,
+        email: normalizeLoginEmail(email),
       })}`;
       const res = await fetch(url, { redirect: "follow" });
       const landedUrl = new URL(res.url);
