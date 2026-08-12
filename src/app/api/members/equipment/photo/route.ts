@@ -2,6 +2,13 @@ import { handleUpload, type HandleUploadBody } from '@vercel/blob/client'
 import { NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 
+// Node runtime (not Edge): onBeforeGenerateToken calls auth(), which uses the
+// Prisma adapter + DATABASE sessions — a DB round-trip that can't run at the
+// Edge. Without this the route runs on Edge, auth() can't resolve the session,
+// and every token request 401s → uploads fail. Same reason the middleware
+// pins nodejs. (This route is NOT under the middleware's /members matcher.)
+export const runtime = 'nodejs'
+
 export async function POST(request: Request): Promise<NextResponse> {
   const body = (await request.json()) as HandleUploadBody
   try {
