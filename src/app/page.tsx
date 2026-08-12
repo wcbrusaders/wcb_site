@@ -194,8 +194,11 @@ export default function Home() {
         </div>
 
         {mobileMenuOpen && (
-          <div className="md:hidden border-t border-border/50 bg-background">
-            <nav className="flex flex-col px-6 py-4 gap-4">
+          <>
+            {/* tap-outside-to-close overlay (below the header, above page content) */}
+            <div className="md:hidden fixed inset-0 top-[57px] z-40 bg-black/40" onClick={() => setMobileMenuOpen(false)} />
+            <div className="md:hidden relative z-50 border-t border-border/50 bg-[#0a0a0a] shadow-xl">
+              <nav className="flex flex-col px-6 py-4 gap-4">
               <a href="#benefits" onClick={() => setMobileMenuOpen(false)} className="text-foreground/70 hover:text-foreground py-2">What You Get</a>
               <a href="#pathways" onClick={() => setMobileMenuOpen(false)} className="text-foreground/70 hover:text-foreground py-2">Pathways</a>
               <a href="#taplist" onClick={() => setMobileMenuOpen(false)} className="text-foreground/70 hover:text-foreground py-2">Taplist</a>
@@ -212,8 +215,9 @@ export default function Home() {
               >
                 Become a Brusader
               </a>
-            </nav>
-          </div>
+              </nav>
+            </div>
+          </>
         )}
       </header>
 
