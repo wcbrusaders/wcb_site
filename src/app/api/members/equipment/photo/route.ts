@@ -17,9 +17,13 @@ export async function POST(request: Request): Promise<NextResponse> {
           addRandomSuffix: true,
         }
       },
-      onUploadCompleted: async () => {
-        // no-op: the item is linked via setItemPhotoAction, not here
-      },
+      // NO onUploadCompleted: we link the blob in setItemPhotoAction AFTER
+      // upload() resolves. Defining onUploadCompleted makes handleUpload set a
+      // server-to-server completion callbackUrl (derived from the request host),
+      // and the client upload() promise blocks until that callback round-trips.
+      // If the callback host isn't cleanly reachable, upload() hangs forever
+      // ("never-ending upload"). Omitting it => no callback => upload() resolves
+      // on byte completion.
     })
     return NextResponse.json(json)
   } catch (e) {
