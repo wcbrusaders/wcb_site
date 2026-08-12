@@ -5,8 +5,9 @@ import { visibleLinks } from '@/lib/nav'
 import { DesktopTabs } from '@/components/DesktopTabs'
 import { MobileNav } from '@/components/MobileNav'
 
-// Global header on every page (root layout). Server component: reads the
-// session, filters board links server-side, and passes ONLY plain NavLink[]
+// Members-area header, rendered on /members/* via src/app/members/layout.tsx
+// (NOT global — /, /login, /bot have their own headers). Server component: reads
+// the session, filters board links server-side, and passes ONLY plain NavLink[]
 // data to the client tab/drawer components (no auth/prisma/JSX crossing).
 export async function SiteHeader() {
   const session = await auth()
