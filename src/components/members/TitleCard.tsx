@@ -60,7 +60,11 @@ export function TitleCard({ item, isBoard }: { item: TitleView; isBoard: boolean
       const r = await setItemPhotoAction(item.id, res.url)
       if (!r.ok) setErr(r.reason === 'forbidden' ? 'A photo already exists.' : 'Could not save the photo.')
       else { URL.revokeObjectURL(candidate.preview); setCandidate(null) }
-    } catch { setErr('Upload failed — try again.') }
+    } catch (e) {
+      // Surface the real reason on-screen so members don't need DevTools.
+      const msg = e instanceof Error ? e.message : String(e)
+      setErr(`Upload failed: ${msg}`)
+    }
     finally { setUploading(false) }
   }
 
