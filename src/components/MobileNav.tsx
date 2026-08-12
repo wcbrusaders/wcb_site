@@ -34,7 +34,7 @@ export function MobileNav({ links, signedIn }: { links: NavLink[]; signedIn: boo
           {/* backdrop */}
           <div className="fixed inset-0 z-40 bg-black/50" onClick={() => setOpen(false)} />
           {/* drawer */}
-          <div className="fixed right-0 top-0 z-50 h-full w-72 bg-background border-l border-border p-3 flex flex-col">
+          <div className="fixed right-0 top-0 z-50 h-full w-72 bg-[#0a0a0a] border-l border-border p-3 flex flex-col shadow-2xl">
             <button aria-label="Close menu" onClick={() => setOpen(false)} className="self-end text-foreground/60 text-2xl leading-none px-2">×</button>
             <nav className="mt-2 flex flex-col">
               {links.map((l, i) => {
