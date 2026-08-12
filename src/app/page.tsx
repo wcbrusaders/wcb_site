@@ -127,6 +127,16 @@ function Icon({ name, className = "w-5 h-5" }: { name: string; className?: strin
 
 export default function Home() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [signedIn, setSignedIn] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    fetch('/api/auth/session')
+      .then((r) => r.json())
+      .then((s) => setSignedIn(!!s?.user))
+      .catch(() => setSignedIn(false));
+  }, []);
+  const membersHref = signedIn ? '/members' : '/login';
+  const membersLabel = signedIn ? 'Members Area' : 'Member Login';
 
   useEffect(() => {
     const handleResize = () => {
@@ -160,6 +170,10 @@ export default function Home() {
           </nav>
 
           <div className="flex items-center gap-4">
+            <Link href={membersHref} className="hidden sm:inline-flex border border-accent/50 text-accent hover:bg-accent/10 text-sm font-medium px-5 py-2 rounded-full transition-colors">
+              {membersLabel}
+            </Link>
+
             <a
               href="https://www.paypal.com/ncp/payment/UQ6VG5K69FC92"
               target="_blank"
@@ -187,6 +201,9 @@ export default function Home() {
               <a href="#taplist" onClick={() => setMobileMenuOpen(false)} className="text-foreground/70 hover:text-foreground py-2">Taplist</a>
               <a href="#events" onClick={() => setMobileMenuOpen(false)} className="text-foreground/70 hover:text-foreground py-2">Events</a>
               <Link href="/bot" onClick={() => setMobileMenuOpen(false)} className="text-foreground/70 hover:text-foreground py-2">WCB Bot</Link>
+              <Link href={membersHref} onClick={() => setMobileMenuOpen(false)} className="border border-accent/50 text-accent text-center font-medium px-5 py-3 rounded-full mt-2">
+                {membersLabel}
+              </Link>
               <a
                 href="https://www.paypal.com/ncp/payment/UQ6VG5K69FC92"
                 target="_blank"
@@ -229,6 +246,9 @@ export default function Home() {
               Become a Brusader
               <Icon name="arrow" className="w-4 h-4" />
             </a>
+            <Link href={membersHref} className="inline-flex bg-accent hover:bg-accent-hover text-background font-semibold px-6 py-3 rounded-full transition-colors">
+              {membersLabel}
+            </Link>
             <a
               href="#taplist"
               className="inline-flex items-center justify-center gap-2 bg-foreground/5 hover:bg-foreground/10 text-foreground font-medium px-8 py-4 rounded-full border border-border transition-all"
