@@ -15,6 +15,7 @@ model Member {
   tier         String?
   current      Boolean   @default(false)
   isBoard      Boolean   @default(false)
+  role         String?
   partnerEmail String?
   expires      DateTime?
   joinDate     DateTime?
