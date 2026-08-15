@@ -161,6 +161,86 @@ export async function syncRoster(deps: SyncDeps = {}): Promise<{ synced: number;
   return { synced, deactivated }
 }
 
+export function validateSecondaryEmail(email: string): { ok: true; value: string } | { ok: false; reason: string } {
+  const v = normalizeEmail(email)
+  if (!v) return { ok: false, reason: 'Email is required.' }
+  if (!v.includes('@') || v.startsWith('@') || v.endsWith('@')) return { ok: false, reason: 'That does not look like an email.' }
+  return { ok: true, value: v }
+}
+
+type WriteDeps = {
+  // Raw sheet values INCLUDING the header row (row 0 = headers, no filtering/compaction).
+  fetchRawRows?: () => Promise<string[][]>
+  writeCell?: (rowNumber: number, column: string, value: string) => Promise<void>
+}
+
+async function realFetchRawRows(): Promise<string[][]> {
+  if (!SHEET_ID) throw new Error('MEMBER_ROSTER_SHEET_ID not set')
+  const sheets = sheetsClient()
+  const res = await sheets.spreadsheets.values.get({ spreadsheetId: SHEET_ID, range: TAB })
+  return (res.data.values ?? []).map((r) => r.map((c) => String(c ?? '')))
+}
+
+// Writes `value` into `column` for the row whose 'Email Address' cell matches memberEmail.
+//
+// IMPORTANT: the physical sheet row is resolved by scanning the RAW sheet values directly
+// (not via fetchAllRosterRows()'s filtered MemberRecord[]). fetchAllRosterRows() drops any
+// row with a blank Email Address via mapSheetRow -> filter(m => m !== null), which COMPACTS
+// indices. If an email-less spacer row sits above the target row, an index computed against
+// the filtered array no longer corresponds to the correct physical row, and a write would
+// land on the WRONG member's cell. Scanning raw rows avoids that entirely.
+export async function setRosterField(
+  memberEmail: string,
+  column: 'Google Email' | 'Partner Email',
+  value: string,
+  deps: WriteDeps = {},
+): Promise<{ ok: boolean; reason?: string }> {
+  const fetchRawRows = deps.fetchRawRows ?? realFetchRawRows
+  const target = normalizeEmail(memberEmail)
+  const rawRows = await fetchRawRows()
+  if (rawRows.length < 2) return { ok: false, reason: 'Member not found.' }
+
+  const headers = rawRows[0].map((h) => String(h).trim())
+  const emailColIdx = headers.indexOf('Email Address')
+  if (emailColIdx === -1) return { ok: false, reason: 'Member not found.' }
+
+  // Scan raw data rows (index 1..) for the matching email. Physical (1-based) sheet row
+  // number = raw-array index + 1 (no filtering/compaction involved).
+  let rowNumber = -1
+  for (let i = 1; i < rawRows.length; i++) {
+    const cellVal = (rawRows[i][emailColIdx] ?? '').toString()
+    if (cellVal && normalizeEmail(cellVal) === target) {
+      rowNumber = i + 1
+      break
+    }
+  }
+  if (rowNumber === -1) return { ok: false, reason: 'Member not found.' }
+
+  const colIdx = headers.indexOf(column)
+  if (colIdx === -1) return { ok: false, reason: `Column "${column}" not found in roster` }
+
+  const write = deps.writeCell ?? realWriteCell
+  await write(rowNumber, column, value)
+  return { ok: true }
+}
+
+async function realWriteCell(rowNumber: number, column: string, value: string): Promise<void> {
+  if (!SHEET_ID) throw new Error('MEMBER_ROSTER_SHEET_ID not set')
+  const sheets = sheetsClient()
+  // Resolve the column letter from the header row.
+  const headerRes = await sheets.spreadsheets.values.get({ spreadsheetId: SHEET_ID, range: `${TAB}!1:1` })
+  const headers = (headerRes.data.values?.[0] ?? []).map((h) => String(h).trim())
+  const colIdx = headers.indexOf(column)
+  if (colIdx === -1) throw new Error(`Column "${column}" not found in roster`)
+  const colLetter = String.fromCharCode(65 + colIdx) // A, B, C... (assumes < 26 cols)
+  await sheets.spreadsheets.values.update({
+    spreadsheetId: SHEET_ID,
+    range: `${TAB}!${colLetter}${rowNumber}`,
+    valueInputOption: 'RAW',
+    requestBody: { values: [[value]] },
+  })
+}
+
 type GateDeps = {
   db?: typeof prisma
   fetchByEmail?: (email: string) => Promise<MemberRecord | null>

@@ -1,5 +1,5 @@
 import { test, describe, it, expect, vi, afterEach } from 'vitest'
-import { normalizeEmail, mapSheetRow, isCurrentMember, syncRoster } from './roster'
+import { normalizeEmail, mapSheetRow, isCurrentMember, syncRoster, validateSecondaryEmail } from './roster'
 
 afterEach(() => {
   vi.unstubAllEnvs()
@@ -248,6 +248,92 @@ test('syncRoster is fail-soft when the group read throws (resourceAccess untouch
   const r = await syncRoster({ db, fetchAll: async () => rows, fetchGroupMembers: async () => { throw new Error('directory down') } })
   expect(r.synced).toBe(1)                                  // sheet sync still completed
   expect('resourceAccess' in upserts[0].update).toBe(false) // omitted -> left unchanged
+})
+
+describe('validateSecondaryEmail', () => {
+  it('accepts and normalizes a valid email', () => {
+    expect(validateSecondaryEmail('  Jane2@Example.COM ')).toEqual({ ok: true, value: 'jane2@example.com' })
+  })
+  it('rejects empty', () => {
+    expect(validateSecondaryEmail('   ').ok).toBe(false)
+  })
+  it('rejects a string with no @', () => {
+    expect(validateSecondaryEmail('notanemail').ok).toBe(false)
+  })
+})
+
+describe('setRosterField', () => {
+  it('returns not-found when no row matches the email', async () => {
+    const { setRosterField } = await import('./roster')
+    const rawRows = [
+      ['Name', 'Email Address', 'Google Email', 'Partner Email'],
+      ['Jane', 'jane@x.com', '', ''],
+    ]
+    const writes: Array<{ rowNumber: number; column: string; value: string }> = []
+    const r = await setRosterField('nobody@x.com', 'Google Email', 'x@y.com', {
+      fetchRawRows: async () => rawRows,
+      writeCell: async (rowNumber, column, value) => { writes.push({ rowNumber, column, value }) },
+    })
+    expect(r.ok).toBe(false)
+    expect(writes).toEqual([])
+  })
+
+  it('writes to the correct physical row via injected deps (no spacer rows)', async () => {
+    const { setRosterField } = await import('./roster')
+    const rawRows = [
+      ['Name', 'Email Address', 'Google Email', 'Partner Email'],
+      ['Jane', 'jane@x.com', '', ''],
+      ['Bob', 'bob@x.com', '', ''],
+    ]
+    const writes: Array<{ rowNumber: number; column: string; value: string }> = []
+    const r = await setRosterField('bob@x.com', 'Google Email', 'bob.g@x.com', {
+      fetchRawRows: async () => rawRows,
+      writeCell: async (rowNumber, column, value) => { writes.push({ rowNumber, column, value }) },
+    })
+    expect(r.ok).toBe(true)
+    expect(writes).toEqual([{ rowNumber: 3, column: 'Google Email', value: 'bob.g@x.com' }])
+  })
+
+  // REGRESSION: an email-less spacer row sits ABOVE the target member in the raw sheet.
+  // fetchAllRosterRows() filters out null (email-less) rows via mapSheetRow, which COMPACTS
+  // indices. The old buggy logic did `rows.findIndex(...) + 2` over that FILTERED array,
+  // so it would resolve Bob's write to physical row 3 (compacted index) when Bob is
+  // ACTUALLY on physical row 4 (because row 2 is a blank spacer with no email).
+  // This test must FAIL against the old index+2-over-filtered-rows logic and PASS
+  // once the row is resolved directly against the raw sheet values.
+  it('resolves the TRUE physical row even when an email-less spacer row sits above the target (regression)', async () => {
+    const { setRosterField } = await import('./roster')
+    const rawRows = [
+      ['Name', 'Email Address', 'Google Email', 'Partner Email'], // row 1: header
+      ['', '', '', ''],                                            // row 2: blank spacer (no email) — filtered out by fetchAllRosterRows
+      ['Jane', 'jane@x.com', '', ''],                              // row 3
+      ['Bob', 'bob@x.com', '', ''],                                // row 4: TRUE physical row for Bob
+    ]
+    const writes: Array<{ rowNumber: number; column: string; value: string }> = []
+    const r = await setRosterField('bob@x.com', 'Google Email', 'bob.g@x.com', {
+      fetchRawRows: async () => rawRows,
+      writeCell: async (rowNumber, column, value) => { writes.push({ rowNumber, column, value }) },
+    })
+    expect(r.ok).toBe(true)
+    // Old buggy logic (filtered rows: [jane, bob] -> idx 1 -> rowNumber 3) would write row 3 (Jane's row) — WRONG.
+    // Correct behavior: Bob's true physical row is 4.
+    expect(writes).toEqual([{ rowNumber: 4, column: 'Google Email', value: 'bob.g@x.com' }])
+  })
+
+  it('matches email case/whitespace-insensitively against the raw sheet', async () => {
+    const { setRosterField } = await import('./roster')
+    const rawRows = [
+      ['Email Address', 'Google Email'],
+      ['  Bob@X.com  ', ''],
+    ]
+    const writes: Array<{ rowNumber: number; column: string; value: string }> = []
+    const r = await setRosterField('bob@x.com', 'Google Email', 'new@x.com', {
+      fetchRawRows: async () => rawRows,
+      writeCell: async (rowNumber, column, value) => { writes.push({ rowNumber, column, value }) },
+    })
+    expect(r.ok).toBe(true)
+    expect(writes).toEqual([{ rowNumber: 2, column: 'Google Email', value: 'new@x.com' }])
+  })
 })
 
 describe('mapSheetRow role', () => {

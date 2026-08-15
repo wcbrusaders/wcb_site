@@ -10,6 +10,7 @@ export const MEMBER_LINKS: NavLink[] = [
   { href: '/members/equipment', label: 'Equipment', icon: 'wrench' },
   { href: '/members/library', label: 'Books', icon: 'book' },
   { href: '/members/holdings', label: 'Holdings', icon: 'shield', board: true },
+  { href: '/members/admin', label: 'Admin', icon: 'shield', board: true },
 ]
 
 export function visibleLinks(isBoard: boolean): NavLink[] {
