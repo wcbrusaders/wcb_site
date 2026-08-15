@@ -23,6 +23,10 @@ model Member {
   referredBy   String?
   resourceAccess Boolean?
   status       String    @default("active")
+  // When set AND status is 'interim'/'banned', the member auto-restores to
+  // 'active' once now() passes this date (a time-limited "cooldown" suspension
+  // per the ratified Code's Strike-2). Null = no auto-expiry (indefinite).
+  statusUntil  DateTime?
   updatedAt    DateTime  @updatedAt
 
   @@index([emailAddress])

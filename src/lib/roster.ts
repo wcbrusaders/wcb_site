@@ -31,6 +31,23 @@ export function isAccessBlocked(status: string | null | undefined): boolean {
   return status === 'interim' || status === 'banned'
 }
 
+// Time-aware variant used by the members-area layout gate. A cooldown
+// (time-limited suspension) sets Member.statusUntil alongside an 'interim'/
+// 'banned' status; once `now` passes that date the suspension has elapsed
+// and access is restored even though the DB row hasn't been written back to
+// 'active' yet (that happens lazily via reinstateMemberAction or the next
+// sync). statusUntil === null means no auto-expiry (indefinite / board must
+// reinstate manually).
+export function isAccessBlockedNow(
+  status: string | null | undefined,
+  statusUntil: Date | null | undefined,
+  now: Date,
+): boolean {
+  if (!isAccessBlocked(status)) return false
+  if (statusUntil && now.getTime() > statusUntil.getTime()) return false
+  return true
+}
+
 function truthy(v: string | undefined): boolean {
   if (!v) return false
   return ['true','yes','y','1','x','current'].includes(v.trim().toLowerCase())

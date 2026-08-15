@@ -25,11 +25,27 @@ export default async function EnforcementPage() {
   // candidate members to open a case against (current, not already banned)
   const members = await prisma.member.findMany({ where: { current: true }, select: { id: true, name: true, status: true }, orderBy: { name: 'asc' } })
 
+  // members currently suspended/banned/interim — candidates to reinstate
+  const nonActive = await prisma.member.findMany({
+    where: { status: { not: 'active' } },
+    select: { id: true, name: true, status: true, statusUntil: true },
+    orderBy: { name: 'asc' },
+  })
+
   return (
     <div className="max-w-4xl mx-auto px-4 md:px-6 py-8">
       <h1 className="text-2xl font-bold">Enforcement</h1>
       <p className="text-foreground/50 text-sm mt-1">Board only. Interim freeze is one-key; removal needs quorum of 3 and two-thirds of votes cast.</p>
-      <EnforcementPanel cases={view} members={members.map((m) => ({ id: m.id, name: m.name ?? '(no name)', status: m.status }))} />
+      <EnforcementPanel
+        cases={view}
+        members={members.map((m) => ({ id: m.id, name: m.name ?? '(no name)', status: m.status }))}
+        nonActiveMembers={nonActive.map((m) => ({
+          id: m.id,
+          name: m.name ?? '(no name)',
+          status: m.status,
+          statusUntil: m.statusUntil ? m.statusUntil.toISOString() : null,
+        }))}
+      />
     </div>
   )
 }

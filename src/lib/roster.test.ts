@@ -1,5 +1,5 @@
 import { test, describe, it, expect, vi, afterEach } from 'vitest'
-import { normalizeEmail, mapSheetRow, isCurrentMember, syncRoster, validateSecondaryEmail, isAccessBlocked } from './roster'
+import { normalizeEmail, mapSheetRow, isCurrentMember, syncRoster, validateSecondaryEmail, isAccessBlocked, isAccessBlockedNow } from './roster'
 
 afterEach(() => {
   vi.unstubAllEnvs()
@@ -345,6 +345,33 @@ describe('isAccessBlocked', () => {
     expect(isAccessBlocked('active')).toBe(false)
     expect(isAccessBlocked(null)).toBe(false)
     expect(isAccessBlocked(undefined)).toBe(false)
+  })
+})
+
+describe('isAccessBlockedNow', () => {
+  const before = new Date('2026-08-15T00:00:00Z')
+  const until = new Date('2026-08-20T00:00:00Z')
+  const after = new Date('2026-08-21T00:00:00Z')
+
+  it('blocks a suspended member before statusUntil elapses (cooldown still active)', () => {
+    expect(isAccessBlockedNow('interim', until, before)).toBe(true)
+    expect(isAccessBlockedNow('banned', until, before)).toBe(true)
+  })
+  it('allows once now is past statusUntil (cooldown elapsed)', () => {
+    expect(isAccessBlockedNow('interim', until, after)).toBe(false)
+    expect(isAccessBlockedNow('banned', until, after)).toBe(false)
+  })
+  it('blocks indefinitely when statusUntil is null (no auto-expiry)', () => {
+    expect(isAccessBlockedNow('interim', null, after)).toBe(true)
+    expect(isAccessBlockedNow('banned', null, after)).toBe(true)
+  })
+  it('allows an active member regardless of statusUntil', () => {
+    expect(isAccessBlockedNow('active', null, before)).toBe(false)
+    expect(isAccessBlockedNow('active', until, before)).toBe(false)
+  })
+  it('allows null/undefined status (unset defaults open)', () => {
+    expect(isAccessBlockedNow(null, null, before)).toBe(false)
+    expect(isAccessBlockedNow(undefined, until, before)).toBe(false)
   })
 })
 

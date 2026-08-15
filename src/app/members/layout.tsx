@@ -3,7 +3,7 @@ import { redirect } from 'next/navigation'
 import { SiteHeader } from '@/components/SiteHeader'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/db'
-import { normalizeEmail, isAccessBlocked } from '@/lib/roster'
+import { normalizeEmail, isAccessBlockedNow } from '@/lib/roster'
 
 // SiteHeader renders ONLY on members pages. Non-members pages (/, /login, /bot)
 // have their own headers, so the global header lived in the root layout before
@@ -28,9 +28,9 @@ export default async function MembersLayout({ children }: { children: React.Reac
       const e = normalizeEmail(email)
       const member = await prisma.member.findFirst({
         where: { OR: [{ emailAddress: e }, { googleEmail: e }] },
-        select: { status: true },
+        select: { status: true, statusUntil: true },
       })
-      if (isAccessBlocked(member?.status)) {
+      if (isAccessBlockedNow(member?.status, member?.statusUntil, new Date())) {
         redirect('/members/suspended')
       }
     }
