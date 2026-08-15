@@ -4,7 +4,15 @@ export const OMBUDSMAN = { name: 'Marcella', discord: 'Arycella' } as const
 
 export type BoardMember = { name: string; role: string }
 
-const ROLE_ORDER = ['President', 'Vice President', 'Treasurer', 'Secretary', 'Ombudsman']
+// Explicit display order by NAME (case-insensitive). Roles are displayed as-is
+// from the roster, but ordering is by this leadership list so titles' exact
+// spelling can't reshuffle the board. Anyone not listed sorts after, by name.
+const NAME_ORDER = ['jordan', 'nate', 'karl', 'marcella']
+
+function orderIndex(name: string): number {
+  const i = NAME_ORDER.indexOf(name.trim().toLowerCase())
+  return i === -1 ? NAME_ORDER.length : i
+}
 
 export function boardFromRoster(rows: MemberRecord[]): BoardMember[] {
   const members = rows
@@ -12,10 +20,8 @@ export function boardFromRoster(rows: MemberRecord[]): BoardMember[] {
       r.isBoard && !!r.role && !!r.name)
     .map((r) => ({ name: r.name, role: r.role }))
   return members.sort((a, b) => {
-    const ai = ROLE_ORDER.indexOf(a.role), bi = ROLE_ORDER.indexOf(b.role)
-    const ar = ai === -1 ? ROLE_ORDER.length : ai
-    const br = bi === -1 ? ROLE_ORDER.length : bi
-    if (ar !== br) return ar - br
+    const ai = orderIndex(a.name), bi = orderIndex(b.name)
+    if (ai !== bi) return ai - bi
     return a.name.localeCompare(b.name)
   })
 }
