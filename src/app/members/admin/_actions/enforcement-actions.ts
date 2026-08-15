@@ -3,7 +3,7 @@
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/db'
 import { recordAudit } from '@/lib/audit'
-import { tallyVotes, computeEligibleBoard, decisionDueDate, type VoteValue } from '@/lib/enforcement'
+import { tallyVotes, computeEligibleBoard, decisionDueDate, isCaseResolvable, cooldownUntil, type VoteValue } from '@/lib/enforcement'
 
 type Actor = { memberId?: string; email: string }
 
@@ -92,6 +92,7 @@ export async function executeRemovalAction(caseId: string) {
   const actor = await requireBoard()
   const c = await prisma.enforcementCase.findUnique({ where: { id: caseId }, include: { votes: true } })
   if (!c) return { ok: false, reason: 'Case not found.' }
+  if (!isCaseResolvable(c.status)) return { ok: false, reason: 'This case is already resolved.' }
   const votes = c.votes.map((v) => v.vote as VoteValue)
   const result = await applyExecuteRemoval({
     banMember: async () => {
@@ -110,9 +111,34 @@ export async function liftCaseAction(caseId: string) {
   if (!actor?.memberId) return { ok: false, reason: 'Not authorized.' }
   const c = await prisma.enforcementCase.findUnique({ where: { id: caseId } })
   if (!c) return { ok: false, reason: 'Case not found.' }
+  if (!isCaseResolvable(c.status)) return { ok: false, reason: 'This case is already resolved.' }
   await prisma.member.update({ where: { id: c.subjectMemberId }, data: { status: 'active' } })
   await prisma.enforcementCase.update({ where: { id: caseId }, data: { status: 'resolved', resolvedAt: new Date(), outcome: 'lifted' } })
   await recordAudit({ actorMemberId: actor.memberId, actorEmail: actor.email, action: 'lift-case', targetMemberId: c.subjectMemberId, targetLabel: c.subjectLabel, detail: null })
+  return { ok: true }
+}
+
+// Time-limited suspension ("cooldown") per the ratified Code's Strike-2.
+// Sets status='interim' (a cooldown IS a suspension) plus statusUntil so the
+// members-layout gate (via isAccessBlockedNow) auto-restores access once the
+// window elapses, even if nobody manually reinstates.
+export async function suspendMemberAction(subjectMemberId: string, subjectLabel: string, days: number, reason: string) {
+  const actor = await requireBoard()
+  if (!actor?.memberId) return { ok: false, reason: 'Not authorized.' }
+  const now = new Date()
+  const until = cooldownUntil(days, now)
+  await prisma.member.update({ where: { id: subjectMemberId }, data: { status: 'interim', statusUntil: until } })
+  await recordAudit({ actorMemberId: actor.memberId, actorEmail: actor.email, action: 'suspend-cooldown', targetMemberId: subjectMemberId, targetLabel: subjectLabel, detail: `${days}d: ${reason}` })
+  return { ok: true }
+}
+
+// The missing reinstate path: manually restore a banned/suspended member to
+// 'active' and clear statusUntil (finding #3).
+export async function reinstateMemberAction(subjectMemberId: string, subjectLabel: string) {
+  const actor = await requireBoard()
+  if (!actor?.memberId) return { ok: false, reason: 'Not authorized.' }
+  await prisma.member.update({ where: { id: subjectMemberId }, data: { status: 'active', statusUntil: null } })
+  await recordAudit({ actorMemberId: actor.memberId, actorEmail: actor.email, action: 'reinstate', targetMemberId: subjectMemberId, targetLabel: subjectLabel, detail: null })
   return { ok: true }
 }
 
