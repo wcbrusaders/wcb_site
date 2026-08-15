@@ -150,8 +150,8 @@ export default function Home() {
     <div className="min-h-screen bg-background">
       {/* Header */}
       <header className="sticky top-0 z-50 bg-background/90 backdrop-blur-lg border-b border-border/50">
-        <div className="max-w-5xl mx-auto px-6 py-4 flex items-center justify-between">
-          <a href="#" className="flex items-center">
+        <div className="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between gap-4">
+          <a href="#" className="flex items-center shrink-0">
             <Image
               src="/images/WCB - 500 dpi white on black BANNER.png"
               alt="Wake County Brusaders"
@@ -161,14 +161,14 @@ export default function Home() {
             />
           </a>
 
-          <nav className="hidden md:flex items-center gap-6">
-            <a href="#benefits" className="text-sm text-foreground/60 hover:text-foreground transition-colors">What You Get</a>
-            <a href="#pathways" className="text-sm text-foreground/60 hover:text-foreground transition-colors">Pathways</a>
-            <a href="#taplist" className="text-sm text-foreground/60 hover:text-foreground transition-colors">Taplist</a>
-            <a href="#events" className="text-sm text-foreground/60 hover:text-foreground transition-colors">Events</a>
-            <Link href="/bot" className="text-sm text-foreground/60 hover:text-foreground transition-colors">WCB Bot</Link>
-            <Link href="/code-of-conduct" className="text-sm text-foreground/60 hover:text-foreground transition-colors">Code of Conduct</Link>
-            <Link href="/board" className="text-sm text-foreground/60 hover:text-foreground transition-colors">Board</Link>
+          <nav className="hidden lg:flex items-center gap-5">
+            <a href="#benefits" className="text-sm text-foreground/60 hover:text-foreground transition-colors whitespace-nowrap">What You Get</a>
+            <a href="#pathways" className="text-sm text-foreground/60 hover:text-foreground transition-colors whitespace-nowrap">Pathways</a>
+            <a href="#taplist" className="text-sm text-foreground/60 hover:text-foreground transition-colors whitespace-nowrap">Taplist</a>
+            <a href="#events" className="text-sm text-foreground/60 hover:text-foreground transition-colors whitespace-nowrap">Events</a>
+            <Link href="/bot" className="text-sm text-foreground/60 hover:text-foreground transition-colors whitespace-nowrap">WCB Bot</Link>
+            <Link href="/code-of-conduct" className="text-sm text-foreground/60 hover:text-foreground transition-colors whitespace-nowrap">Code of Conduct</Link>
+            <Link href="/board" className="text-sm text-foreground/60 hover:text-foreground transition-colors whitespace-nowrap">Board</Link>
           </nav>
 
           <div className="flex items-center gap-4">
@@ -187,7 +187,7 @@ export default function Home() {
 
             <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="md:hidden p-2 text-foreground/70 hover:text-foreground"
+              className="lg:hidden p-2 text-foreground/70 hover:text-foreground"
               aria-label="Toggle menu"
             >
               <Icon name={mobileMenuOpen ? "x" : "menu"} className="w-6 h-6" />
@@ -198,8 +198,8 @@ export default function Home() {
         {mobileMenuOpen && (
           <>
             {/* tap-outside-to-close overlay (below the header, above page content) */}
-            <div className="md:hidden fixed inset-0 top-[57px] z-40 bg-black/40" onClick={() => setMobileMenuOpen(false)} />
-            <div className="md:hidden relative z-50 border-t border-border/50 bg-[#0a0a0a] shadow-xl">
+            <div className="lg:hidden fixed inset-0 top-[57px] z-40 bg-black/40" onClick={() => setMobileMenuOpen(false)} />
+            <div className="lg:hidden relative z-50 border-t border-border/50 bg-[#0a0a0a] shadow-xl">
               <nav className="flex flex-col px-6 py-4 gap-4">
               <a href="#benefits" onClick={() => setMobileMenuOpen(false)} className="text-foreground/70 hover:text-foreground py-2">What You Get</a>
               <a href="#pathways" onClick={() => setMobileMenuOpen(false)} className="text-foreground/70 hover:text-foreground py-2">Pathways</a>
