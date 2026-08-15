@@ -10,14 +10,14 @@ const STRIKE_LEVELS: { label: string; value: string }[] = [
 ]
 
 type Row = {
-  name: string; email: string; googleEmail: string | null; tier: string | null
+  id: string; name: string; email: string; googleEmail: string | null; tier: string | null
   current: boolean; isBoard: boolean; role: string | null; partnerEmail: string | null; expires: string | null
 }
 
 export function AdminRoster({ members }: { members: Row[] }) {
   return (
     <div className="mt-6 space-y-3">
-      {members.map((m) => <MemberRow key={m.email} m={m} />)}
+      {members.map((m) => <MemberRow key={m.id} m={m} />)}
     </div>
   )
 }
@@ -67,7 +67,7 @@ function MemberRow({ m }: { m: Row }) {
           className="rounded-lg border border-border bg-background/60 px-3 py-1 text-sm" />
         <button disabled={pending || !strikeReason}
           onClick={() => run(async () => {
-            const r = await recordStrikeAction(m.email, m.name, strikeLevel, strikeReason)
+            const r = await recordStrikeAction(m.id, m.name, strikeLevel, strikeReason)
             if (r.ok) setStrikeReason('')
             return r
           }, 'Strike recorded.')}
