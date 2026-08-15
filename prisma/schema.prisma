@@ -147,3 +147,14 @@ model CompEntry {
   @@index([competitionId])
   @@index([memberId])
 }
+
+model AuditLog {
+  id             String   @id @default(cuid())
+  createdAt      DateTime @default(now())
+  actorMemberId  String?
+  actorEmail     String
+  action         String
+  targetMemberId String?
+  targetLabel    String?
+  detail         String?
+}
