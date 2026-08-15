@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { getBoard, OMBUDSMAN } from "@/lib/board";
 
-export const revalidate = 3600 // re-fetch roster hourly so board changes appear without a redeploy
+export const dynamic = 'force-dynamic' // spec: /board auto-updates as board membership changes — fetch roster live on every request
 
 export const metadata: Metadata = {
   title: "The Board | Wake County Brusaders",
