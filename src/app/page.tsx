@@ -161,7 +161,7 @@ export default function Home() {
             />
           </a>
 
-          <nav className="hidden md:flex items-center gap-8">
+          <nav className="hidden md:flex items-center gap-6">
             <a href="#benefits" className="text-sm text-foreground/60 hover:text-foreground transition-colors">What You Get</a>
             <a href="#pathways" className="text-sm text-foreground/60 hover:text-foreground transition-colors">Pathways</a>
             <a href="#taplist" className="text-sm text-foreground/60 hover:text-foreground transition-colors">Taplist</a>

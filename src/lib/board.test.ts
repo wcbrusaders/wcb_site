@@ -21,14 +21,27 @@ describe('boardFromRoster', () => {
     expect(board.map(b => b.name)).toEqual(['Jordan'])
   })
 
-  it('orders known officer roles first, then others alphabetically', () => {
+  it('orders by the leadership name list (Jordan, Nate, Karl, Marcella), then others alphabetically', () => {
     const rows = [
       rec({ name: 'Zoe', isBoard: true, role: 'Board Member' }),
-      rec({ name: 'Val', isBoard: true, role: 'Treasurer' }),
+      rec({ name: 'Marcella', isBoard: true, role: 'Ombudsman' }),
+      rec({ name: 'Nate', isBoard: true, role: 'Vice President' }),
+      rec({ name: 'Adam', isBoard: true, role: 'Board Member' }),
+      rec({ name: 'Karl', isBoard: true, role: 'Secretary' }),
       rec({ name: 'Jordan', isBoard: true, role: 'President' }),
     ]
     const board = boardFromRoster(rows)
-    expect(board.map(b => b.role)).toEqual(['President', 'Treasurer', 'Board Member'])
+    // leadership list first in the given order, then unlisted names alphabetically
+    expect(board.map(b => b.name)).toEqual(['Jordan', 'Nate', 'Karl', 'Marcella', 'Adam', 'Zoe'])
+  })
+
+  it('orders by name case-insensitively (roster spelling variance safe)', () => {
+    const rows = [
+      rec({ name: 'marcella', isBoard: true, role: 'Ombudsman' }),
+      rec({ name: 'JORDAN', isBoard: true, role: 'President' }),
+    ]
+    const board = boardFromRoster(rows)
+    expect(board.map(b => b.name)).toEqual(['JORDAN', 'marcella'])
   })
 
   it('exposes the Ombudsman Discord handle', () => {
