@@ -167,6 +167,8 @@ export default function Home() {
             <a href="#taplist" className="text-sm text-foreground/60 hover:text-foreground transition-colors">Taplist</a>
             <a href="#events" className="text-sm text-foreground/60 hover:text-foreground transition-colors">Events</a>
             <Link href="/bot" className="text-sm text-foreground/60 hover:text-foreground transition-colors">WCB Bot</Link>
+            <Link href="/code-of-conduct" className="text-sm text-foreground/60 hover:text-foreground transition-colors">Code of Conduct</Link>
+            <Link href="/board" className="text-sm text-foreground/60 hover:text-foreground transition-colors">Board</Link>
           </nav>
 
           <div className="flex items-center gap-4">
@@ -204,6 +206,8 @@ export default function Home() {
               <a href="#taplist" onClick={() => setMobileMenuOpen(false)} className="text-foreground/70 hover:text-foreground py-2">Taplist</a>
               <a href="#events" onClick={() => setMobileMenuOpen(false)} className="text-foreground/70 hover:text-foreground py-2">Events</a>
               <Link href="/bot" onClick={() => setMobileMenuOpen(false)} className="text-foreground/70 hover:text-foreground py-2">WCB Bot</Link>
+              <Link href="/code-of-conduct" onClick={() => setMobileMenuOpen(false)} className="text-foreground/70 hover:text-foreground py-2">Code of Conduct</Link>
+              <Link href="/board" onClick={() => setMobileMenuOpen(false)} className="text-foreground/70 hover:text-foreground py-2">Board</Link>
               <Link href={membersHref} onClick={() => setMobileMenuOpen(false)} className="border border-accent/50 text-accent text-center font-medium px-5 py-3 rounded-full mt-2">
                 {membersLabel}
               </Link>
@@ -264,6 +268,11 @@ export default function Home() {
 
           <p className="text-foreground/40 text-sm">
             No experience required
+          </p>
+
+          <p className="text-sm text-foreground/50 mt-4">
+            A welcoming, harassment-free community —{" "}
+            <Link href="/code-of-conduct" className="text-accent hover:underline">read our Code of Conduct</Link>.
           </p>
         </div>
       </section>

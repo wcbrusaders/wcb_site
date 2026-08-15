@@ -1,4 +1,4 @@
-import { test, expect, vi, afterEach } from 'vitest'
+import { test, describe, it, expect, vi, afterEach } from 'vitest'
 import { normalizeEmail, mapSheetRow, isCurrentMember, syncRoster } from './roster'
 
 afterEach(() => {
@@ -40,8 +40,8 @@ test('mapSheetRow parses board member true', () => {
 test('syncRoster upserts fetched rows and deactivates absent members', async () => {
   const { syncRoster } = await import('./roster')
   const fetched = [
-    { emailAddress: 'a@x.com', googleEmail: null, name: 'A', tier: null, current: true, isBoard: false, partnerEmail: null, expires: null, joinDate: null, paymentDate: null, referredBy: null },
-    { emailAddress: 'b@x.com', googleEmail: null, name: 'B', tier: null, current: false, isBoard: false, partnerEmail: null, expires: null, joinDate: null, paymentDate: null, referredBy: null },
+    { emailAddress: 'a@x.com', googleEmail: null, name: 'A', tier: null, current: true, isBoard: false, role: null, partnerEmail: null, expires: null, joinDate: null, paymentDate: null, referredBy: null },
+    { emailAddress: 'b@x.com', googleEmail: null, name: 'B', tier: null, current: false, isBoard: false, role: null, partnerEmail: null, expires: null, joinDate: null, paymentDate: null, referredBy: null },
   ]
   const upserts: string[] = []
   let updateManyWhereIn: string[] = []
@@ -72,8 +72,8 @@ test('syncRoster upserts fetched rows and deactivates absent members', async () 
 test('syncRoster does not call updateMany when no absent members', async () => {
   const { syncRoster } = await import('./roster')
   const fetched = [
-    { emailAddress: 'a@x.com', googleEmail: null, name: 'A', tier: null, current: true, isBoard: false, partnerEmail: null, expires: null, joinDate: null, paymentDate: null, referredBy: null },
-    { emailAddress: 'b@x.com', googleEmail: null, name: 'B', tier: null, current: false, isBoard: false, partnerEmail: null, expires: null, joinDate: null, paymentDate: null, referredBy: null },
+    { emailAddress: 'a@x.com', googleEmail: null, name: 'A', tier: null, current: true, isBoard: false, role: null, partnerEmail: null, expires: null, joinDate: null, paymentDate: null, referredBy: null },
+    { emailAddress: 'b@x.com', googleEmail: null, name: 'B', tier: null, current: false, isBoard: false, role: null, partnerEmail: null, expires: null, joinDate: null, paymentDate: null, referredBy: null },
   ]
   const upserts: string[] = []
   let updateManyWasCalled = false
@@ -99,7 +99,7 @@ test('syncRoster does not call updateMany when no absent members', async () => {
 
 // isCurrentMember tests
 
-const M = (over = {}) => ({ emailAddress: 'a@x.com', googleEmail: null, name: 'A', tier: null, current: true, isBoard: false, partnerEmail: null, expires: null, joinDate: null, paymentDate: null, referredBy: null, ...over })
+const M = (over = {}) => ({ emailAddress: 'a@x.com', googleEmail: null, name: 'A', tier: null, current: true, isBoard: false, role: null, partnerEmail: null, expires: null, joinDate: null, paymentDate: null, referredBy: null, ...over })
 
 function fakeDb(row: any, honorsWhere = false) {
   return { member: {
@@ -227,8 +227,8 @@ test('syncRoster sets resourceAccess from group membership', async () => {
     updateMany: async () => ({ count: 0 }),
   } } as any
   const rows = [
-    { emailAddress:'in@x.com', googleEmail:null, name:'A', tier:null, current:true, isBoard:false, partnerEmail:null, expires:null, joinDate:null, paymentDate:null, referredBy:null },
-    { emailAddress:'out@x.com', googleEmail:null, name:'B', tier:null, current:true, isBoard:false, partnerEmail:null, expires:null, joinDate:null, paymentDate:null, referredBy:null },
+    { emailAddress:'in@x.com', googleEmail:null, name:'A', tier:null, current:true, isBoard:false, role:null, partnerEmail:null, expires:null, joinDate:null, paymentDate:null, referredBy:null },
+    { emailAddress:'out@x.com', googleEmail:null, name:'B', tier:null, current:true, isBoard:false, role:null, partnerEmail:null, expires:null, joinDate:null, paymentDate:null, referredBy:null },
   ]
   await syncRoster({ db, fetchAll: async () => rows, fetchGroupMembers: async () => new Set(['in@x.com']) })
   const inU = upserts.find(u => u.where.emailAddress === 'in@x.com')
@@ -244,8 +244,24 @@ test('syncRoster is fail-soft when the group read throws (resourceAccess untouch
     findMany: async () => [],
     updateMany: async () => ({ count: 0 }),
   } } as any
-  const rows = [{ emailAddress:'a@x.com', googleEmail:null, name:'A', tier:null, current:true, isBoard:false, partnerEmail:null, expires:null, joinDate:null, paymentDate:null, referredBy:null }]
+  const rows = [{ emailAddress:'a@x.com', googleEmail:null, name:'A', tier:null, current:true, isBoard:false, role:null, partnerEmail:null, expires:null, joinDate:null, paymentDate:null, referredBy:null }]
   const r = await syncRoster({ db, fetchAll: async () => rows, fetchGroupMembers: async () => { throw new Error('directory down') } })
   expect(r.synced).toBe(1)                                  // sheet sync still completed
   expect('resourceAccess' in upserts[0].update).toBe(false) // omitted -> left unchanged
+})
+
+describe('mapSheetRow role', () => {
+  it('maps the Role column onto MemberRecord.role', () => {
+    const headers = ['Email Address', 'Name', 'Board Member', 'Role']
+    const row = ['jordan@example.com', 'Jordan', 'yes', 'President']
+    const rec = mapSheetRow(headers, row)
+    expect(rec?.role).toBe('President')
+  })
+
+  it('sets role to null when the Role column is absent or empty', () => {
+    const headers = ['Email Address', 'Name', 'Board Member']
+    const row = ['a@example.com', 'A', 'no']
+    const rec = mapSheetRow(headers, row)
+    expect(rec?.role).toBeNull()
+  })
 })

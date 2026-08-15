@@ -8,6 +8,7 @@ export type MemberRecord = {
   tier: string | null
   current: boolean
   isBoard: boolean
+  role: string | null
   partnerEmail: string | null
   expires: Date | null
   joinDate: Date | null
@@ -50,6 +51,7 @@ export function mapSheetRow(headers: string[], row: string[]): MemberRecord | nu
     tier: cell(headers, row, 'Tier') || null,
     current: truthy(cell(headers, row, 'Current')),
     isBoard: truthy(cell(headers, row, 'Board Member')),
+    role: cell(headers, row, 'Role') || null,
     partnerEmail: p ? normalizeEmail(p) : null,
     expires: parseDate(exp),
     joinDate: parseDate(cell(headers, row, 'Join Date')),
@@ -143,8 +145,8 @@ export async function syncRoster(deps: SyncDeps = {}): Promise<{ synced: number;
       : { resourceAccess: groupSet.has(m.emailAddress) || (m.googleEmail ? groupSet.has(m.googleEmail) : false) }
     await db.member.upsert({
       where: { emailAddress: m.emailAddress },
-      update: { googleEmail: m.googleEmail, name: m.name, tier: m.tier, current: m.current, isBoard: m.isBoard, partnerEmail: m.partnerEmail, expires: m.expires, joinDate: m.joinDate, paymentDate: m.paymentDate, referredBy: m.referredBy, ...access },
-      create: { emailAddress: m.emailAddress, googleEmail: m.googleEmail, name: m.name, tier: m.tier, current: m.current, isBoard: m.isBoard, partnerEmail: m.partnerEmail, expires: m.expires, joinDate: m.joinDate, paymentDate: m.paymentDate, referredBy: m.referredBy, ...access },
+      update: { googleEmail: m.googleEmail, name: m.name, tier: m.tier, current: m.current, isBoard: m.isBoard, role: m.role, partnerEmail: m.partnerEmail, expires: m.expires, joinDate: m.joinDate, paymentDate: m.paymentDate, referredBy: m.referredBy, ...access },
+      create: { emailAddress: m.emailAddress, googleEmail: m.googleEmail, name: m.name, tier: m.tier, current: m.current, isBoard: m.isBoard, role: m.role, partnerEmail: m.partnerEmail, expires: m.expires, joinDate: m.joinDate, paymentDate: m.paymentDate, referredBy: m.referredBy, ...access },
     })
     seen.add(m.emailAddress)
     synced++
@@ -175,7 +177,7 @@ export async function isCurrentMember(email: string, deps: GateDeps = {}): Promi
       ? process.env.DEV_ALLOWED_EMAILS?.split(',').map((x) => x.trim().toLowerCase())
       : undefined
   if (devList?.includes(e)) {
-    return { ok: true, member: { emailAddress: e, googleEmail: null, name: 'DEV', tier: null, current: true, isBoard: false, partnerEmail: null, expires: null, joinDate: null, paymentDate: null, referredBy: null } }
+    return { ok: true, member: { emailAddress: e, googleEmail: null, name: 'DEV', tier: null, current: true, isBoard: false, role: null, partnerEmail: null, expires: null, joinDate: null, paymentDate: null, referredBy: null } }
   }
 
   try {
