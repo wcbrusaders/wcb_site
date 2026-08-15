@@ -38,3 +38,15 @@ export function decisionDueDate(openedAt: Date): Date {
 export function isExpired(decisionDueAt: Date, now: Date): boolean {
   return now.getTime() > decisionDueAt.getTime()
 }
+
+// A case can only be acted on (executed or lifted) while it is still 'open'.
+// Once resolved (removed/lifted/expired), re-executing would silently re-apply
+// the action (e.g. re-ban a member whose case was already lifted).
+export function isCaseResolvable(status: string): boolean {
+  return status === 'open'
+}
+
+// The "cooldown" (time-limited suspension) end date: `days` days after `now`.
+export function cooldownUntil(days: number, now: Date): Date {
+  return new Date(now.getTime() + days * 24 * 60 * 60 * 1000)
+}

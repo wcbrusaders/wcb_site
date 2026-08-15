@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { computeEligibleBoard, tallyVotes, isExpired, decisionDueDate, QUORUM_FLOOR } from './enforcement'
+import { computeEligibleBoard, tallyVotes, isExpired, decisionDueDate, isCaseResolvable, cooldownUntil, QUORUM_FLOOR } from './enforcement'
 
 describe('computeEligibleBoard', () => {
   it('removes recused members from the board', () => {
@@ -56,4 +56,26 @@ describe('window helpers', () => {
     expect(isExpired(due, new Date('2026-08-22T00:00:01Z'))).toBe(true)
   })
   it('QUORUM_FLOOR is 3', () => { expect(QUORUM_FLOOR).toBe(3) })
+})
+
+describe('isCaseResolvable', () => {
+  it('is resolvable only when status is open', () => {
+    expect(isCaseResolvable('open')).toBe(true)
+  })
+  it('is not resolvable once resolved/expired/anything else', () => {
+    expect(isCaseResolvable('resolved')).toBe(false)
+    expect(isCaseResolvable('expired')).toBe(false)
+    expect(isCaseResolvable('')).toBe(false)
+  })
+})
+
+describe('cooldownUntil', () => {
+  it('adds N days to now', () => {
+    const now = new Date('2026-08-15T00:00:00Z')
+    expect(cooldownUntil(7, now).toISOString()).toBe('2026-08-22T00:00:00.000Z')
+  })
+  it('handles a single day', () => {
+    const now = new Date('2026-08-15T12:00:00Z')
+    expect(cooldownUntil(1, now).toISOString()).toBe('2026-08-16T12:00:00.000Z')
+  })
 })
