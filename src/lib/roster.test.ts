@@ -1,5 +1,5 @@
 import { test, describe, it, expect, vi, afterEach } from 'vitest'
-import { normalizeEmail, mapSheetRow, isCurrentMember, syncRoster, validateSecondaryEmail } from './roster'
+import { normalizeEmail, mapSheetRow, isCurrentMember, syncRoster, validateSecondaryEmail, isAccessBlocked } from './roster'
 
 afterEach(() => {
   vi.unstubAllEnvs()
@@ -333,6 +333,18 @@ describe('setRosterField', () => {
     })
     expect(r.ok).toBe(true)
     expect(writes).toEqual([{ rowNumber: 2, column: 'Google Email', value: 'new@x.com' }])
+  })
+})
+
+describe('isAccessBlocked', () => {
+  it('blocks interim and banned', () => {
+    expect(isAccessBlocked('interim')).toBe(true)
+    expect(isAccessBlocked('banned')).toBe(true)
+  })
+  it('allows active / null / undefined', () => {
+    expect(isAccessBlocked('active')).toBe(false)
+    expect(isAccessBlocked(null)).toBe(false)
+    expect(isAccessBlocked(undefined)).toBe(false)
   })
 })
 

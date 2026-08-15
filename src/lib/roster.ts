@@ -22,6 +22,15 @@ export function normalizeEmail(email: string): string {
   return email.trim().toLowerCase()
 }
 
+// Pure gate consumed by the members-area layout: 'interim' (board froze access
+// pending a case decision) and 'banned' (removed by board vote) both deny
+// access. Anything else — 'active', null, undefined (no status set yet) — is
+// allowed. Must default OPEN for unset/unknown status so existing members
+// aren't locked out by this field being introduced.
+export function isAccessBlocked(status: string | null | undefined): boolean {
+  return status === 'interim' || status === 'banned'
+}
+
 function truthy(v: string | undefined): boolean {
   if (!v) return false
   return ['true','yes','y','1','x','current'].includes(v.trim().toLowerCase())
