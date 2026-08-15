@@ -44,6 +44,16 @@ describe('boardFromRoster', () => {
     expect(board.map(b => b.name)).toEqual(['JORDAN', 'marcella'])
   })
 
+  it('matches full names by first-name prefix (e.g. "Jordan Lafontaine")', () => {
+    const rows = [
+      rec({ name: 'Karl Weber', isBoard: true, role: 'Secretary' }),
+      rec({ name: 'Nate Smith', isBoard: true, role: 'Vice President' }),
+      rec({ name: 'Jordan Lafontaine', isBoard: true, role: 'President' }),
+    ]
+    const board = boardFromRoster(rows)
+    expect(board.map(b => b.name)).toEqual(['Jordan Lafontaine', 'Nate Smith', 'Karl Weber'])
+  })
+
   it('exposes the Ombudsman Discord handle', () => {
     expect(OMBUDSMAN.discord).toBe('Arycella')
   })

@@ -4,13 +4,15 @@ export const OMBUDSMAN = { name: 'Marcella', discord: 'Arycella' } as const
 
 export type BoardMember = { name: string; role: string }
 
-// Explicit display order by NAME (case-insensitive). Roles are displayed as-is
-// from the roster, but ordering is by this leadership list so titles' exact
-// spelling can't reshuffle the board. Anyone not listed sorts after, by name.
+// Explicit display order by first NAME (case-insensitive, prefix match so a
+// roster value like "Jordan Lafontaine" still matches "jordan"). Roles are
+// displayed as-is; ordering is by this leadership list so title spelling can't
+// reshuffle the board. Anyone not listed sorts after, alphabetically.
 const NAME_ORDER = ['jordan', 'nate', 'karl', 'marcella']
 
 function orderIndex(name: string): number {
-  const i = NAME_ORDER.indexOf(name.trim().toLowerCase())
+  const n = name.trim().toLowerCase()
+  const i = NAME_ORDER.findIndex((first) => n === first || n.startsWith(first + ' '))
   return i === -1 ? NAME_ORDER.length : i
 }
 
