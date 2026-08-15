@@ -1,5 +1,5 @@
 import { test, describe, it, expect, vi, afterEach } from 'vitest'
-import { normalizeEmail, mapSheetRow, isCurrentMember, syncRoster } from './roster'
+import { normalizeEmail, mapSheetRow, isCurrentMember, syncRoster, validateSecondaryEmail } from './roster'
 
 afterEach(() => {
   vi.unstubAllEnvs()
@@ -248,6 +248,18 @@ test('syncRoster is fail-soft when the group read throws (resourceAccess untouch
   const r = await syncRoster({ db, fetchAll: async () => rows, fetchGroupMembers: async () => { throw new Error('directory down') } })
   expect(r.synced).toBe(1)                                  // sheet sync still completed
   expect('resourceAccess' in upserts[0].update).toBe(false) // omitted -> left unchanged
+})
+
+describe('validateSecondaryEmail', () => {
+  it('accepts and normalizes a valid email', () => {
+    expect(validateSecondaryEmail('  Jane2@Example.COM ')).toEqual({ ok: true, value: 'jane2@example.com' })
+  })
+  it('rejects empty', () => {
+    expect(validateSecondaryEmail('   ').ok).toBe(false)
+  })
+  it('rejects a string with no @', () => {
+    expect(validateSecondaryEmail('notanemail').ok).toBe(false)
+  })
 })
 
 describe('mapSheetRow role', () => {
