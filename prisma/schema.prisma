@@ -22,6 +22,11 @@ model Member {
   paymentDate  DateTime?
   referredBy   String?
   resourceAccess Boolean?
+  status       String    @default("active")
+  // When set AND status is 'interim'/'banned', the member auto-restores to
+  // 'active' once now() passes this date (a time-limited "cooldown" suspension
+  // per the ratified Code's Strike-2). Null = no auto-expiry (indefinite).
+  statusUntil  DateTime?
   updatedAt    DateTime  @updatedAt
 
   @@index([emailAddress])
@@ -157,4 +162,44 @@ model AuditLog {
   targetMemberId String?
   targetLabel    String?
   detail         String?
+}
+
+model EnforcementCase {
+  id                 String     @id @default(cuid())
+  createdAt          DateTime   @default(now())
+  subjectMemberId    String
+  subjectLabel       String
+  kind               String     // interim | removal
+  status             String     @default("open") // open | resolved | expired
+  openedByMemberId   String
+  openedByEmail      String
+  eligibleBoardCount Int
+  recusedMemberIds   String     @default("")
+  decisionDueAt      DateTime
+  resolvedAt         DateTime?
+  outcome            String?    // suspended | removed | lifted
+  votes              CaseVote[]
+}
+
+model CaseVote {
+  id             String          @id @default(cuid())
+  caseId         String
+  case           EnforcementCase @relation(fields: [caseId], references: [id])
+  voterMemberId  String
+  voterEmail     String
+  vote           String          // approve | reject | abstain
+  createdAt      DateTime        @default(now())
+  @@unique([caseId, voterMemberId])
+}
+
+model Strike {
+  id           String    @id @default(cuid())
+  memberId     String
+  memberLabel  String
+  level        String    // correction | warning | board-decides
+  reason       String
+  issuedByEmail String
+  createdAt    DateTime  @default(now())
+  expiresAt    DateTime?
+  clearedAt    DateTime?
 }

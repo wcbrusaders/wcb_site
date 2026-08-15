@@ -1,16 +1,23 @@
 'use client'
 import { useState, useTransition } from 'react'
 import { setSecondaryEmailAction, setPartnerAction } from '@/app/members/admin/_actions/admin-actions'
+import { recordStrikeAction } from '@/app/members/admin/_actions/enforcement-actions'
+
+const STRIKE_LEVELS: { label: string; value: string }[] = [
+  { label: 'Correction', value: 'correction' },
+  { label: 'Warning', value: 'warning' },
+  { label: 'Board decides', value: 'board-decides' },
+]
 
 type Row = {
-  name: string; email: string; googleEmail: string | null; tier: string | null
+  id: string; name: string; email: string; googleEmail: string | null; tier: string | null
   current: boolean; isBoard: boolean; role: string | null; partnerEmail: string | null; expires: string | null
 }
 
 export function AdminRoster({ members }: { members: Row[] }) {
   return (
     <div className="mt-6 space-y-3">
-      {members.map((m) => <MemberRow key={m.email} m={m} />)}
+      {members.map((m) => <MemberRow key={m.id} m={m} />)}
     </div>
   )
 }
@@ -20,6 +27,8 @@ function MemberRow({ m }: { m: Row }) {
   const [msg, setMsg] = useState<string | null>(null)
   const [secondary, setSecondary] = useState('')
   const [partner, setPartner] = useState('')
+  const [strikeLevel, setStrikeLevel] = useState('correction')
+  const [strikeReason, setStrikeReason] = useState('')
 
   function run(fn: () => Promise<{ ok: boolean; reason?: string }>, okMsg: string) {
     setMsg(null)
@@ -48,6 +57,21 @@ function MemberRow({ m }: { m: Row }) {
           className="rounded-lg border border-border bg-background/60 px-3 py-1 text-sm" />
         <button disabled={pending || !partner} onClick={() => run(() => setPartnerAction(m.email, m.name, partner), 'Partner linked.')}
           className="border border-border px-3 py-1 rounded-full text-sm disabled:opacity-50">Link partner</button>
+      </div>
+      <div className="mt-2 flex flex-wrap items-center gap-2 border-t border-border/40 pt-2">
+        <select value={strikeLevel} onChange={(e) => setStrikeLevel(e.target.value)}
+          className="rounded-lg border border-border bg-background/60 px-2 py-1 text-sm">
+          {STRIKE_LEVELS.map((l) => <option key={l.value} value={l.value}>{l.label}</option>)}
+        </select>
+        <input value={strikeReason} onChange={(e) => setStrikeReason(e.target.value)} placeholder="reason"
+          className="rounded-lg border border-border bg-background/60 px-3 py-1 text-sm" />
+        <button disabled={pending || !strikeReason}
+          onClick={() => run(async () => {
+            const r = await recordStrikeAction(m.id, m.name, strikeLevel, strikeReason)
+            if (r.ok) setStrikeReason('')
+            return r
+          }, 'Strike recorded.')}
+          className="border border-accent/40 text-accent px-3 py-1 rounded-full text-sm disabled:opacity-50">Record strike</button>
       </div>
       {msg && <p className="mt-2 text-sm text-foreground/70">{msg}</p>}
     </div>
