@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { getBoard, OMBUDSMAN } from "@/lib/board";
 
+export const revalidate = 3600 // re-fetch roster hourly so board changes appear without a redeploy
+
 export const metadata: Metadata = {
   title: "The Board | Wake County Brusaders",
   description: "Meet the Wake County Brusaders board and learn how to raise a concern with our Ombudsman.",
