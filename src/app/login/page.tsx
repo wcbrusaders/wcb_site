@@ -219,7 +219,7 @@ export default function LoginPage() {
           <p className="text-center text-foreground/40 text-sm mt-6">
             Not a member yet?{" "}
             <a
-              href="https://www.paypal.com/ncp/payment/UQ6VG5K69FC92"
+              href="/join"
               target="_blank"
               rel="noopener noreferrer"
               className="text-accent hover:underline"
