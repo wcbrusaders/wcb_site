@@ -27,6 +27,10 @@ model Member {
   // 'active' once now() passes this date (a time-limited "cooldown" suspension
   // per the ratified Code's Strike-2). Null = no auto-expiry (indefinite).
   statusUntil  DateTime?
+  // Bot-owned: comma-joined Discord role IDs snapshotted when the enforcement
+  // bot strips a suspended member's roles, so it can restore them exactly on
+  // reinstatement. Null = no snapshot (not suspended, or already restored).
+  discordRoleSnapshot String?
   updatedAt    DateTime  @updatedAt
 
   @@index([emailAddress])
