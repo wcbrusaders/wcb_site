@@ -177,7 +177,7 @@ export default function Home() {
             </Link>
 
             <a
-              href="https://www.paypal.com/ncp/payment/UQ6VG5K69FC92"
+              href="/join"
               target="_blank"
               rel="noopener noreferrer"
               className="hidden sm:inline-flex bg-accent hover:bg-accent-hover text-background text-sm font-medium px-5 py-2 rounded-full transition-colors"
@@ -212,7 +212,7 @@ export default function Home() {
                 {membersLabel}
               </Link>
               <a
-                href="https://www.paypal.com/ncp/payment/UQ6VG5K69FC92"
+                href="/join"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="bg-accent text-background text-center font-medium px-5 py-3 rounded-full mt-2"
@@ -246,7 +246,7 @@ export default function Home() {
 
           <div className="flex flex-col sm:flex-row gap-4 justify-center mb-6">
             <a
-              href="https://www.paypal.com/ncp/payment/UQ6VG5K69FC92"
+              href="/join"
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center justify-center gap-2 bg-accent hover:bg-accent-hover text-background font-medium px-8 py-4 rounded-full transition-all"
@@ -555,7 +555,7 @@ export default function Home() {
           </p>
 
           <a
-            href="https://www.paypal.com/ncp/payment/UQ6VG5K69FC92"
+            href="/join"
             target="_blank"
             rel="noopener noreferrer"
             className="inline-flex items-center justify-center gap-2 bg-accent hover:bg-accent-hover text-background font-medium px-10 py-4 rounded-full transition-all text-lg"
