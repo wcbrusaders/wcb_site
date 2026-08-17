@@ -30,6 +30,8 @@ export default function Page() {
         To report a concern, contact the Ombudsman or any board member — the board commits to acknowledging
         within 48 hours and deciding within 7 days. The strike ladder runs Correction → Warning → Board
         decides, and access can be paused (interim) or removed by board vote.</p>
+      <p>See all governance documents — the Board, Code of Conduct, and Bylaws — on the
+        {' '}<Link href="/members/governance">Governance</Link> page.</p>
       <h2>Discord commands you can use</h2>
       <ul>
         <li><strong>/link</strong> — connect your Discord account to your membership (DM-based, use your
