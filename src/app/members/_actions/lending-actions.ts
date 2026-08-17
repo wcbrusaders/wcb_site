@@ -44,7 +44,10 @@ export async function renewAction(loanId: string) {
   return r
 }
 export async function addTitleAction(input: NewTitleInput) {
-  const { memberId } = await requireBoard()
+  // Open contribution: any current member may add a new lendable item to the
+  // library (the pool is meant to be low-friction for grab-on-the-fly + new
+  // brewers). Copies/edit/archive stay board-only (requireBoard) as curation.
+  const { memberId } = await requireMember()
   const r = await addTitle(input, memberId)
   revalidateBrowse()
   return { ok: true as const, id: r.id }
