@@ -1,7 +1,11 @@
+import { redirect } from 'next/navigation'
 import Link from 'next/link'
+import { auth } from '@/lib/auth'
 import { BylawsBody } from '@/components/governance/BylawsBody'
 export const dynamic = 'force-dynamic'
-export default function BylawsPage() {
+export default async function BylawsPage() {
+  const session = await auth()
+  if (!session?.user?.memberId) redirect('/login')
   return (
     <div className="max-w-3xl mx-auto px-4 md:px-6 py-8">
       <Link href="/members/governance" className="text-sm text-foreground/50 hover:text-accent">← Governance</Link>
