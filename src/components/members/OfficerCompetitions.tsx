@@ -1,4 +1,5 @@
 import type { OfficerCompView } from '@/lib/competitions'
+import { ShipmentTrackingEditor } from './ShipmentTrackingEditor'
 
 const iso = (d: Date) => new Date(d).toISOString().slice(0, 10)
 
@@ -23,6 +24,7 @@ export function OfficerCompetitions({ comps }: { comps: OfficerCompView[] }) {
                 ))}
               </ul>
             </div>
+            <ShipmentTrackingEditor competitionId={c.id} carrier={c.shipmentCarrier} tracking={c.shipmentTracking} shippedAt={c.shippedAt} />
             <details className="mt-3">
               <summary className="cursor-pointer text-foreground/50 text-sm">All entries ({c.entries.length})</summary>
               <ul className="mt-1 text-sm text-foreground/60 space-y-0.5">
