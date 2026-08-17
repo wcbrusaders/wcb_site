@@ -1,4 +1,4 @@
-export type IconName = 'home' | 'trophy' | 'wrench' | 'book' | 'shield'
+export type IconName = 'home' | 'trophy' | 'wrench' | 'book' | 'shield' | 'help'
 export type NavLink = { href: string; label: string; icon: IconName; board?: boolean }
 
 // Single source of truth for the members nav. Usage order (Hub first, then the
@@ -9,6 +9,7 @@ export const MEMBER_LINKS: NavLink[] = [
   { href: '/members/competitions', label: 'Competitions', icon: 'trophy' },
   { href: '/members/equipment', label: 'Equipment', icon: 'wrench' },
   { href: '/members/library', label: 'Books', icon: 'book' },
+  { href: '/members/resources', label: 'Resources', icon: 'help' },
   { href: '/members/holdings', label: 'Holdings', icon: 'shield', board: true },
   { href: '/members/admin', label: 'Admin', icon: 'shield', board: true },
 ]
