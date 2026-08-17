@@ -12,8 +12,10 @@ export default async function BylawsPage() {
       <h1 className="text-3xl font-bold mt-3">Bylaws</h1>
       <p className="text-foreground/50 text-sm mt-1">Holly Springs Brüsaders · operating as Wake County Brusaders</p>
       <div className="mt-4 rounded-xl border border-amber-400/40 bg-amber-400/[0.06] p-3.5 text-sm">
-        <span className="font-semibold text-amber-300">Draft v2.0 — pending Board ratification.</span> These bylaws
-        have not yet been adopted by Board vote. Provided for review.
+        <span className="font-semibold text-amber-300">Draft v2.0 — pending member ratification.</span> This is a
+        proposed rewrite of the bylaws currently in force. It is not yet adopted. Per the current bylaws
+        (Article Nine), amending the bylaws requires the Board to put the change to the membership with 30 days&apos;
+        notice, followed by a member vote. Provided here for review during that process.
       </div>
       <div className="mt-6"><BylawsBody /></div>
     </div>

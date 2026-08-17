@@ -136,4 +136,4 @@ In the event of general disagreements among members: both parties should first a
 
 ---
 
-*Status: DRAFT v2.0 — pending ratification by Board vote. Flagged real-world to-dos: verify the "Wake County Brusaders" assumed-name (DBA) certificate is filed in NC; confirm 501(c)(7) status; verify the registered-agent renewal (Articles of Incorporation list Sept 13, 2024).*
+*Status: DRAFT v2.0 — pending member ratification. Per the bylaws in force (v1.1, Article Nine), amending the bylaws requires the Board to put the proposed change to the membership with 30 days' notice, followed by a member vote (majority of a quorum). A board-only adoption would not follow the current amendment process. Flagged real-world to-dos: file the "Wake County Brusaders" assumed-name (DBA) certificate at the Wake County Register of Deeds; confirm annual reports current with NC SoS (registered agent confirmed current); 501(c)(7) confirmed (keep filing IRS 990-N).*
