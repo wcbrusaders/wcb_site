@@ -1,4 +1,5 @@
 // src/app/members/resources/page.tsx
+import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { auth } from '@/lib/auth'
 import { HOWTO_PAGES, KNOWLEDGE_DRIVE_LINKS } from '@/lib/resources-links'
@@ -7,7 +8,7 @@ export const dynamic = 'force-dynamic'
 
 export default async function ResourcesPage() {
   const session = await auth()
-  const isBoard = !!session?.user?.isBoard
+  if (!session?.user?.memberId) redirect('/login')
   return (
     <div className="max-w-5xl mx-auto px-4 md:px-6 py-8">
       <h1 className="text-2xl md:text-3xl font-bold">Resources</h1>
@@ -51,7 +52,7 @@ export default async function ResourcesPage() {
         <div className="mt-3 grid sm:grid-cols-2 gap-2">
           <Link href="/members/governance" className="block rounded-xl border border-border/60 bg-card-bg/30 hover:border-accent/40 px-4 py-3">
             <div className="font-semibold">Governance documents</div>
-            <div className="text-sm text-foreground/55">Board, Code of Conduct, Bylaws{isBoard ? ', Articles of Incorporation' : ''}.</div>
+            <div className="text-sm text-foreground/55">Board, Code of Conduct, Bylaws, and Articles of Incorporation.</div>
           </Link>
           <Link href="/members/governance/bylaws" className="block rounded-xl border border-border/60 bg-card-bg/30 hover:border-accent/40 px-4 py-3">
             <div className="font-semibold">Bylaws <span className="text-foreground/40 font-normal text-xs">· draft v2.0</span></div>

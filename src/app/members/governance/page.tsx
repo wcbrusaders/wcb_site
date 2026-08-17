@@ -6,7 +6,6 @@ export const dynamic = 'force-dynamic'
 export default async function GovernancePage() {
   const session = await auth()
   if (!session?.user?.memberId) redirect('/login')
-  const isBoard = !!session.user.isBoard
   const Card = ({ href, title, desc, tag, external }: { href: string; title: string; desc: string; tag: string; external?: boolean }) => {
     const inner = (
       <div className="rounded-xl border border-border/60 bg-card-bg/30 hover:border-accent/40 px-4 py-3">
@@ -26,7 +25,7 @@ export default async function GovernancePage() {
         <Card href="/board" title="The Board" desc="Who runs the club and how to reach the Ombudsman." tag="public" external />
         <Card href="/code-of-conduct" title="Code of Conduct" desc="Ratified Aug 15, 2026 — the rules we all agree to." tag="ratified" external />
         <Card href="/members/governance/bylaws" title="Bylaws" desc="The club's governing document (draft v2.0, pending ratification)." tag="members" />
-        {isBoard && <Card href="/members/governance/articles" title="Articles of Incorporation" desc="Legal founding document." tag="officers" />}
+        <Card href="/members/governance/articles" title="Articles of Incorporation" desc="Legal founding document (public record)." tag="members" />
       </div>
     </div>
   )
