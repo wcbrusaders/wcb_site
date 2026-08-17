@@ -3,7 +3,7 @@ import { GuidePage } from '@/components/members/guide/GuideChrome'
 
 export default function Page() {
   return (
-    <GuidePage title="Brewing help" dest="discord">
+    <GuidePage title="Get brewing help" dest="discord">
       <p>The bot is a <strong>brewing-knowledge partner</strong> — ask it in <strong>plain English</strong>,
         not a slash command.</p>
       <h2>How to reach it</h2>

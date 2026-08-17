@@ -3,7 +3,7 @@ import { GuidePage } from '@/components/members/guide/GuideChrome'
 
 export default function Page() {
   return (
-    <GuidePage title="Grain buys" dest="discord">
+    <GuidePage title="Buy grain in bulk" dest="discord">
       <p>The club runs bulk grain buys <strong>2–4 times a year</strong>, coordinated by an officer.</p>
       <h2>Check the active buy</h2>
       <p>In Discord, run <strong>/grainbuy</strong> (no arguments) to see the coordinator, order deadline,
