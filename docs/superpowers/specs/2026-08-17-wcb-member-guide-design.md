@@ -1,6 +1,6 @@
 # WCB Member Guide — Design
 
-**Status:** Approved design · Not yet planned/built
+**Status:** SUPERSEDED by `2026-08-17-wcb-member-resources-design.md` — the guide is now Lane 1 ("How-to & Getting Started") of the Resources area. The per-page ground-truth content below still governs Lane 1; the top-level structure/naming is replaced by the Resources spec.
 **Date:** 2026-08-17
 
 ## Purpose
