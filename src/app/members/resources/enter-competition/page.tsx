@@ -1,10 +1,11 @@
 // src/app/members/resources/enter-competition/page.tsx
+import Link from 'next/link'
 import { GuidePage } from '@/components/members/guide/GuideChrome'
 
 export default function Page() {
   return (
     <GuidePage title="Enter a competition" dest="site">
-      <p>Competitions live at <a href="/members/competitions">/members/competitions</a>.
+      <p>Competitions live at <Link href="/members/competitions">/members/competitions</Link>.
         <strong> Any member</strong> can add a competition (name, homepage, entry-registration date,
         beer-arrival date, bottles per entry, ship-to address, optional drop-off). <strong>Any member</strong> can
         add, edit, or delete their own entries (beer name, style, channel, registered flag). Deleting a whole

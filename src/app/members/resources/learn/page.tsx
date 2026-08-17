@@ -1,4 +1,5 @@
 // src/app/members/resources/learn/page.tsx
+import Link from 'next/link'
 import { GuidePage } from '@/components/members/guide/GuideChrome'
 
 export default function Page() {
@@ -15,7 +16,7 @@ export default function Page() {
         BJCP 2021 style flashcards. Foundations starts from zero — no experience needed.</p>
       <p>This learning progression, Foundations → Expert, is what &quot;your tier&quot; refers to on the
         Academy. (The members-site profile also shows a &quot;tier&quot; field from the club roster — that&apos;s
-        a separate label; see <a href="/members/resources/the-club">How the club runs</a>.)</p>
+        a separate label; see <Link href="/members/resources/the-club">How the club runs</Link>.)</p>
       <h2>Signing in</h2>
       <p>Open <a href="https://academy.wcbrusaders.com">academy.wcbrusaders.com</a> and click
         <strong> &quot;Start Your Journey&quot;</strong> → sign in <strong>with Google</strong>. This is a

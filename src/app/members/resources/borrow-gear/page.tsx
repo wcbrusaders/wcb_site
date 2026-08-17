@@ -1,10 +1,11 @@
 // src/app/members/resources/borrow-gear/page.tsx
+import Link from 'next/link'
 import { GuidePage } from '@/components/members/guide/GuideChrome'
 export default function Page() {
   return (
     <GuidePage title="Borrow gear & books" dest="site">
       <p>The club lends equipment and books to members. Two catalogs:
-        {' '}<a href="/members/equipment">Equipment</a> and <a href="/members/library">Books</a>.</p>
+        {' '}<Link href="/members/equipment">Equipment</Link> and <Link href="/members/library">Books</Link>.</p>
       <h2>Checking out</h2>
       <p>Open a title and click <strong>Check out</strong> when a copy is available and you don&apos;t
         already hold that title. For equipment, pick the item&apos;s condition on the way out. An officer
