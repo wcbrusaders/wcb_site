@@ -6,12 +6,13 @@ import {
 } from './competitions'
 
 test('trackingUrl builds carrier URLs and returns null for unknown/empty', () => {
-  expect(trackingUrl('USPS', '9400111899223')).toBe('https://tools.usps.com/go/TrackConfirmAction?tLabels=9400111899223')
   expect(trackingUrl('UPS', '1Z999')).toBe('https://www.ups.com/track?tracknum=1Z999')
   expect(trackingUrl('FedEx', '7712')).toBe('https://www.fedex.com/fedextrack/?trknbr=7712')
   expect(trackingUrl('SomeRegionalCarrier', '123')).toBeNull()
   expect(trackingUrl(null, '123')).toBeNull()
-  expect(trackingUrl('USPS', null)).toBeNull()
+  expect(trackingUrl('UPS', null)).toBeNull()
+  // USPS is not a valid homebrew carrier (illegal to mail alcohol) — no link, and must not fall through to UPS
+  expect(trackingUrl('USPS', '9400111899223')).toBeNull()
 })
 
 const day = 86400000

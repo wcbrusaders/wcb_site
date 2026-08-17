@@ -107,7 +107,7 @@ export function CompetitionCard({ comp, viewerIsBoard, viewerId }: { comp: Membe
             </div>
             {viewerIsBoard && editingShip && (
               <div className="mt-3 space-y-2">
-                <input placeholder="Carrier (USPS, UPS, FedEx, DHL)" value={shipDraft.carrier} onChange={(e) => setShipDraft({ ...shipDraft, carrier: e.target.value })} className="w-full rounded-lg border border-border bg-background/60 px-3 py-2 text-sm" />
+                <input placeholder="Carrier (UPS, FedEx)" value={shipDraft.carrier} onChange={(e) => setShipDraft({ ...shipDraft, carrier: e.target.value })} className="w-full rounded-lg border border-border bg-background/60 px-3 py-2 text-sm" />
                 <input placeholder="Tracking number" value={shipDraft.tracking} onChange={(e) => setShipDraft({ ...shipDraft, tracking: e.target.value })} className="w-full rounded-lg border border-border bg-background/60 px-3 py-2 text-sm" />
                 <div className="flex gap-2">
                   <button disabled={pending} onClick={() => run(async () => { const r = await setShipmentTrackingAction(comp.id, shipDraft.carrier, shipDraft.tracking); if (r.ok) setEditingShip(false); return r })} className="bg-accent hover:bg-accent-hover text-background px-3 py-1 rounded-full text-sm disabled:opacity-50">Save tracking</button>
