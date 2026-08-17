@@ -32,6 +32,7 @@ New section under `/members/guide`. One page per task (most scannable). All page
 /members/guide/enter-competition  Enter a competition + club shipping  (🌐 site)
 /members/guide/grain-buys         Buy grain in bulk  (💬 Discord + Google Sheet)
 /members/guide/brewing-help       Get brewing help — ask the bot  (💬 Discord)
+/members/guide/learn              Learn & level up — the Brusaders Academy  (🎓 academy.wcbrusaders.com)
 /members/guide/the-club           How the club runs: membership, dues, meetings, board, Code of Conduct
 ```
 
@@ -76,11 +77,18 @@ The real new-member path: read Code of Conduct → agree → pay dues via PayPal
 - Limit: **10 questions/hour**. **No account link required** to ask.
 - Example: `@WCB Bot what's the difference between American and English IPA?`
 
+### learn (🎓 the Brusaders Academy — LMS)
+- The club runs a full self-paced **Brusaders Academy** at **`academy.wcbrusaders.com`** (verified live — HTTP 200, valid cert). Its own tagline: *"Level up your brewing skills through quests, challenges, and badges."*
+- **What's there:** 250+ bite-size lessons ("challenges") across **five tiers — Foundations → Core Brewer → Skilled Brewer → Advanced Brewer → Expert Brewer** — and **three paths: Technical** (brewing science & data), **Creative** (innovation, wild ferm, unique ingredients), **Competitive** (BJCP mastery & competition strategy). You earn **XP, streaks, and badges** as you go, plus **BJCP 2021 style flashcards**. Foundations starts from zero — no experience needed.
+- **This is what "your tier" refers to** — the learning progression Foundations→Expert. (Note: the members-site profile also shows a "tier" field from the roster; that's the club's own label and is separate from your academy progress. See the-club below.)
+- **How to get in:** open **`academy.wcbrusaders.com`** and click **"Start Your Journey"** → sign in **with Google**. It's a **separate login from this members site** (Google, not the email code), and access is granted to current club members. **Known rough edge (be honest with members):** if the academy says you're not authorized even though your membership is current, its roster hasn't picked you up yet — contact the board/an officer. *(Internal note: this is the LMS's separate roster-sync failing closed — see the cross-surface "raise up" items; not fixed by this guide.)*
+- Content is still growing (the Competitive path's upper tiers are partly in progress); a lesson with no content yet shows a "coming soon" note.
+
 ### the-club (membership, dues, meetings, board, CoC)
 - **Your membership** (shown on the hub, all read-only, synced from the club roster): status, tier, tenure ("Member for…"), join/renew/last-payment dates, linked partner, and Drive & Calendar access (derived from real Google Group membership). **You can't edit your own profile in the app** — ask the board to change your details (they can update your secondary/partner email).
 - **Dues / renewal:** GUIDE_TODO — amount + how/when to renew (paid off-site via PayPal; the join/dues PayPal link is on `/join`). Not in code.
 - **Meetings:** GUIDE_TODO — cadence, location, what to expect. Not in code.
-- **Membership tiers:** GUIDE_TODO — what the tiers mean/benefits. Not in code (tier is free-text on the roster; do not invent values).
+- **Membership tier (the roster label):** the "Tier" on your profile is a free-text label set by the club on the roster — it is NOT your academy progress. GUIDE_TODO — what the roster tiers mean / benefits (not in code; do not invent values). For the *learning* tiers (Foundations→Expert), see the **Learn & level up** page.
 - **The board & Code of Conduct:** link to the public `/board` and `/code-of-conduct` pages. Summarize the member-facing parts of the ratified CoC: how to report a concern (Ombudsman or any board member), the board's 48-hour acknowledgment / 7-day decision commitment, and the strike ladder (Correction → Warning → Board decides). Note access can be paused (interim) or removed by board vote.
 - **Discord slash commands you can use as a member:** `/link` (connect your Discord to your membership — DM-based, use your join email; needed for `/dashboard`), `/grainbuy`, `/dashboard`, `/help`, `/catchup` (AI recap of what you missed in a channel). No account link needed to ask the bot brewing questions.
 
@@ -91,7 +99,7 @@ The real new-member path: read Code of Conduct → agree → pay dues via PayPal
 - Not duplicating the full RAG/brewing knowledge on the site — the guide *points to* the bot for that.
 
 ## Files (anticipated)
-- Create: `src/app/members/guide/page.tsx` (index) + `getting-started/`, `borrow-gear/`, `enter-competition/`, `grain-buys/`, `brewing-help/`, `the-club/` page.tsx files.
+- Create: `src/app/members/guide/page.tsx` (index) + `getting-started/`, `borrow-gear/`, `enter-competition/`, `grain-buys/`, `brewing-help/`, `learn/`, `the-club/` page.tsx files.
 - Create: a small shared layout/card component for the guide (consistent "🌐 site / 💬 Discord" tag, section header, back-to-guide link).
 - Modify: `src/lib/nav.ts` (add Guide link + `'help'` IconName), the icon renderers (`DesktopTabs`/`MobileNav`) for the new icon.
 - Modify: `src/app/members/page.tsx` ("Start here" card).
