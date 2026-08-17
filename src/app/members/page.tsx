@@ -1,3 +1,4 @@
+import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { auth } from '@/lib/auth'
 import { getMemberDashboard, formatTenure, membershipStatus, visibleCards } from '@/lib/dashboard'
@@ -30,6 +31,12 @@ export default async function MembersPage() {
         <p className="text-foreground/50 mb-10">{email}</p>
 
         <CompBanner items={bannerItems} />
+
+        <Link href="/members/resources/getting-started"
+          className="block rounded-2xl border border-accent/40 bg-accent/[0.06] hover:bg-accent/[0.1] p-5 md:p-6 mt-6">
+          <div className="font-bold text-lg">New here? Start here →</div>
+          <div className="text-sm text-foreground/60 mt-1">How to borrow gear, enter competitions, join a grain buy, use the bot, and more.</div>
+        </Link>
 
         {!rec ? (
           <div className="rounded-2xl border border-border/50 bg-card-bg/30 p-6 md:p-8 mb-12">

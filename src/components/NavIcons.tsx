@@ -8,6 +8,7 @@ const PATHS: Record<IconName, React.ReactNode> = {
   wrench: <path d="M14.5 6.5a3.5 3.5 0 0 0-4.6 4.2L4 16.6 6.4 19l5.9-5.9a3.5 3.5 0 0 0 4.2-4.6l-2 2-1.9-1.9 2-2Z" />,
   book: <path d="M5 4h11a2 2 0 0 1 2 2v14H7a2 2 0 0 1-2-2V4ZM5 4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2M18 17H7" />,
   shield: <path d="M12 3 5 6v5c0 4.2 2.9 7.5 7 9 4.1-1.5 7-4.8 7-9V6l-7-3Z" />,
+  help: <path d="M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18ZM9.5 9.5a2.5 2.5 0 0 1 4.6 1.3c0 1.7-2.1 2-2.1 3.4M12 17h.01" />,
 }
 
 export function NavIcon({ name, className }: { name: IconName; className?: string }) {
