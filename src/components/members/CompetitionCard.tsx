@@ -1,9 +1,9 @@
 'use client'
 import { useState, useTransition } from 'react'
 import type { MemberCompView, EntryChannel } from '@/lib/competitions'
-import { mapsUrl } from '@/lib/competitions'
+import { mapsUrl, trackingUrl } from '@/lib/competitions'
 import { channelBadge, daysUntil, isUrgent, type BadgeVariant } from '@/lib/comp-format'
-import { addEntryAction, editEntryAction, deleteEntryAction, deleteCompetitionAction } from '@/app/members/_actions/competition-actions'
+import { addEntryAction, editEntryAction, deleteEntryAction, deleteCompetitionAction, setShipmentTrackingAction } from '@/app/members/_actions/competition-actions'
 
 const BADGE_CLASS: Record<BadgeVariant, string> = {
   club: 'bg-accent/15 text-accent border border-accent/30',
@@ -22,6 +22,8 @@ export function CompetitionCard({ comp, viewerIsBoard, viewerId }: { comp: Membe
   const [pending, start] = useTransition()
   const [err, setErr] = useState<string | null>(null)
   const [adding, setAdding] = useState(false)
+  const [editingShip, setEditingShip] = useState(false)
+  const [shipDraft, setShipDraft] = useState({ carrier: comp.shipmentCarrier ?? '', tracking: comp.shipmentTracking ?? '' })
   const [draft, setDraft] = useState({ beerName: '', style: '', channel: 'club_ship' as EntryChannel, registered: false })
   const canEditComp = viewerIsBoard || comp.addedById === viewerId
   const hasClubShip = comp.myEntries.some((e) => e.channel === 'club_ship')
@@ -71,6 +73,49 @@ export function CompetitionCard({ comp, viewerIsBoard, viewerId }: { comp: Membe
               </div>
               <div className="text-xs text-foreground/55">{clubCount} club-ship entr{clubCount === 1 ? 'y' : 'ies'} · club covers shipping for this comp</div>
             </div>
+          </div>
+        )
+      })()}
+
+      {(() => {
+        const url = trackingUrl(comp.shipmentCarrier, comp.shipmentTracking)
+        const hasTracking = !!(comp.shipmentCarrier || comp.shipmentTracking)
+        // Every member sees the club shipment status; only board can set/edit it.
+        if (!hasTracking && !viewerIsBoard) return null
+        return (
+          <div className="mt-4 rounded-xl border border-border/60 bg-background/40 p-3.5">
+            <div className="flex items-center justify-between gap-3 flex-wrap">
+              <div className="min-w-0">
+                <p className="text-[11px] uppercase tracking-wide text-foreground/45">Club shipment</p>
+                {hasTracking ? (
+                  <div className="text-sm mt-0.5">
+                    {comp.shippedAt && <span className="text-foreground/55">Shipped {iso(comp.shippedAt)} · </span>}
+                    <span className="font-semibold">{comp.shipmentCarrier || 'Carrier'}</span>
+                    {comp.shipmentTracking && (url
+                      ? <> · <a href={url} target="_blank" rel="noreferrer" className="text-accent hover:text-accent-hover underline underline-offset-2">{comp.shipmentTracking}</a></>
+                      : <> · <span className="font-mono">{comp.shipmentTracking}</span></>
+                    )}
+                  </div>
+                ) : (
+                  <p className="text-sm text-foreground/55 mt-0.5">Not shipped yet</p>
+                )}
+              </div>
+              {viewerIsBoard && !editingShip && (
+                <button disabled={pending} onClick={() => { setShipDraft({ carrier: comp.shipmentCarrier ?? '', tracking: comp.shipmentTracking ?? '' }); setEditingShip(true) }}
+                  className="border border-border px-2.5 py-0.5 rounded-full text-xs shrink-0">{hasTracking ? 'Edit tracking' : 'Add tracking'}</button>
+              )}
+            </div>
+            {viewerIsBoard && editingShip && (
+              <div className="mt-3 space-y-2">
+                <input placeholder="Carrier (USPS, UPS, FedEx, DHL)" value={shipDraft.carrier} onChange={(e) => setShipDraft({ ...shipDraft, carrier: e.target.value })} className="w-full rounded-lg border border-border bg-background/60 px-3 py-2 text-sm" />
+                <input placeholder="Tracking number" value={shipDraft.tracking} onChange={(e) => setShipDraft({ ...shipDraft, tracking: e.target.value })} className="w-full rounded-lg border border-border bg-background/60 px-3 py-2 text-sm" />
+                <div className="flex gap-2">
+                  <button disabled={pending} onClick={() => run(async () => { const r = await setShipmentTrackingAction(comp.id, shipDraft.carrier, shipDraft.tracking); if (r.ok) setEditingShip(false); return r })} className="bg-accent hover:bg-accent-hover text-background px-3 py-1 rounded-full text-sm disabled:opacity-50">Save tracking</button>
+                  <button onClick={() => setEditingShip(false)} className="border border-border px-3 py-1 rounded-full text-sm">Cancel</button>
+                </div>
+                <p className="text-[11px] text-foreground/45">Leave both blank and save to clear. Any member can see this.</p>
+              </div>
+            )}
           </div>
         )
       })()}

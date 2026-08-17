@@ -136,6 +136,10 @@ model Competition {
   shippingAddress      String
   dropoffAddress       String?
   addedById            String
+  // Club shipment tracking (one package per competition; officer-set, member-visible)
+  shipmentCarrier      String?
+  shipmentTracking     String?
+  shippedAt            DateTime?
   entries              CompEntry[]
   createdAt            DateTime    @default(now())
   updatedAt            DateTime    @updatedAt

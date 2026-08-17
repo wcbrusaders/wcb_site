@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { auth } from '@/lib/auth'
 import {
   addCompetition, editCompetition, deleteCompetition, addEntry, editEntry, deleteEntry,
+  setShipmentTracking,
   type NewCompetitionInput, type NewEntryInput,
 } from '@/lib/competitions'
 
@@ -35,6 +36,12 @@ export async function editCompetitionAction(id: string, patch: Partial<NewCompet
 export async function deleteCompetitionAction(id: string) {
   await requireBoard()
   const r = await deleteCompetition(id)
+  if (r.ok) revalidateComps()
+  return r
+}
+export async function setShipmentTrackingAction(id: string, carrier: string, tracking: string) {
+  await requireBoard()
+  const r = await setShipmentTracking(id, carrier, tracking)
   if (r.ok) revalidateComps()
   return r
 }

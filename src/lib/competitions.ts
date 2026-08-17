@@ -10,6 +10,7 @@ export type CompetitionView = {
   registrationDeadline: Date; shippingDeadline: Date; bottlesRequired: number
   shippingAddress: string; dropoffAddress: string | null; addedById: string
   commitByDate: Date; deliverByDate: Date; isPast: boolean
+  shipmentCarrier: string | null; shipmentTracking: string | null; shippedAt: Date | null
 }
 export type MemberCompView = CompetitionView & { myEntries: CompEntryView[] }
 export type OfficerCompView = CompetitionView & {
@@ -38,7 +39,21 @@ function toCompView(c: any, now: Date): CompetitionView {
     registrationDeadline: c.registrationDeadline, shippingDeadline: c.shippingDeadline, bottlesRequired: c.bottlesRequired,
     shippingAddress: c.shippingAddress, dropoffAddress: c.dropoffAddress ?? null, addedById: c.addedById,
     commitByDate: commitByDate(c.shippingDeadline), deliverByDate: deliverByDate(c.shippingDeadline), isPast: isPast(c.shippingDeadline, now),
+    shipmentCarrier: c.shipmentCarrier ?? null, shipmentTracking: c.shipmentTracking ?? null, shippedAt: c.shippedAt ?? null,
   }
+}
+
+// Build a carrier tracking URL from a carrier name + tracking number. Returns
+// null for unknown carriers (caller shows the plain number instead).
+export function trackingUrl(carrier: string | null, tracking: string | null): string | null {
+  if (!carrier || !tracking) return null
+  const t = encodeURIComponent(tracking.trim())
+  const c = carrier.trim().toLowerCase()
+  if (c.includes('usps')) return `https://tools.usps.com/go/TrackConfirmAction?tLabels=${t}`
+  if (c.includes('ups')) return `https://www.ups.com/track?tracknum=${t}`
+  if (c.includes('fedex')) return `https://www.fedex.com/fedextrack/?trknbr=${t}`
+  if (c.includes('dhl')) return `https://www.dhl.com/us-en/home/tracking.html?tracking-id=${t}`
+  return null
 }
 
 async function memberNames(db: typeof prisma, ids: string[]): Promise<Map<string, string | null>> {
@@ -138,6 +153,28 @@ export async function editCompetition(id: string, patch: Partial<NewCompetitionI
   if (!c) return { ok: false, reason: 'not_found' }
   if (!actor.isBoard && (c as any).addedById !== actor.memberId) return { ok: false, reason: 'forbidden' }
   await db.competition.update({ where: { id }, data: { ...patch } })
+  return { ok: true }
+}
+
+// Set (or clear) the club shipment tracking for a competition. Board-only.
+// Empty carrier+tracking clears it (un-shipped). Sets shippedAt when tracking present.
+export async function setShipmentTracking(
+  id: string, carrier: string | null, tracking: string | null,
+  deps: { db?: typeof prisma; now?: Date } = {},
+): Promise<MutResult> {
+  const db = deps.db ?? prisma
+  const c = await db.competition.findUnique({ where: { id } })
+  if (!c) return { ok: false, reason: 'not_found' }
+  const cc = carrier?.trim() || null
+  const tt = tracking?.trim() || null
+  const hasTracking = !!tt
+  await db.competition.update({
+    where: { id },
+    data: {
+      shipmentCarrier: cc, shipmentTracking: tt,
+      shippedAt: hasTracking ? ((c as any).shippedAt ?? deps.now ?? new Date()) : null,
+    },
+  })
   return { ok: true }
 }
 
