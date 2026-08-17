@@ -49,8 +49,9 @@ export function trackingUrl(carrier: string | null, tracking: string | null): st
   if (!carrier || !tracking) return null
   const t = encodeURIComponent(tracking.trim())
   const c = carrier.trim().toLowerCase()
-  if (c.includes('usps')) return `https://tools.usps.com/go/TrackConfirmAction?tLabels=${t}`
-  if (c.includes('ups')) return `https://www.ups.com/track?tracknum=${t}`
+  // USPS is intentionally omitted — mailing alcohol via the USPS is illegal,
+  // so homebrew comps ship UPS/FedEx. Guard UPS against matching "usps".
+  if (c.includes('ups') && !c.includes('usps')) return `https://www.ups.com/track?tracknum=${t}`
   if (c.includes('fedex')) return `https://www.fedex.com/fedextrack/?trknbr=${t}`
   if (c.includes('dhl')) return `https://www.dhl.com/us-en/home/tracking.html?tracking-id=${t}`
   return null
