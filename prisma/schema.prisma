@@ -140,6 +140,11 @@ model Competition {
   shipmentCarrier      String?
   shipmentTracking     String?
   shippedAt            DateTime?
+  // Delivery auto-detect via 17track (daily cron). deliveryStatus is normalized:
+  // 'in_transit' | 'delivered' | 'exception' | null (not yet polled / no tracking).
+  deliveryStatus       String?
+  deliveredAt          DateTime?
+  lastTrackedAt        DateTime?
   entries              CompEntry[]
   createdAt            DateTime    @default(now())
   updatedAt            DateTime    @updatedAt
