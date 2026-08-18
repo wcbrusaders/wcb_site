@@ -70,13 +70,16 @@ describe('pollShipments', () => {
     expect(r).toEqual({ checked: 0, updated: 0, delivered: 0 })
   })
 
-  it('queries only tracked, not-yet-delivered shipments', async () => {
+  it('queries tracked shipments that are not delivered — INCLUDING never-polled (null) status', async () => {
     const db = fakeDb([comp()])
     const getTracking = vi.fn(async () => null)
     await pollShipments({ db: db as any, now: NOW, getTracking })
     const where = (db.competition.findMany as any).mock.calls[0][0].where
     expect(where.shipmentTracking).toEqual({ not: null })
-    expect(where.deliveryStatus).toEqual({ not: 'delivered' })
+    // Must include never-polled (deliveryStatus = NULL) rows — those are exactly
+    // the ones to poll first. `{ not: 'delivered' }` alone excludes NULL in SQL,
+    // so use an explicit NULL-inclusive OR.
+    expect(where.OR).toEqual([{ deliveryStatus: null }, { deliveryStatus: { not: 'delivered' } }])
   })
 
   it('skips non-UPS carriers (in-memory guard) so only UPS shipments are polled', async () => {

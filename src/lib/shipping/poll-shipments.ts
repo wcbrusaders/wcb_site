@@ -29,11 +29,16 @@ export async function pollShipments(
   const now = deps.now ?? new Date()
   const getTracking = deps.getTracking ?? realGetTracking
 
-  // Only shipments with a tracking number that aren't already delivered. The
-  // carrier (UPS-vs-not) guard is applied in-memory below since it's a string
-  // contains-check rather than an exact match.
+  // Only shipments with a tracking number that aren't already delivered. Note:
+  // `{ not: 'delivered' }` alone would EXCLUDE never-polled rows (deliveryStatus
+  // NULL) in SQL — those are exactly the ones we must poll first — so the OR
+  // explicitly includes NULL. The carrier (UPS-vs-not) guard is applied
+  // in-memory below since it's a string contains-check, not an exact match.
   const rows = (await db.competition.findMany({
-    where: { shipmentTracking: { not: null }, deliveryStatus: { not: 'delivered' } },
+    where: {
+      shipmentTracking: { not: null },
+      OR: [{ deliveryStatus: null }, { deliveryStatus: { not: 'delivered' } }],
+    },
     select: { id: true, shipmentCarrier: true, shipmentTracking: true, deliveryStatus: true },
   })) as any[]
 
