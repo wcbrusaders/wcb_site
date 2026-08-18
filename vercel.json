@@ -4,6 +4,7 @@
   "outputDirectory": ".next",
   "crons": [
     { "path": "/api/cron/sync-roster", "schedule": "0 4 * * *" },
-    { "path": "/api/cron/sync-knowledge-notes", "schedule": "0 5 * * *" }
+    { "path": "/api/cron/sync-knowledge-notes", "schedule": "0 5 * * *" },
+    { "path": "/api/cron/sync-artifacts", "schedule": "0 6 * * *" }
   ]
 }

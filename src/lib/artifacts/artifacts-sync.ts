@@ -44,7 +44,16 @@ const GOOGLE_NATIVE_EXPORT_MIME: Record<string, string> = {
 const FOLDER_TO_CATEGORY: Record<string, ArtifactCategory> = {
   '1_I7Po8n9d1gBCze9xphoB5cVTZrLtBhf': 'workshop-guide', // Workshop Guides
   '1b-7-hMPgU6gBNqnNmIxSNROgUILW1jwc': 'recipe', // Recipe Library
+  // TODO: Add presentation and technique-nugget folder IDs here once known
 }
+
+// Folders to sync in the artifact cron job. Presentation and technique-nugget
+// folder IDs are TBD and should be appended here (and to FOLDER_TO_CATEGORY)
+// once known.
+export const ARTIFACT_FOLDER_IDS = [
+  '1_I7Po8n9d1gBCze9xphoB5cVTZrLtBhf', // Workshop Guides
+  '1b-7-hMPgU6gBNqnNmIxSNROgUILW1jwc', // Recipe Library
+]
 
 export function folderToCategory(folderId: string): ArtifactCategory | null {
   return FOLDER_TO_CATEGORY[folderId] ?? null
