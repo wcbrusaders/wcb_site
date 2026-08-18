@@ -33,20 +33,23 @@ export function BylawsBody() {
         <p>
           The club is organized exclusively for social and recreational purposes within the meaning of Section
           501(c)(7) of the Internal Revenue Code. Its primary purpose is to enjoy and promote the hobby of
-          homebrewing, and to provide members a comfortable community centered on that shared craft and on
-          friendship — insulated from outside pressure. The club pursues the following goals:
+          homebrewing — the club&apos;s founding craft — and to welcome and support the broader craft of
+          fermentation in all its forms, whether beverage, food, or otherwise. The club provides members a
+          comfortable community centered on that shared craft and on friendship, insulated from outside pressure.
+          The club pursues the following goals:
         </p>
         <ul className="list-disc pl-6 space-y-2">
           <li>Enhancing knowledge about beer, beer tasting, beer judging, and brewing techniques through shared experiences.</li>
           <li>Advocating for the hobby and enjoyment of homebrewing.</li>
-          <li>Fostering a brewers&apos; community through social activities.</li>
+          <li>Welcoming anyone with a genuine interest in fermentation — beer, cider, mead, wine, kombucha, cheese, bread, hot sauce, and beyond — and helping them pursue that interest.</li>
+          <li>Fostering a brewers&apos; and fermenters&apos; community through social activities.</li>
           <li>Championing the responsible consumption of alcoholic beverages.</li>
           <li>Fostering a comfortable, pressure-free environment where every member belongs — insulated from external conflict, centered on friendship and the craft.</li>
         </ul>
       </Section>
 
       <Section title="Article Three — Membership">
-        <p><strong>Eligibility.</strong> All individuals of legal drinking age in North Carolina are eligible for membership.</p>
+        <p><strong>Eligibility.</strong> All individuals of legal drinking age in North Carolina are eligible for membership. Membership is open to anyone with an interest in fermentation of any kind — you need not be a homebrewer. Brewers, and anyone curious about fermented food or drink, are equally welcome.</p>
         <p><strong>Admission.</strong> Membership is granted upon application and payment of dues.</p>
         <p><strong>Term.</strong> Membership runs for twelve (12) months from the date of payment and is renewed by paying the following year&apos;s dues.</p>
         <p><strong>Dues &amp; tiers.</strong> The club has a single membership standing — <strong>Brusader</strong> — offered at two rates:</p>
@@ -84,6 +87,14 @@ export function BylawsBody() {
           members&apos; home breweries and local production breweries. The Board confirms each meeting&apos;s exact
           location in advance. A typical meeting includes a workshop, a technique nugget, and a style guide segment,
           and always includes homebrew sharing.
+        </p>
+        <p>
+          <strong>Board meetings.</strong> The Board of Officers meets monthly, typically about one week before the
+          regular club meeting, to align on initiatives, plan meeting content, and address club matters. Board
+          meetings are closed (board members only) so that initiatives and sensitive matters — including
+          member-wellbeing and conduct concerns under the Code of Conduct — can be discussed candidly; outcomes and
+          decisions are shared with the membership as appropriate. The Board may invite a member or coordinator to a
+          meeting for a specific topic. Board meetings may be held in person or virtually.
         </p>
         <p>
           <strong>No annual meeting required.</strong> The club does not hold a separate annual membership meeting;
