@@ -211,3 +211,37 @@ model Strike {
   expiresAt    DateTime?
   clearedAt    DateTime?
 }
+
+model Article {
+  id          String   @id @default(cuid())
+  slug        String   @unique
+  title       String
+  bodyHtml    String                 // sanitized, styled-ready HTML (no visible markup)
+  excerpt     String?
+  category    String                 // 'meeting-notes' | 'workshop' | 'recipe' (Phase A: meeting-notes)
+  meetingDate DateTime?              // for notes: the meeting date
+  publishedAt DateTime @default(now())
+  publishedBy String?               // officer email who approved
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  @@index([category])
+  @@index([slug])
+}
+
+model DraftArticle {
+  id            String   @id @default(cuid())
+  sourceDriveId String   @unique      // Drive doc id — sync key (idempotent upsert)
+  sourceName    String                // Drive doc title
+  category      String                // 'meeting-notes' (Phase A)
+  status        String   @default("needs_processing") // needs_processing | in_review | published | rejected | error
+  rawText       String                // exported transcript text (kept for re-processing/audit; board-only)
+  processedHtml String?               // AI-extracted, sanitized HTML
+  processedTitle String?
+  excerpt       String?
+  meetingDate   DateTime?
+  errorText     String?               // if AI/processing failed
+  processedAt   DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  @@index([status])
+}
