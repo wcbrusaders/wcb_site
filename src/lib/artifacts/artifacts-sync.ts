@@ -143,6 +143,23 @@ function buildDriveQuery(folderId: string): string {
   return `'${folderId}' in parents and trashed=false`
 }
 
+const FOLDER_MIME = 'application/vnd.google-apps.folder'
+
+// A subfolder's name can refine the inherited category as we descend, e.g. a
+// "Technique Nuggets" subfolder under Workshop Guides switches its contents to
+// the technique-nugget category. Unmatched subfolders inherit the parent's.
+export function refineCategoryByFolderName(
+  name: string,
+  inherited: ArtifactCategory | null,
+): ArtifactCategory | null {
+  const n = name.toLowerCase()
+  if (/technique\s*nugget/.test(n)) return 'technique-nugget'
+  if (/presentation/.test(n)) return 'presentation'
+  if (/workshop/.test(n)) return 'workshop-guide'
+  if (/recipe/.test(n)) return 'recipe'
+  return inherited
+}
+
 export async function syncArtifacts(
   folderIds: string[],
   deps: SyncDeps = {}
@@ -152,10 +169,15 @@ export async function syncArtifacts(
   const putFn = deps.put ?? defaultPut
   const renderPdfThumbnail = deps.renderPdfThumbnail ?? defaultRenderPdfThumbnail
 
-  let scanned = 0
-  let created = 0
+  const counters = { scanned: 0, created: 0 }
+  const seenFolders = new Set<string>() // guard against cycles / shortcuts
 
-  for (const folderId of folderIds) {
+  // Recursively walk a folder, carrying a suggested category context that
+  // subfolder names can refine as we descend.
+  async function walk(folderId: string, category: ArtifactCategory | null): Promise<void> {
+    if (seenFolders.has(folderId)) return
+    seenFolders.add(folderId)
+
     let pageToken: string | undefined
     do {
       const res = await drive.files.list({
@@ -163,14 +185,23 @@ export async function syncArtifacts(
         fields: 'nextPageToken, files(id, name, mimeType)',
         pageToken,
         pageSize: 100,
+        supportsAllDrives: true,
+        includeItemsFromAllDrives: true,
       })
 
       const files = res.data.files ?? []
       for (const file of files) {
         if (!file.id || !file.name || !file.mimeType) continue
+
+        // Descend into subfolders (category may be refined by the subfolder name).
+        if (file.mimeType === FOLDER_MIME) {
+          await walk(file.id, refineCategoryByFolderName(file.name, category))
+          continue
+        }
+
         if (!isArtifactFile(file.mimeType)) continue
 
-        scanned++
+        counters.scanned++
 
         // Idempotent: never re-copy a file we've already pulled in, whether
         // it's still an unreviewed draft or was already published.
@@ -245,16 +276,20 @@ export async function syncArtifacts(
             mimeType: finalMimeType,
             thumbnailUrl,
             sizeBytes: bytes.byteLength,
-            suggestedCategory: folderToCategory(folderId) ?? null,
+            suggestedCategory: category ?? null,
             status: 'needs_review',
           },
         })
-        created++
+        counters.created++
       }
 
       pageToken = res.data.nextPageToken ?? undefined
     } while (pageToken)
   }
 
-  return { scanned, created }
+  for (const rootId of folderIds) {
+    await walk(rootId, folderToCategory(rootId))
+  }
+
+  return { scanned: counters.scanned, created: counters.created }
 }

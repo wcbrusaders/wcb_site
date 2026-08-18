@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { isArtifactFile, folderToCategory, blobPathFor, needsThumbnail } from './artifacts-sync'
+import { isArtifactFile, folderToCategory, blobPathFor, needsThumbnail, refineCategoryByFolderName } from './artifacts-sync'
 
 // Pure helpers only — no Drive/DB/Blob calls. syncArtifacts's live Drive/Blob/
 // unpdf calls are intentionally NOT unit-tested here; dependency injection
@@ -104,5 +104,21 @@ describe('needsThumbnail', () => {
     expect(
       needsThumbnail('application/vnd.openxmlformats-officedocument.presentationml.presentation')
     ).toBe(false)
+  })
+})
+
+describe('refineCategoryByFolderName', () => {
+  it('switches to technique-nugget for a Technique Nuggets subfolder', () => {
+    expect(refineCategoryByFolderName('Technique Nuggets', 'workshop-guide')).toBe('technique-nugget')
+  })
+  it('switches to presentation / workshop-guide / recipe by name', () => {
+    expect(refineCategoryByFolderName('2025 Presentations', null)).toBe('presentation')
+    expect(refineCategoryByFolderName('Workshop Materials', null)).toBe('workshop-guide')
+    expect(refineCategoryByFolderName('Recipe Box', null)).toBe('recipe')
+  })
+  it('inherits the parent category for an unmatched subfolder name', () => {
+    expect(refineCategoryByFolderName('Saison', 'recipe')).toBe('recipe')
+    expect(refineCategoryByFolderName('Kombucha with Dan!', 'workshop-guide')).toBe('workshop-guide')
+    expect(refineCategoryByFolderName('Misc', null)).toBeNull()
   })
 })
