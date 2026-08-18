@@ -15,6 +15,10 @@ export type ArtifactDraftRow = {
   mimeType: string
   thumbnailUrl: string | null
   suggestedCategory: string | null
+  suggestedTitle: string | null
+  suggestedDescription: string | null
+  renderedPdfUrl: string | null
+  viewable: boolean
   status: string
   errorText: string | null
 }
@@ -52,8 +56,8 @@ function filetypeLabel(mimeType: string): string {
 function ArtifactReviewRow({ artifact }: { artifact: ArtifactDraftRow }) {
   const [pending, start] = useTransition()
   const [msg, setMsg] = useState<string | null>(null)
-  const [title, setTitle] = useState(artifact.sourceName)
-  const [description, setDescription] = useState('')
+  const [title, setTitle] = useState(artifact.suggestedTitle || artifact.sourceName)
+  const [description, setDescription] = useState(artifact.suggestedDescription || '')
   const [category, setCategory] = useState(artifact.suggestedCategory ?? '')
   const [audience, setAudience] = useState('')
 

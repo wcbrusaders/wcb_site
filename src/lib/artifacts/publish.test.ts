@@ -11,6 +11,8 @@ describe('draftToArtifact', () => {
     mimeType: 'application/pdf',
     thumbnailUrl: 'https://blob.example.com/off-flavor-thumb.png',
     sizeBytes: 4096,
+    renderedPdfUrl: 'https://blob.example.com/off-flavor-rendered.pdf',
+    viewable: true,
   }
 
   it('maps fields correctly', () => {
@@ -33,6 +35,8 @@ describe('draftToArtifact', () => {
       thumbnailUrl: 'https://blob.example.com/off-flavor-thumb.png',
       sourceDriveId: 'drive-123',
       sizeBytes: 4096,
+      renderedPdfUrl: 'https://blob.example.com/off-flavor-rendered.pdf',
+      viewable: true,
       publishedAt: now,
       publishedBy: 'officer@wcb.com',
     })
@@ -98,5 +102,34 @@ describe('draftToArtifact', () => {
     )
     expect(artifact.thumbnailUrl).toBeNull()
     expect(artifact.sizeBytes).toBeNull()
+  })
+
+  it('carries renderedPdfUrl and viewable through from the draft', () => {
+    const artifact = draftToArtifact(draft, {
+      title: 'Title',
+      description: undefined,
+      category: 'recipe',
+      audience: 'members',
+      officerEmail: 'officer@wcb.com',
+      now,
+    })
+    expect(artifact.renderedPdfUrl).toBe('https://blob.example.com/off-flavor-rendered.pdf')
+    expect(artifact.viewable).toBe(true)
+  })
+
+  it('defaults renderedPdfUrl to null and viewable to false when absent on the draft', () => {
+    const artifact = draftToArtifact(
+      { ...draft, renderedPdfUrl: null, viewable: false },
+      {
+        title: 'Title',
+        description: undefined,
+        category: 'recipe',
+        audience: 'members',
+        officerEmail: 'officer@wcb.com',
+        now,
+      },
+    )
+    expect(artifact.renderedPdfUrl).toBeNull()
+    expect(artifact.viewable).toBe(false)
   })
 })

@@ -19,9 +19,20 @@ export default async function ArtifactPage({ params }: { params: Promise<{ id: s
   if (artifact.audience === 'officers' && !session.user.isBoard) notFound()
 
   // For officer artifacts, the file is only ever served through the gated
-  // API route (which re-checks isBoard) — the raw blobUrl is never rendered
-  // in markup, so it can't leak via view-source or a shared link.
-  const fileSrc = artifact.audience === 'officers' ? `/api/artifacts/${artifact.id}` : artifact.blobUrl
+  // API route (which re-checks isBoard) — the raw blobUrl/renderedPdfUrl is
+  // never rendered in markup, so it can't leak via view-source or a shared
+  // link. Member artifacts can point straight at the public blob URLs.
+  const isOfficer = artifact.audience === 'officers'
+  const gatedSrc = `/api/artifacts/${artifact.id}`
+  const downloadSrc = isOfficer ? `${gatedSrc}?download=1` : artifact.blobUrl
+
+  // Render decision — never fall through to a link that opens Google Docs/an
+  // online editor. Only three outcomes: rendered read-only PDF inline, an
+  // image inline, or a download-only button.
+  const isImage = artifact.mimeType.startsWith('image/')
+  const hasRenderedPdf = Boolean(artifact.renderedPdfUrl)
+  const showInlinePdf = hasRenderedPdf || (artifact.viewable && artifact.mimeType === 'application/pdf')
+  const inlineSrc = isOfficer ? gatedSrc : hasRenderedPdf ? artifact.renderedPdfUrl! : artifact.blobUrl
 
   return (
     <div className="max-w-3xl mx-auto px-4 md:px-6 py-8">
@@ -41,21 +52,27 @@ export default async function ArtifactPage({ params }: { params: Promise<{ id: s
       {artifact.description && <p className="text-foreground/55 mt-2">{artifact.description}</p>}
 
       <div className="mt-6">
-        {artifact.mimeType.startsWith('image/') ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={fileSrc} alt={artifact.title} className="max-w-full rounded-xl border border-border/40" />
-        ) : artifact.mimeType === 'application/pdf' ? (
+        {showInlinePdf ? (
+          // Read-only PDF viewer only — the rendered export (or a native PDF
+          // original) is embedded inline via <iframe>. Never a Google
+          // Docs/Office Online URL, which would open an editable document.
           <div>
-            <iframe src={fileSrc} className="w-full h-[75vh] rounded-xl border border-border/40" title={artifact.title} />
+            <iframe src={inlineSrc} className="w-full h-[75vh] rounded-xl border border-border/40" title={artifact.title} />
             <a
-              href={fileSrc}
+              href={downloadSrc}
               download
               className="inline-block mt-3 border border-accent/40 text-accent px-3 py-1.5 rounded-full text-sm hover:border-accent/70"
             >
               Download
             </a>
           </div>
+        ) : isImage ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={inlineSrc} alt={artifact.title} className="max-w-full rounded-xl border border-border/40" />
         ) : (
+          // No usable rendition: download-only, never an inline embed of the
+          // original (which could hand the browser a native Office/Docs file
+          // and trigger an online editor).
           <div className="flex items-center gap-4 rounded-xl border border-border/40 bg-card-bg/30 p-4">
             {artifact.thumbnailUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
@@ -70,7 +87,7 @@ export default async function ArtifactPage({ params }: { params: Promise<{ id: s
               </div>
             )}
             <a
-              href={fileSrc}
+              href={downloadSrc}
               download
               className="border border-accent/40 text-accent px-3 py-1.5 rounded-full text-sm hover:border-accent/70"
             >

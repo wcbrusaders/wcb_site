@@ -4,7 +4,12 @@ import { prisma } from '@/lib/db'
 
 export const dynamic = 'force-dynamic'
 
-export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
+// Escape a filename for use inside a Content-Disposition header value.
+function sanitizeFilename(name: string): string {
+  return name.replace(/["\r\n]/g, '')
+}
+
+export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const artifact = await prisma.artifact.findUnique({ where: { id } })
   if (!artifact) return new NextResponse(null, { status: 404 })
@@ -31,13 +36,34 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   // public), but streaming works for both and keeps this route's behavior
   // uniform — member pages link directly to blobUrl anyway, so this branch
   // rarely serves them.
-  const blobRes = await fetch(artifact.blobUrl)
+  const forceDownload = new URL(req.url).searchParams.get('download') === '1'
+
+  // Never hand a member's browser a native Office/Docs file to open inline —
+  // that's exactly the "opens an editor" bug this route exists to prevent.
+  // If the artifact has a rendered, read-only PDF, serve THAT inline (unless
+  // the caller explicitly asked to download). Otherwise the original is
+  // download-only, always as an attachment.
+  const serveRendered = artifact.viewable && artifact.renderedPdfUrl && !forceDownload
+  const sourceUrl = serveRendered ? artifact.renderedPdfUrl! : artifact.blobUrl
+  const contentType = serveRendered ? 'application/pdf' : artifact.mimeType
+
+  const blobRes = await fetch(sourceUrl)
   if (!blobRes.ok || !blobRes.body) return new NextResponse(null, { status: 404 })
+
+  // Inline only for a viewable artifact being served for on-page viewing
+  // (the rendered PDF, or an image/native-PDF original) and not forced to
+  // download. Everything else — non-viewable originals, or any request with
+  // ?download=1 — is an attachment so the browser downloads it instead of
+  // opening it in Google Docs/Office Online or similar.
+  const canInline =
+    !forceDownload && artifact.viewable && (serveRendered || contentType.startsWith('image/') || contentType === 'application/pdf')
+  const disposition = canInline ? 'inline' : `attachment; filename="${sanitizeFilename(artifact.title)}"`
 
   return new NextResponse(blobRes.body, {
     status: 200,
     headers: {
-      'Content-Type': artifact.mimeType,
+      'Content-Type': contentType,
+      'Content-Disposition': disposition,
       'Cache-Control': artifact.audience === 'officers' ? 'private, no-store' : 'public, max-age=3600',
     },
   })
