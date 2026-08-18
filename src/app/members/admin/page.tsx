@@ -15,6 +15,9 @@ export default async function AdminPage() {
 
   const rows = await fetchAllRosterRows()
 
+  // Count meeting-note drafts awaiting officer review, to badge the queue link.
+  const reviewCount = await prisma.draftArticle.count({ where: { status: 'in_review' } })
+
   // The roster rows come straight from the Google Sheet and have no DB id.
   // Strikes (and enforcement generally) key on the Member.id cuid, so map
   // emailAddress/googleEmail -> id once here and thread it through.
@@ -47,12 +50,20 @@ export default async function AdminPage() {
             Board-only. {members.length} members. Edits write back to the roster and are logged.
           </p>
         </div>
-        <Link
-          href="/members/admin/enforcement"
-          className="shrink-0 rounded-full border border-accent/40 bg-accent/10 px-4 py-2 text-sm font-semibold text-accent hover:bg-accent/20"
-        >
-          Enforcement &amp; cases →
-        </Link>
+        <div className="flex flex-wrap gap-2 shrink-0">
+          <Link
+            href="/members/admin/knowledge"
+            className="rounded-full border border-accent/40 bg-accent/10 px-4 py-2 text-sm font-semibold text-accent hover:bg-accent/20"
+          >
+            Knowledge review{reviewCount > 0 ? ` (${reviewCount})` : ''} →
+          </Link>
+          <Link
+            href="/members/admin/enforcement"
+            className="rounded-full border border-accent/40 bg-accent/10 px-4 py-2 text-sm font-semibold text-accent hover:bg-accent/20"
+          >
+            Enforcement &amp; cases →
+          </Link>
+        </div>
       </div>
       <AdminRoster members={members} />
     </div>

@@ -75,14 +75,10 @@ export default async function ResourcesPage() {
       <section className="mt-8">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-foreground/50">Governance</h2>
         <p className="text-xs text-foreground/45 mt-1">How the club is constituted and run.</p>
-        <div className="mt-3 grid sm:grid-cols-2 gap-2">
+        <div className="mt-3">
           <Link href="/members/governance" className="block rounded-xl border border-border/60 bg-card-bg/30 hover:border-accent/40 px-4 py-3">
-            <div className="font-semibold">Governance documents</div>
-            <div className="text-sm text-foreground/55">Board, Code of Conduct, Bylaws, and Articles of Incorporation.</div>
-          </Link>
-          <Link href="/members/governance/bylaws" className="block rounded-xl border border-border/60 bg-card-bg/30 hover:border-accent/40 px-4 py-3">
-            <div className="font-semibold">Bylaws <span className="text-foreground/40 font-normal text-xs">· draft v2.0</span></div>
-            <div className="text-sm text-foreground/55">The club's governing document.</div>
+            <div className="font-semibold">Governance documents →</div>
+            <div className="text-sm text-foreground/55">Board, Code of Conduct, Bylaws (draft v2.0), and Articles of Incorporation.</div>
           </Link>
         </div>
       </section>
