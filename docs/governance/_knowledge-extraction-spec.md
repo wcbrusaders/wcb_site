@@ -6,8 +6,14 @@ This is the extraction contract the pipeline's AI pass must implement for MEETIN
 ## Goal
 A non-attendee reading the published note should come away with **the same brewing takeaways as if they had attended** — not minutes. Teach the substance; don't just log that a topic came up.
 
+## Preview summary (added 2026)
+The extraction must emit a leading `SUMMARY:` line — a 2–3 sentence, meeting-specific plain-text blurb used as the card/preview excerpt (NOT the first-200-chars of the body, which is always the title + participants boilerplate and made every preview identical). Stored as `DraftArticle.excerpt` / `Article.excerpt`.
+
+## Meeting vs. event (added 2026)
+Not everything recorded is a monthly meeting — the club also records EVENTS for remote members (Mead Day, brew days, workshops, brewery visits). The AI decides from the transcript and titles accordingly: meeting → "WCB Monthly Meeting — <date>"; event → the event's real name (e.g. "WCB Mead Day — <date>"). Ambiguous → "WCB Meeting — <date>".
+
 ## Fixed template (same every note)
-1. **Title:** `WCB Monthly Meeting — <date>` (+ location if in the transcript)
+1. **Title:** meeting → `WCB Monthly Meeting — <date>`, event → event name — <date> (+ location if in the transcript)
 2. **Named participants:** only people identifiable from the transcript, labeled honestly as "named from the transcript; not a full attendance list." Keep real names; keep handles as-is (e.g. bigfoot29708) if that's all that's given.
 3. **What we covered — the brewing:** one subsection per brewing topic (workshop / technique nugget / style guide / demos). **Full teaching depth** — the technique, the numbers, the reasoning, the pitfalls — written so a reader learns it and can use it.
 4. **Homebrew & tasting:** brief — what was shared/tasted.

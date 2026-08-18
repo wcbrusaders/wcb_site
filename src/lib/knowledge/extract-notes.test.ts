@@ -16,6 +16,16 @@ describe('buildExtractionPrompt', () => {
     expect(user).toContain('RAW TRANSCRIPT TEXT HERE')
   })
 
+  it('instructs a leading SUMMARY: line for the preview blurb', () => {
+    expect(system).toMatch(/SUMMARY:/)
+    expect(system.toLowerCase()).toMatch(/2.?3 sentence|preview/)
+  })
+
+  it('instructs the model to decide meeting vs event for the title', () => {
+    expect(system.toLowerCase()).toMatch(/event/)
+    expect(system.toLowerCase()).toMatch(/meeting/)
+  })
+
   describe('fixed template sections', () => {
     it('requires a Title section', () => {
       expect(system).toMatch(/Title/)

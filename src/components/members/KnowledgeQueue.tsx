@@ -64,6 +64,13 @@ function ReviewRow({ draft }: { draft: InReviewDraft }) {
         <input
           value={title}
           onChange={(e) => setTitle(e.target.value)}
+          name="note-title"
+          autoComplete="off"
+          autoCorrect="off"
+          spellCheck={false}
+          data-1p-ignore
+          data-lpignore="true"
+          aria-label="Note title"
           className="font-semibold bg-transparent border-b border-border/40 focus:border-accent/60 outline-none flex-1 min-w-[200px]"
         />
         {draft.meetingDate && (
