@@ -165,6 +165,10 @@ async function defaultPut(
     access: 'public',
     token: opts.token,
     contentType: opts.contentType,
+    // Blob paths are deterministic (keyed by Drive file id), so a re-sync of a
+    // changed file — or a re-run after the DB rows were cleared — must overwrite
+    // the existing blob rather than error on collision.
+    allowOverwrite: true,
   })
   return { url: blob.url }
 }
