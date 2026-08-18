@@ -85,6 +85,36 @@ export function needsThumbnail(mimeType: string): boolean {
   return THUMBNAIL_MIME_SET.has(mimeType)
 }
 
+// Office/Google files that aren't already a PDF need to be rendered to one
+// via Drive export so they can be viewed inline (read-only) in the browser.
+// PDFs are already viewable as-is; images render inline directly.
+const PDF_CONVERSION_MIME_SET: ReadonlySet<string> = new Set([
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document', // docx
+  'application/vnd.openxmlformats-officedocument.presentationml.presentation', // pptx
+  'application/vnd.google-apps.document', // Google Doc
+  'application/vnd.google-apps.presentation', // Google Slides
+])
+
+export function needsPdfConversion(mimeType: string): boolean {
+  return PDF_CONVERSION_MIME_SET.has(mimeType)
+}
+
+// Uploaded Office mime -> the Google-native mime type to copy it as, so it
+// can be exported to PDF (Drive's files.export only works on Google-native
+// files; a plain .docx/.pptx must first be copied into a native Doc/Slides
+// file, exported, and the temp copy cleaned up).
+const OFFICE_TO_GOOGLE_NATIVE_MIME: Record<string, string> = {
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document':
+    'application/vnd.google-apps.document',
+  'application/vnd.openxmlformats-officedocument.presentationml.presentation':
+    'application/vnd.google-apps.presentation',
+}
+
+const GOOGLE_NATIVE_MIME_SET: ReadonlySet<string> = new Set([
+  'application/vnd.google-apps.document',
+  'application/vnd.google-apps.presentation',
+])
+
 const IMAGE_MIME_SET: ReadonlySet<string> = new Set([
   'image/png',
   'image/jpeg',
@@ -137,6 +167,59 @@ async function defaultRenderPdfThumbnail(pdfBytes: Buffer): Promise<Buffer> {
     scale: 1,
   })
   return Buffer.from(imageBuffer)
+}
+
+// Renders a Drive file as PDF bytes so it can be viewed inline (read-only) in
+// the browser, or returns null if it can't be converted (caller falls back to
+// download-only, original-format behavior). This makes live Drive calls and
+// is intentionally NOT unit-tested — only the pure needsPdfConversion is.
+export async function exportToPdf(
+  drive: DriveClient,
+  file: { id: string; mimeType: string },
+): Promise<Buffer | null> {
+  try {
+    if (GOOGLE_NATIVE_MIME_SET.has(file.mimeType)) {
+      // Already a Google-native file — export directly to PDF.
+      const exportRes = await drive.files.export(
+        { fileId: file.id, mimeType: 'application/pdf' },
+        { responseType: 'arraybuffer' },
+      )
+      return Buffer.from(exportRes.data as ArrayBuffer)
+    }
+
+    const nativeMime = OFFICE_TO_GOOGLE_NATIVE_MIME[file.mimeType]
+    if (!nativeMime) return null
+
+    // Uploaded Office file: Drive can't export a non-native file directly.
+    // Copy it into a temp Google-native file, export that to PDF, then
+    // always clean up the temp copy.
+    let copyId: string | undefined
+    try {
+      const copyRes = await drive.files.copy({
+        fileId: file.id,
+        requestBody: { mimeType: nativeMime },
+      })
+      copyId = copyRes.data.id ?? undefined
+      if (!copyId) return null
+
+      const exportRes = await drive.files.export(
+        { fileId: copyId, mimeType: 'application/pdf' },
+        { responseType: 'arraybuffer' },
+      )
+      return Buffer.from(exportRes.data as ArrayBuffer)
+    } finally {
+      if (copyId) {
+        try {
+          await drive.files.delete({ fileId: copyId })
+        } catch {
+          // Best-effort cleanup — an orphaned temp copy is a minor Drive
+          // storage cost, not worth failing the sync over.
+        }
+      }
+    }
+  } catch {
+    return null
+  }
 }
 
 function buildDriveQuery(folderId: string): string {
@@ -244,23 +327,55 @@ export async function syncArtifacts(
           contentType: finalMimeType,
         })
 
+        // Determine inline-viewability: PDFs and images render as-is;
+        // Office/Google docs need to be rendered to a PDF via Drive export
+        // before they can be viewed inline (download-only otherwise).
+        let renderedPdfUrl: string | null = null
+        let viewable = false
+        let pdfBytesForThumbAndText: Buffer | null = null
+
+        if (finalMimeType === 'application/pdf') {
+          viewable = true
+          renderedPdfUrl = blobUrl
+          pdfBytesForThumbAndText = bytes
+        } else if (IMAGE_MIME_SET.has(finalMimeType)) {
+          // Images render inline directly — no PDF rendition needed.
+          viewable = true
+        } else if (needsPdfConversion(file.mimeType) || needsPdfConversion(finalMimeType)) {
+          const pdf = await exportToPdf(drive, { id: file.id, mimeType: file.mimeType })
+          if (pdf) {
+            const renderedPath = `artifacts/${file.id}/rendered.pdf`
+            const { url } = await putFn(renderedPath, pdf, {
+              access: 'public',
+              token: process.env.BLOB_READ_WRITE_TOKEN,
+              contentType: 'application/pdf',
+            })
+            renderedPdfUrl = url
+            viewable = true
+            pdfBytesForThumbAndText = pdf
+          } else {
+            // Conversion failed — fall back to download-only original.
+            renderedPdfUrl = null
+            viewable = false
+          }
+        }
+
         let thumbnailUrl: string | null = null
-        if (needsThumbnail(finalMimeType)) {
+        if (IMAGE_MIME_SET.has(finalMimeType)) {
+          // The file itself already is the thumbnail.
+          thumbnailUrl = blobUrl
+        } else if (pdfBytesForThumbAndText) {
           try {
-            if (IMAGE_MIME_SET.has(finalMimeType)) {
-              // The file itself already is the thumbnail.
-              thumbnailUrl = blobUrl
-            } else {
-              // PDF: render page 1 to a PNG and store it alongside the source.
-              const thumbBuffer = await renderPdfThumbnail(bytes)
-              const thumbPath = `artifacts/${file.id}/thumb.png`
-              const { url } = await putFn(thumbPath, thumbBuffer, {
-                access: 'public',
-                token: process.env.BLOB_READ_WRITE_TOKEN,
-                contentType: 'image/png',
-              })
-              thumbnailUrl = url
-            }
+            // PDF (native or converted from Office/Google): render page 1 to
+            // a PNG and store it alongside the source.
+            const thumbBuffer = await renderPdfThumbnail(pdfBytesForThumbAndText)
+            const thumbPath = `artifacts/${file.id}/thumb.png`
+            const { url } = await putFn(thumbPath, thumbBuffer, {
+              access: 'public',
+              token: process.env.BLOB_READ_WRITE_TOKEN,
+              contentType: 'image/png',
+            })
+            thumbnailUrl = url
           } catch {
             // Thumbnail generation is best-effort — a failure here must not
             // fail the whole file's sync.
@@ -278,6 +393,8 @@ export async function syncArtifacts(
             sizeBytes: bytes.byteLength,
             suggestedCategory: category ?? null,
             status: 'needs_review',
+            renderedPdfUrl,
+            viewable,
           },
         })
         counters.created++

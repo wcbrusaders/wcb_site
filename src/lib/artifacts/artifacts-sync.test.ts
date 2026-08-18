@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { isArtifactFile, folderToCategory, blobPathFor, needsThumbnail, refineCategoryByFolderName } from './artifacts-sync'
+import { isArtifactFile, folderToCategory, blobPathFor, needsThumbnail, refineCategoryByFolderName, needsPdfConversion } from './artifacts-sync'
 
 // Pure helpers only — no Drive/DB/Blob calls. syncArtifacts's live Drive/Blob/
 // unpdf calls are intentionally NOT unit-tested here; dependency injection
@@ -104,6 +104,39 @@ describe('needsThumbnail', () => {
     expect(
       needsThumbnail('application/vnd.openxmlformats-officedocument.presentationml.presentation')
     ).toBe(false)
+  })
+})
+
+describe('needsPdfConversion', () => {
+  it('is true for docx', () => {
+    expect(
+      needsPdfConversion('application/vnd.openxmlformats-officedocument.wordprocessingml.document')
+    ).toBe(true)
+  })
+
+  it('is true for pptx', () => {
+    expect(
+      needsPdfConversion('application/vnd.openxmlformats-officedocument.presentationml.presentation')
+    ).toBe(true)
+  })
+
+  it('is true for a Google Doc', () => {
+    expect(needsPdfConversion('application/vnd.google-apps.document')).toBe(true)
+  })
+
+  it('is true for Google Slides', () => {
+    expect(needsPdfConversion('application/vnd.google-apps.presentation')).toBe(true)
+  })
+
+  it('is false for pdf (already a PDF)', () => {
+    expect(needsPdfConversion('application/pdf')).toBe(false)
+  })
+
+  it('is false for images', () => {
+    expect(needsPdfConversion('image/png')).toBe(false)
+    expect(needsPdfConversion('image/jpeg')).toBe(false)
+    expect(needsPdfConversion('image/gif')).toBe(false)
+    expect(needsPdfConversion('image/webp')).toBe(false)
   })
 })
 
