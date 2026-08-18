@@ -3,7 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/db'
-import { draftToArticle } from '@/lib/knowledge/publish'
+import { draftToArticle, uniqueSlug } from '@/lib/knowledge/publish'
 import { sanitizeArticleHtml } from '@/lib/knowledge/extract-notes'
 
 type Actor = { memberId?: string; email: string }
@@ -48,6 +48,11 @@ export async function publishDraftAction(
     actor.email,
     new Date(),
   )
+
+  // Make the slug collision-safe: two same-titled notes (e.g. a date-less
+  // "WCB Monthly Meeting") would otherwise hit the @unique constraint and throw.
+  const existing = await prisma.article.findMany({ select: { slug: true } })
+  fields.slug = uniqueSlug(fields.slug, existing.map((a) => a.slug))
 
   await prisma.$transaction([
     prisma.article.create({ data: fields }),

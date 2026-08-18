@@ -22,6 +22,19 @@ export function slugForNote(title: string, meetingDate: Date | null): string {
   return `${base}-${isoDate(meetingDate)}`
 }
 
+/**
+ * Collision-safe slug: returns `base` if unused, else `base-2`, `base-3`, …
+ * `existing` is the set of slugs already taken. Pure — caller supplies the set
+ * (e.g. from a DB query) so this stays testable without mocks.
+ */
+export function uniqueSlug(base: string, existing: Iterable<string>): string {
+  const taken = new Set(existing)
+  if (!taken.has(base)) return base
+  let n = 2
+  while (taken.has(`${base}-${n}`)) n++
+  return `${base}-${n}`
+}
+
 export interface DraftForArticle {
   processedTitle: string | null
   processedHtml: string | null

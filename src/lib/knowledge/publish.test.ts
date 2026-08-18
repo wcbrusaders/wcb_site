@@ -1,5 +1,16 @@
 import { describe, it, expect } from 'vitest'
-import { slugForNote, draftToArticle } from './publish'
+import { slugForNote, draftToArticle, uniqueSlug } from './publish'
+
+describe('uniqueSlug', () => {
+  it('returns the base when unused', () => {
+    expect(uniqueSlug('wcb-monthly-meeting', [])).toBe('wcb-monthly-meeting')
+    expect(uniqueSlug('wcb-monthly-meeting', ['other'])).toBe('wcb-monthly-meeting')
+  })
+  it('appends -2, then -3 on collisions', () => {
+    expect(uniqueSlug('wcb-monthly-meeting', ['wcb-monthly-meeting'])).toBe('wcb-monthly-meeting-2')
+    expect(uniqueSlug('wcb-monthly-meeting', ['wcb-monthly-meeting', 'wcb-monthly-meeting-2'])).toBe('wcb-monthly-meeting-3')
+  })
+})
 
 describe('slugForNote', () => {
   it('lowercases and hyphenates the title', () => {
