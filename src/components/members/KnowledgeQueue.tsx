@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from 'react'
 import { publishDraftAction, rejectDraftAction, reprocessDraftAction } from '@/app/members/admin/knowledge/_actions'
+import { RichTextEditor } from '@/components/members/RichTextEditor'
 
 export type InReviewDraft = {
   id: string
@@ -71,15 +72,12 @@ function ReviewRow({ draft }: { draft: InReviewDraft }) {
       </div>
       {draft.excerpt && <p className="text-foreground/55 text-sm mt-2">{draft.excerpt}</p>}
 
-      <label className="block mt-3">
-        <span className="text-xs uppercase tracking-wide text-foreground/45">Processed HTML (editable)</span>
-        <textarea
-          value={html}
-          onChange={(e) => setHtml(e.target.value)}
-          rows={12}
-          className="mt-1 w-full rounded-lg border border-border bg-background/60 px-3 py-2 text-sm font-mono"
-        />
-      </label>
+      <div className="mt-3">
+        <span className="text-xs uppercase tracking-wide text-foreground/45">Note (edit as needed before publishing)</span>
+        <div className="mt-1">
+          <RichTextEditor initialHtml={draft.processedHtml ?? ''} onChange={setHtml} />
+        </div>
+      </div>
 
       <div className="mt-3 flex flex-wrap gap-2">
         <button
