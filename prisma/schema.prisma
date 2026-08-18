@@ -250,3 +250,38 @@ model DraftArticle {
   @@index([status])
   @@index([category])
 }
+
+model Artifact {
+  id           String   @id @default(cuid())
+  title        String
+  description  String?
+  category     String   // presentation | technique-nugget | workshop-guide | recipe
+  audience     String   // 'members' | 'officers'
+  blobUrl      String
+  mimeType     String
+  thumbnailUrl String?
+  sourceDriveId String  @unique
+  sizeBytes    Int?
+  publishedAt  DateTime @default(now())
+  publishedBy  String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  @@index([category])
+  @@index([audience])
+}
+
+model ArtifactDraft {
+  id               String   @id @default(cuid())
+  sourceDriveId    String   @unique
+  sourceName       String
+  blobUrl          String
+  mimeType         String
+  thumbnailUrl     String?
+  sizeBytes        Int?
+  suggestedCategory String?  // from the source folder mapping; officer confirms
+  status           String   @default("needs_review") // needs_review | published | rejected | error
+  errorText        String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  @@index([status])
+}
