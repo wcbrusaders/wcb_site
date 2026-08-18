@@ -90,6 +90,23 @@ test('listMemberComps: only the viewer own entries, active only, with derived da
   expect(res[0].isPast).toBe(false)
 })
 
+test('listMemberComps: allEntries exposes every entrant (name+beer+style) for the ceremony view', async () => {
+  const comps = [comp()]
+  const entries = [
+    entry({ id: 'e1', memberId: 'm1', beerName: 'Hazy', style: 'NEIPA' }),
+    entry({ id: 'e2', memberId: 'm2', beerName: 'Stout', style: 'Imperial Stout' }),
+  ]
+  const members = [{ id: 'm1', name: 'Amy' }, { id: 'm2', name: 'Ben' }]
+  const res = await listMemberComps('m1', { db: db(comps, entries, members), now: NOW })
+  // myEntries still only the viewer's own
+  expect(res[0].myEntries.map((e) => e.id)).toEqual(['e1'])
+  // allEntries: everyone, with resolved names, for the shared list
+  expect(res[0].allEntries.map((e) => `${e.memberName}:${e.beerName}:${e.style}`)).toEqual([
+    'Amy:Hazy:NEIPA',
+    'Ben:Stout:Imperial Stout',
+  ])
+})
+
 test('listOfficerComps: all entries + podTotal + per-member breakdown; unknown member kept', async () => {
   const comps = [comp()]
   const entries = [
