@@ -15,7 +15,9 @@ export type CompetitionView = {
   shipmentCarrier: string | null; shipmentTracking: string | null; shippedAt: Date | null
   deliveryStatus: DeliveryStatus | null; deliveredAt: Date | null
 }
-export type MemberCompView = CompetitionView & { myEntries: CompEntryView[] }
+// myEntries = the viewer's own (for edit controls); allEntries = every entrant
+// with resolved names, shown to all members (the "who entered what" ceremony list).
+export type MemberCompView = CompetitionView & { myEntries: CompEntryView[]; allEntries: CompEntryView[] }
 export type OfficerCompView = CompetitionView & {
   entries: CompEntryView[]; podTotal: number
   perMember: { memberId: string; memberName: string | null; entryCount: number; clubShipCount: number; registeredCount: number }[]
@@ -71,10 +73,17 @@ export async function listMemberComps(memberId: string, deps: { db?: typeof pris
   const db = deps.db ?? prisma
   const now = deps.now ?? new Date()
   const comps = await db.competition.findMany({ where: { shippingDeadline: { gte: now } }, include: { entries: true }, orderBy: { shippingDeadline: 'asc' } })
+  // Resolve entrant names once across all comps for the shared "who entered" list.
+  const allIds = (comps as any[]).flatMap((c) => (c.entries ?? []).map((e: any) => e.memberId))
+  const names = await memberNames(db, allIds)
   return (comps as any[]).map((c) => ({
     ...toCompView(c, now),
     myEntries: (c.entries ?? []).filter((e: any) => e.memberId === memberId).map((e: any) => ({
       id: e.id, memberId: e.memberId, memberName: null, beerName: e.beerName, style: e.style, channel: e.channel as EntryChannel, registered: e.registered,
+    })),
+    // Every entrant, with resolved names — visible to all logged-in members.
+    allEntries: (c.entries ?? []).map((e: any) => ({
+      id: e.id, memberId: e.memberId, memberName: names.get(e.memberId) ?? null, beerName: e.beerName, style: e.style, channel: e.channel as EntryChannel, registered: e.registered,
     })),
   }))
 }

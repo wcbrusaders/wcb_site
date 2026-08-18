@@ -152,6 +152,24 @@ export function CompetitionCard({ comp, viewerIsBoard, viewerId }: { comp: Membe
             )
           })}
         </ul>
+        {comp.allEntries.length > 0 && (
+          <details className="mt-3">
+            <summary className="cursor-pointer text-sm text-foreground/50 hover:text-foreground">
+              Who entered · {comp.allEntries.length} entr{comp.allEntries.length === 1 ? 'y' : 'ies'} from the club
+            </summary>
+            <ul className="mt-2 space-y-1">
+              {comp.allEntries.map((e) => (
+                <li key={e.id} className="text-sm flex items-baseline gap-2 flex-wrap">
+                  <span className="text-foreground/50 min-w-[8rem]">{e.memberName ?? 'Member'}</span>
+                  <span className="font-medium">{e.beerName}</span>
+                  <span className="text-foreground/50">· {e.style}</span>
+                </li>
+              ))}
+            </ul>
+            <p className="mt-1.5 text-[11px] text-foreground/40">Handy at the award ceremony — see what the club entered.</p>
+          </details>
+        )}
+
         {adding ? (
           <div className="mt-2 space-y-2">
             <input placeholder="Beer name" value={draft.beerName} onChange={(e) => setDraft({ ...draft, beerName: e.target.value })} className="w-full rounded-lg border border-border bg-background/60 px-3 py-2 text-sm" />
