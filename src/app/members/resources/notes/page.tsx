@@ -1,9 +1,9 @@
 import { redirect } from 'next/navigation'
-import Link from 'next/link'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/db'
 import { categoriesForViewer, audienceForCategory, isValidCategory } from '@/lib/knowledge/categories'
 import { NotesCategoryFilter, type NotesListItem } from '@/components/members/NotesCategoryFilter'
+import { PageHeader, EmptyState } from '@/components/ui'
 
 export const dynamic = 'force-dynamic'
 
@@ -33,14 +33,15 @@ export default async function MeetingNotesPage() {
 
   return (
     <div className="max-w-3xl mx-auto px-4 md:px-6 py-8">
-      <Link href="/members/resources" className="text-sm text-foreground/50 hover:text-accent">← Resources</Link>
-      <h1 className="text-2xl md:text-3xl font-bold mt-3">Meeting notes</h1>
-      <p className="text-foreground/55 mt-1">
-        What we covered at club meetings and events — the brewing takeaways, so you get them even if you missed it.
-      </p>
+      <PageHeader
+        back={{ href: '/members/resources', label: 'Resources' }}
+        eyebrow="📝 Meeting notes"
+        title="Meeting notes"
+        lead="What we covered at club meetings and events — the brewing takeaways, so you get them even if you missed it."
+      />
 
       {items.length === 0 ? (
-        <p className="text-foreground/50 mt-6">No notes published yet.</p>
+        <EmptyState icon="📝">No notes published yet.</EmptyState>
       ) : (
         <NotesCategoryFilter notes={items} categories={allowedCategories} />
       )}

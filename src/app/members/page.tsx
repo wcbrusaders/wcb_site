@@ -5,6 +5,7 @@ import { getMemberDashboard, formatTenure, membershipStatus, visibleCards } from
 import { listOfficerComps, computeBannerItems } from '@/lib/competitions'
 import { InfoCard, Row } from '@/components/members/InfoCard'
 import { CompBanner } from '@/components/members/CompBanner'
+import { PageHeader } from '@/components/ui'
 
 function fmtDate(d: Date | null): string | null {
   return d && !isNaN(d.getTime()) ? d.toISOString().slice(0, 10) : null
@@ -23,17 +24,17 @@ export default async function MembersPage() {
   return (
     <div className="min-h-screen bg-background">
       <main className="max-w-4xl mx-auto px-6 py-24">
-        <p className="text-accent font-medium tracking-wide uppercase text-sm mb-4">Members Hub</p>
-        <h1 className="text-3xl md:text-4xl font-bold mb-2">
-          Welcome{rec?.name ? `, ${rec.name}` : ''}
-        </h1>
-        <p className="text-foreground/50 mb-10">{email}</p>
+        <PageHeader
+          eyebrow="Members Hub"
+          title={`Welcome${rec?.name ? `, ${rec.name}` : ''}`}
+          lead={email}
+        />
 
         <CompBanner items={bannerItems} />
 
         <Link href="/members/resources/getting-started"
-          className="block rounded-2xl border border-accent/40 bg-accent/[0.06] hover:bg-accent/[0.1] p-5 md:p-6 mt-6">
-          <div className="font-bold text-lg">New here? Start here →</div>
+          className="group block rounded-2xl border border-accent/40 bg-accent/[0.06] hover:bg-accent/[0.1] hover:-translate-y-0.5 transition-all duration-150 p-5 md:p-6 mt-6">
+          <div className="font-bold text-lg flex items-center gap-2"><span aria-hidden>🧭</span> New here? Start here →</div>
           <div className="text-sm text-foreground/60 mt-1">How to borrow gear, enter competitions, join a grain buy, use the bot, and more.</div>
         </Link>
 
@@ -47,14 +48,14 @@ export default async function MembersPage() {
         ) : (
           <div className="grid gap-4 md:grid-cols-2 mb-12">
             {cards.includes('membership') && (
-              <InfoCard title="Membership">
+              <InfoCard title="Membership" icon="🎟️">
                 <Row label="Status" value={membershipStatus(rec)} />
                 <Row label="Tier" value={rec.tier} />
                 <Row label="Board" value={rec.isBoard ? 'Board Member' : null} />
               </InfoCard>
             )}
             {cards.includes('timeline') && (
-              <InfoCard title="Timeline">
+              <InfoCard title="Timeline" icon="📅">
                 <Row label="Joined" value={fmtDate(rec.joinDate)} />
                 <Row label="Member for" value={formatTenure(rec.joinDate) || null} />
                 <Row label="Renews" value={fmtDate(rec.expires)} />
@@ -62,12 +63,12 @@ export default async function MembersPage() {
               </InfoCard>
             )}
             {cards.includes('connections') && (
-              <InfoCard title="Connections">
+              <InfoCard title="Connections" icon="🤝">
                 <Row label="Linked partner" value={rec.partnerEmail} />
               </InfoCard>
             )}
             {cards.includes('access') && (
-              <InfoCard title="Resources Access">
+              <InfoCard title="Resources Access" icon="🔑">
                 <Row
                   label="Drive & Calendar"
                   value={rec.resourceAccess ? 'You have access' : 'Not currently granted'}
