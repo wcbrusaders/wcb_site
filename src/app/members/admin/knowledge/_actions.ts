@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/db'
 import { draftToArticle } from '@/lib/knowledge/publish'
+import { sanitizeArticleHtml } from '@/lib/knowledge/extract-notes'
 
 type Actor = { memberId?: string; email: string }
 
@@ -34,7 +35,9 @@ export async function publishDraftAction(
   const draft = await prisma.draftArticle.findUnique({ where: { id: draftId } })
   if (!draft) return { ok: false, reason: 'Draft not found.' }
 
-  const processedHtml = editedHtml ?? draft.processedHtml
+  // Re-sanitize officer-edited HTML before it is stored/rendered to members —
+  // the AI-extraction output is already sanitized, but a manual edit is not.
+  const processedHtml = editedHtml !== undefined ? sanitizeArticleHtml(editedHtml) : draft.processedHtml
   const processedTitle = editedTitle ?? draft.processedTitle
   if (!processedHtml || !processedTitle) {
     return { ok: false, reason: 'Draft has no processed content to publish.' }

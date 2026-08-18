@@ -41,6 +41,13 @@ const SANITIZE_OPTIONS: sanitizeHtml.IOptions = {
   },
 }
 
+// Single source of truth for article-body sanitization. Used on the AI-extraction
+// output AND on any officer-edited HTML before it is published, so officer edits
+// can't introduce a stored-XSS vector (scripts, event handlers, styles).
+export function sanitizeArticleHtml(html: string): string {
+  return sanitizeHtml(html, SANITIZE_OPTIONS).trim()
+}
+
 export function buildExtractionPrompt(rawText: string): { system: string; user: string } {
   const system = `You are the WCB (club) knowledge-pipeline extraction assistant. You turn a raw meeting transcript into a single published meeting note. Every note you produce enters an officer review queue and a human officer approves it before anything is published — you are drafting for that reviewer, not publishing directly.
 
@@ -123,7 +130,7 @@ export async function extractMeetingNote(
     .join('\n')
     .trim()
 
-  const bodyHtml = sanitizeHtml(rawHtml, SANITIZE_OPTIONS).trim()
+  const bodyHtml = sanitizeArticleHtml(rawHtml)
   const title = deriveTitle(bodyHtml)
   const excerpt = deriveExcerpt(bodyHtml)
 
