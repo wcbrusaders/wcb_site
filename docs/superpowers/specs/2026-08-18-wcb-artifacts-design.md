@@ -103,6 +103,7 @@ ArtifactDraft {
 - Office→PDF conversion for uniform embedding (deferred; docx/pptx = download for now).
 - Full-text search inside artifacts (deferred).
 - Versioning of re-synced files (decide minimal behavior in plan: update-in-place vs new draft).
+- **Recipe-via-link (future):** allow adding a Recipe as an external link (e.g. a Brewfather share URL) rather than a Drive file. Different shape (a URL + metadata, no Blob copy) — a small extension to the Recipe category later, not part of this build. Keep the Artifact model tolerant of a `sourceUrl`-style recipe if cheap, but don't build the flow now.
 
 ## Open items for the plan
 - Exact sync change-detection (modifiedTime) + whether a changed published file re-enters review.
