@@ -1,7 +1,23 @@
-export function InfoCard({ title, children }: { title: string; children: React.ReactNode }) {
+// A labelled key/value card for the members dashboard. Uses the System-B
+// surface (soft gradient + depth) with an amber section label.
+export function InfoCard({
+  title,
+  icon,
+  children,
+}: {
+  title: string
+  icon?: string
+  children: React.ReactNode
+}) {
   return (
-    <div className="rounded-2xl border border-border/50 bg-card-bg/30 p-6 md:p-8">
-      <p className="text-accent font-medium tracking-wide uppercase text-sm mb-4">{title}</p>
+    <div
+      className="rounded-2xl border p-5 md:p-6 bg-[linear-gradient(#1c1c1c,#161616)]"
+      style={{ borderColor: '#2c2c2c' }}
+    >
+      <p className="text-accent font-semibold tracking-widest uppercase text-[11px] mb-4 flex items-center gap-2">
+        {icon && <span aria-hidden>{icon}</span>}
+        {title}
+      </p>
       <dl className="space-y-2">{children}</dl>
     </div>
   )

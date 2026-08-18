@@ -3,6 +3,8 @@ import Link from 'next/link'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/db'
 import { CATEGORY_LABELS, type ArtifactCategory } from '@/lib/artifacts/categories'
+import { artifactCategoryVisual } from '@/lib/ui/category-visuals'
+import { PageHeader, EmptyState, OfficersBadge } from '@/components/ui'
 
 function filetypeLabel(mimeType: string): string {
   if (mimeType.startsWith('image/')) return mimeType.replace('image/', '').toUpperCase()
@@ -18,6 +20,7 @@ export async function ArtifactLibrary({ category }: { category: ArtifactCategory
   if (!session?.user?.memberId) redirect('/login')
 
   const isBoard = !!session.user.isBoard
+  const visual = artifactCategoryVisual(category)
 
   // Security-critical: non-board viewers must never receive officers-only
   // rows from this query — the filter happens at the DB level, not by
@@ -40,38 +43,45 @@ export async function ArtifactLibrary({ category }: { category: ArtifactCategory
 
   return (
     <div className="max-w-5xl mx-auto px-4 md:px-6 py-8">
-      <Link href="/members/resources" className="text-sm text-foreground/50 hover:text-accent">
-        ← Resources
-      </Link>
-      <h1 className="text-2xl md:text-3xl font-bold mt-3">{CATEGORY_LABELS[category]}</h1>
+      <PageHeader
+        back={{ href: '/members/resources', label: 'Resources' }}
+        eyebrow={`${visual.icon} Library`}
+        title={CATEGORY_LABELS[category]}
+      />
 
       {artifacts.length === 0 ? (
-        <p className="text-foreground/50 mt-6">Nothing published here yet.</p>
+        <EmptyState icon={visual.icon}>Nothing published here yet.</EmptyState>
       ) : (
-        <div className="mt-6 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
           {artifacts.map((a) => (
             <Link
               key={a.id}
               href={`/members/resources/artifacts/${a.id}`}
-              className="rounded-xl border border-border/60 bg-card-bg/30 hover:border-accent/40 overflow-hidden flex flex-col"
+              className="group rounded-2xl border overflow-hidden flex flex-col bg-[linear-gradient(#1c1c1c,#161616)] transition-all duration-150 hover:-translate-y-0.5 hover:shadow-[0_8px_24px_rgba(0,0,0,0.35)]"
+              style={{ borderColor: '#2c2c2c', borderTop: `3px solid ${visual.color}` }}
             >
-              <div className="aspect-square w-full bg-card-bg/50 flex items-center justify-center overflow-hidden">
+              <div className="aspect-square w-full bg-black/30 flex items-center justify-center overflow-hidden">
                 {a.thumbnailUrl ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img src={a.thumbnailUrl} alt="" className="w-full h-full object-cover" />
                 ) : (
-                  <span className="text-xs font-medium text-foreground/50 text-center px-2">
-                    {filetypeLabel(a.mimeType)}
+                  <span
+                    aria-hidden
+                    className="w-10 h-10 rounded-lg grid place-items-center text-lg"
+                    style={{ background: `color-mix(in srgb, ${visual.color} 20%, transparent)` }}
+                  >
+                    {visual.icon}
                   </span>
                 )}
               </div>
               <div className="p-3">
                 {a.audience === 'officers' && (
-                  <span className="inline-block mb-1 text-[10px] font-semibold uppercase tracking-wide text-amber-400 border border-amber-500/40 rounded-full px-2 py-0.5">
-                    Officers only
-                  </span>
+                  <div className="mb-1.5">
+                    <OfficersBadge />
+                  </div>
                 )}
                 <div className="font-semibold text-sm leading-snug">{a.title}</div>
+                <div className="text-[11px] text-foreground/40 mt-1">{filetypeLabel(a.mimeType)}</div>
               </div>
             </Link>
           ))}
