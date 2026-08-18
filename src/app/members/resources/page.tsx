@@ -43,22 +43,14 @@ export default async function ResourcesPage() {
         {/* Lane 2 — knowledge (published meeting notes on-site + remaining Drive links) */}
         <section>
           <h2 className="text-sm font-semibold uppercase tracking-wide text-foreground/50">Knowledge & Experiments</h2>
-          <p className="text-xs text-foreground/45 mt-1">Meeting notes, published on-site. Everything else is still on Drive for now:</p>
+          <p className="text-xs text-foreground/45 mt-1">Meeting &amp; event notes, published on-site. Everything else is still on Drive for now:</p>
           <ul className="mt-3 space-y-2">
-            {meetingNotes.length === 0 && (
-              <li className="text-sm text-foreground/45 px-1">No published meeting notes yet.</li>
-            )}
-            {meetingNotes.map((a) => (
-              <li key={a.slug}>
-                <Link href={`/members/resources/knowledge/${a.slug}`} className="block rounded-xl border border-border/60 bg-card-bg/30 hover:border-accent/40 px-4 py-3">
-                  <div className="font-semibold">{a.title}</div>
-                  {a.meetingDate && (
-                    <div className="text-xs text-foreground/40">{a.meetingDate.toISOString().slice(0, 10)}</div>
-                  )}
-                  {a.excerpt && <div className="text-sm text-foreground/55">{a.excerpt}</div>}
-                </Link>
-              </li>
-            ))}
+            <li>
+              <Link href="/members/resources/notes" className="block rounded-xl border border-border/60 bg-card-bg/30 hover:border-accent/40 px-4 py-3">
+                <div className="font-semibold">Meeting &amp; event notes{meetingNotes.length ? ` (${meetingNotes.length})` : ''} →</div>
+                <div className="text-sm text-foreground/55">Brewing takeaways from club meetings and events — read what you missed.</div>
+              </Link>
+            </li>
             {otherDriveLinks.map((l) => (
               <li key={l.href}>
                 <a href={l.href} target="_blank" rel="noreferrer" className="block rounded-xl border border-border/60 bg-card-bg/30 hover:border-accent/40 px-4 py-3">

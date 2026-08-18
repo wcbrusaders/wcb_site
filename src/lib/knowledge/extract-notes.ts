@@ -57,7 +57,7 @@ A non-attendee reading the published note should come away with the same brewing
 
 ## Fixed template (use this structure every time, in this order)
 
-1. **Title** — "WCB Monthly Meeting — <date>" (include location too if the transcript states one). Use an <h1> for the title.
+1. **Title** — First decide from the transcript whether this was a regular club MEETING (monthly gathering with workshop/technique/business) or an EVENT (a specific activity recorded for remote members — e.g. a Mead Day, a brew day, a workshop session, a brewery visit). Title accordingly: a meeting is "WCB Monthly Meeting — <date>"; an event uses the event's real name, e.g. "WCB Mead Day — <date>" or "WCB Brew Day: Pilsner — <date>". Include location if the transcript states one. Use an <h1> for the title. If it's genuinely ambiguous, default to "WCB Meeting — <date>".
 2. **Named participants** — list only people identifiable from the transcript (real names as given, or handles as-is, e.g. bigfoot29708, if that's all the transcript provides). Label this section honestly: named from the transcript; not a full attendance list. If no roll-call or attendee list appears in the transcript at all, say "named participants" were not identifiable rather than fabricating a full list — never invent a roster.
 3. **What we covered — the brewing** — one subsection (use <h3>) per brewing topic: workshop segments, technique nuggets, style guides, demos. This is the section that needs full teaching depth: the technique, the numbers, the reasoning, the pitfalls — written so a reader learns it and can use it themselves, not just a note that the topic was discussed.
 4. **Homebrew & tasting** — brief. What homebrew was shared or tasted, and any notable feedback. Keep this tight.
@@ -89,7 +89,9 @@ Summarize the admin tightly: competitions, logistics, and decisions stay as brie
 
 ## Output format
 
-Output clean semantic HTML only, using exclusively these tags: h1, h2, h3, p, ul, li, strong, em. Do not use any other tags (no div, span, table, img, script, or inline styles/classes). Do not wrap the output in markdown code fences. Do not include any preamble, explanation, or commentary outside the HTML itself — output only the HTML document body content.`
+First, output a single line that begins EXACTLY with "SUMMARY:" followed by a 2–3 sentence plain-text summary of the meeting's brewing highlights and key decisions — the kind of blurb that would make a good preview card. This summary must be specific to THIS meeting (mention the actual topics/decisions), NOT a generic "the club met and discussed brewing." Do not use any HTML in the SUMMARY line. Example: "SUMMARY: Covered Star San chemistry (keep pH below 3, mix with RO water) and summer dry-yeast strategy. Started a club yeast bank and agreed to broaden the club's scope to all fermentation."
+
+After the SUMMARY line, output the full note as clean semantic HTML only, using exclusively these tags: h1, h2, h3, p, ul, li, strong, em. Do not use any other tags (no div, span, table, img, script, or inline styles/classes). Do not wrap the output in markdown code fences. Do not include any preamble, explanation, or commentary other than the SUMMARY line and the HTML body.`
 
   const user = rawText
 
@@ -116,7 +118,10 @@ export async function extractMeetingNote(
   const client = deps.client ?? new Anthropic()
   const { system, user } = buildExtractionPrompt(rawText)
 
-  const response = await client.messages.create({
+  // Stream the request: with a high max_tokens the SDK REQUIRES streaming
+  // (a non-streaming call is rejected as it may exceed the 10-min timeout).
+  // .finalMessage() reassembles the complete response for us.
+  const stream = client.messages.stream({
     model: 'claude-opus-5',
     // A recap is a compression of the transcript; the longest we've seen is
     // ~8k chars (~2k tokens). 32k gives large headroom even for a marathon
@@ -128,6 +133,7 @@ export async function extractMeetingNote(
     system,
     messages: [{ role: 'user', content: user }],
   })
+  const response = await stream.finalMessage()
 
   // Never let a truncated recap pass as complete. The API tells us why it
   // stopped; 'max_tokens' means the output was cut off mid-thought.
@@ -135,17 +141,31 @@ export async function extractMeetingNote(
     throw new Error('extraction truncated (hit max_tokens) — meeting too long for the current output budget')
   }
 
-  const rawHtml = response.content
+  const raw = response.content
     .filter((block): block is Anthropic.TextBlock => block.type === 'text')
     .map((block) => block.text)
     .join('\n')
     .trim()
 
-  const bodyHtml = sanitizeArticleHtml(rawHtml)
+  // Split off the leading "SUMMARY: ..." line (the AI-written preview blurb)
+  // from the HTML body. Falls back to a derived excerpt if the model omitted it.
+  const { summary, rest } = splitSummary(raw)
+  const bodyHtml = sanitizeArticleHtml(rest)
   const title = deriveTitle(bodyHtml)
-  const excerpt = deriveExcerpt(bodyHtml)
+  // Prefer the AI's summary line; fall back to first-content if it was omitted.
+  const excerpt = summary || deriveExcerpt(bodyHtml)
 
   return { title, bodyHtml, excerpt }
+}
+
+// Extracts a leading "SUMMARY: ..." line. Everything after it is the HTML body.
+// Tolerant: matches the marker anywhere in the first few lines, case-insensitive.
+function splitSummary(raw: string): { summary: string; rest: string } {
+  const m = raw.match(/^\s*SUMMARY:\s*(.+?)\s*(?:\n|$)/i)
+  if (!m) return { summary: '', rest: raw }
+  const summary = m[1].replace(/<[^>]*>/g, '').trim().slice(0, 400)
+  const rest = raw.slice(m.index! + m[0].length).trim()
+  return { summary, rest }
 }
 
 function deriveTitle(html: string): string {
