@@ -1,6 +1,19 @@
 import { describe, it, expect, vi } from 'vitest'
-import { draftToReviewFields, processPendingDrafts } from './process-drafts'
+import { draftToReviewFields, processPendingDrafts, parseMeetingDate } from './process-drafts'
 import type { ExtractedMeetingNote } from './extract-notes'
+
+describe('parseMeetingDate', () => {
+  it('parses "Month D, YYYY" from a title', () => {
+    expect(parseMeetingDate('WCB Monthly Meeting — July 16, 2026')?.toISOString().slice(0, 10)).toBe('2026-07-16')
+    expect(parseMeetingDate('WCB Holiday Meeting — December 18, 2025')?.toISOString().slice(0, 10)).toBe('2025-12-18')
+  })
+  it('parses "M/D/YYYY" from a title', () => {
+    expect(parseMeetingDate('WCB Kombucha Making Workshop — 6/19/2025')?.toISOString().slice(0, 10)).toBe('2025-06-19')
+  })
+  it('returns null when no date is present', () => {
+    expect(parseMeetingDate('WCB Meeting')).toBeNull()
+  })
+})
 
 // Pure mapping + a fake-db loop test — no live API calls, no live Prisma
 // client. draftToReviewFields is asserted directly; processPendingDrafts is
@@ -9,16 +22,18 @@ import type { ExtractedMeetingNote } from './extract-notes'
 describe('draftToReviewFields', () => {
   it('maps a successful extract to the in_review update fields', () => {
     const extract: ExtractedMeetingNote = {
-      title: 'WCB Monthly Meeting — July 2026',
-      bodyHtml: '<h1>WCB Monthly Meeting — July 2026</h1><p>Content.</p>',
+      title: 'WCB Monthly Meeting — July 16, 2026',
+      bodyHtml: '<h1>WCB Monthly Meeting — July 16, 2026</h1><p>Content.</p>',
       excerpt: 'Content.',
     }
     const now = new Date('2026-08-17T12:00:00.000Z')
 
-    expect(draftToReviewFields(extract, now)).toEqual({
+    const fields = draftToReviewFields(extract, now)
+    expect(fields).toEqual({
       processedTitle: extract.title,
       processedHtml: extract.bodyHtml,
       excerpt: extract.excerpt,
+      meetingDate: new Date(Date.UTC(2026, 6, 16, 12)),
       status: 'in_review',
       processedAt: now,
       errorText: null,
