@@ -118,11 +118,22 @@ export async function extractMeetingNote(
 
   const response = await client.messages.create({
     model: 'claude-opus-5',
-    max_tokens: 4000,
+    // A recap is a compression of the transcript; the longest we've seen is
+    // ~8k chars (~2k tokens). 32k gives large headroom even for a marathon
+    // meeting AND for adaptive thinking, which shares this budget. If a recap
+    // ever still hits the cap, the stop_reason guard below catches it rather
+    // than silently landing a half-note in the review queue.
+    max_tokens: 32000,
     thinking: { type: 'adaptive' },
     system,
     messages: [{ role: 'user', content: user }],
   })
+
+  // Never let a truncated recap pass as complete. The API tells us why it
+  // stopped; 'max_tokens' means the output was cut off mid-thought.
+  if (response.stop_reason === 'max_tokens') {
+    throw new Error('extraction truncated (hit max_tokens) — meeting too long for the current output budget')
+  }
 
   const rawHtml = response.content
     .filter((block): block is Anthropic.TextBlock => block.type === 'text')
