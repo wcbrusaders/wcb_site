@@ -262,6 +262,8 @@ model Artifact {
   thumbnailUrl String?
   sourceDriveId String  @unique
   sizeBytes    Int?
+  renderedPdfUrl String?  // inline-viewable PDF (from Drive export); null => download-only original
+  viewable     Boolean  @default(false)  // true when inline-viewable (pdf/image/rendered)
   publishedAt  DateTime @default(now())
   publishedBy  String?
   createdAt    DateTime @default(now())
@@ -278,7 +280,11 @@ model ArtifactDraft {
   mimeType         String
   thumbnailUrl     String?
   sizeBytes        Int?
+  renderedPdfUrl   String?
   suggestedCategory String?  // from the source folder mapping; officer confirms
+  suggestedTitle   String?   // AI-generated title suggestion
+  suggestedDescription String?  // AI-generated description suggestion
+  viewable         Boolean  @default(false)  // true when inline-viewable (pdf/image/rendered)
   status           String   @default("needs_review") // needs_review | published | rejected | error
   errorText        String?
   createdAt        DateTime @default(now())
