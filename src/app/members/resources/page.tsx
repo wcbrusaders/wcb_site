@@ -66,6 +66,26 @@ export default async function ResourcesPage() {
         </section>
       </div>
 
+      {/* Library — per-type artifact browse pages (presentations, recipes, etc.) */}
+      <section className="mt-8">
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-foreground/50">Library</h2>
+        <p className="text-xs text-foreground/45 mt-1">Files shared by officers — presentations, recipes, and guides.</p>
+        <div className="grid sm:grid-cols-2 md:grid-cols-4 gap-3 mt-3">
+          <Link href="/members/resources/presentations" className="block rounded-xl border border-border/60 bg-card-bg/30 hover:border-accent/40 px-4 py-3">
+            <div className="font-semibold">Presentations →</div>
+          </Link>
+          <Link href="/members/resources/technique-nuggets" className="block rounded-xl border border-border/60 bg-card-bg/30 hover:border-accent/40 px-4 py-3">
+            <div className="font-semibold">Technique Nuggets →</div>
+          </Link>
+          <Link href="/members/resources/workshop-guides" className="block rounded-xl border border-border/60 bg-card-bg/30 hover:border-accent/40 px-4 py-3">
+            <div className="font-semibold">Workshop Guides →</div>
+          </Link>
+          <Link href="/members/resources/recipes" className="block rounded-xl border border-border/60 bg-card-bg/30 hover:border-accent/40 px-4 py-3">
+            <div className="font-semibold">Recipes →</div>
+          </Link>
+        </div>
+      </section>
+
       {/* Governance — the club's founding & governing documents */}
       <section className="mt-8">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-foreground/50">Governance</h2>
