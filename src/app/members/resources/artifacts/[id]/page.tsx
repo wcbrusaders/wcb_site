@@ -1,7 +1,7 @@
 import { redirect, notFound } from 'next/navigation'
-import Link from 'next/link'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/db'
+import { PageHeader, OfficersBadge } from '@/components/ui'
 
 export const dynamic = 'force-dynamic'
 
@@ -36,22 +36,18 @@ export default async function ArtifactPage({ params }: { params: Promise<{ id: s
 
   return (
     <div className="max-w-3xl mx-auto px-4 md:px-6 py-8">
-      <Link href="/members/resources" className="text-sm text-foreground/50 hover:text-accent">
-        ← Resources
-      </Link>
+      <PageHeader
+        back={{ href: '/members/resources', label: 'Resources' }}
+        title={artifact.title}
+        lead={artifact.description ?? undefined}
+      />
+      {artifact.audience === 'officers' && (
+        <div className="-mt-4 mb-6">
+          <OfficersBadge />
+        </div>
+      )}
 
-      <div className="mt-3 flex items-center gap-2 flex-wrap">
-        <h1 className="text-2xl md:text-3xl font-bold">{artifact.title}</h1>
-        {artifact.audience === 'officers' && (
-          <span className="inline-block text-[10px] font-semibold uppercase tracking-wide text-amber-400 border border-amber-500/40 rounded-full px-2 py-0.5">
-            Officers only
-          </span>
-        )}
-      </div>
-
-      {artifact.description && <p className="text-foreground/55 mt-2">{artifact.description}</p>}
-
-      <div className="mt-6">
+      <div>
         {showInlinePdf ? (
           // Read-only PDF viewer only — the rendered export (or a native PDF
           // original) is embedded inline via <iframe>. Never a Google
@@ -61,9 +57,9 @@ export default async function ArtifactPage({ params }: { params: Promise<{ id: s
             <a
               href={downloadSrc}
               download
-              className="inline-block mt-3 border border-accent/40 text-accent px-3 py-1.5 rounded-full text-sm hover:border-accent/70"
+              className="inline-flex items-center gap-1.5 mt-3 rounded-full border border-border/60 text-foreground/80 hover:text-foreground hover:border-accent/50 px-5 py-2 text-sm font-medium transition-colors"
             >
-              Download
+              ⬇ Download
             </a>
           </div>
         ) : isImage ? (
@@ -73,7 +69,7 @@ export default async function ArtifactPage({ params }: { params: Promise<{ id: s
           // No usable rendition: download-only, never an inline embed of the
           // original (which could hand the browser a native Office/Docs file
           // and trigger an online editor).
-          <div className="flex items-center gap-4 rounded-xl border border-border/40 bg-card-bg/30 p-4">
+          <div className="flex items-center gap-4 rounded-2xl border p-4 bg-[linear-gradient(#1c1c1c,#161616)]" style={{ borderColor: '#2c2c2c' }}>
             {artifact.thumbnailUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img
@@ -89,9 +85,9 @@ export default async function ArtifactPage({ params }: { params: Promise<{ id: s
             <a
               href={downloadSrc}
               download
-              className="border border-accent/40 text-accent px-3 py-1.5 rounded-full text-sm hover:border-accent/70"
+              className="inline-flex items-center gap-1.5 rounded-full border border-border/60 text-foreground/80 hover:text-foreground hover:border-accent/50 px-5 py-2 text-sm font-medium transition-colors"
             >
-              Download
+              ⬇ Download
             </a>
           </div>
         )}

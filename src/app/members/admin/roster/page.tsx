@@ -1,9 +1,9 @@
 import { redirect } from 'next/navigation'
-import Link from 'next/link'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/db'
 import { fetchAllRosterRows, normalizeEmail } from '@/lib/roster'
 import { AdminRoster } from '@/components/members/AdminRoster'
+import { PageHeader } from '@/components/ui'
 
 // Board-only. Always reflect live roster (no static caching of member data).
 export const dynamic = 'force-dynamic'
@@ -40,11 +40,12 @@ export default async function AdminRosterPage() {
 
   return (
     <div className="max-w-5xl mx-auto px-4 md:px-6 py-8">
-      <Link href="/members/admin" className="text-sm text-foreground/50 hover:text-accent">← Admin</Link>
-      <h1 className="text-2xl font-bold mt-3">Roster</h1>
-      <p className="text-foreground/50 text-sm mt-1">
-        Board-only. {members.length} members. Edits write back to the roster and are logged.
-      </p>
+      <PageHeader
+        back={{ href: '/members/admin', label: 'Admin' }}
+        eyebrow="🛡️ Board"
+        title="Roster"
+        lead={`${members.length} members. Edits write back to the roster and are logged.`}
+      />
       <AdminRoster members={members} />
     </div>
   )
