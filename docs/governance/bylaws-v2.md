@@ -10,17 +10,18 @@ The legal name of this organization is **Holly Springs Brüsaders**, a North Car
 
 ## Article Two — Purpose and Goals
 
-The club is organized exclusively for social and recreational purposes within the meaning of Section 501(c)(7) of the Internal Revenue Code. Its primary purpose is to enjoy and promote the hobby of homebrewing, and to provide members a comfortable community centered on that shared craft and on friendship — insulated from outside pressure. The club pursues the following goals:
+The club is organized exclusively for social and recreational purposes within the meaning of Section 501(c)(7) of the Internal Revenue Code. Its primary purpose is to enjoy and promote the hobby of homebrewing — the club's founding craft — and to welcome and support the broader craft of fermentation in all its forms, whether beverage, food, or otherwise. The club provides members a comfortable community centered on that shared craft and on friendship, insulated from outside pressure. The club pursues the following goals:
 
 - Enhancing knowledge about beer, beer tasting, beer judging, and brewing techniques through shared experiences.
 - Advocating for the hobby and enjoyment of homebrewing.
-- Fostering a brewers' community through social activities.
+- Welcoming anyone with a genuine interest in fermentation — beer, cider, mead, wine, kombucha, cheese, bread, hot sauce, and beyond — and helping them pursue that interest.
+- Fostering a brewers' and fermenters' community through social activities.
 - Championing the responsible consumption of alcoholic beverages.
 - Fostering a comfortable, pressure-free environment where every member belongs — insulated from external conflict, centered on friendship and the craft.
 
 ## Article Three — Membership
 
-**Eligibility.** All individuals of legal drinking age in North Carolina are eligible for membership.
+**Eligibility.** All individuals of legal drinking age in North Carolina are eligible for membership. Membership is open to anyone with an interest in fermentation of any kind — you need not be a homebrewer. Brewers, and anyone curious about fermented food or drink, are equally welcome.
 
 **Admission.** Membership is granted upon application and payment of dues.
 
@@ -44,6 +45,8 @@ Dues amounts are set by the Board of Officers; the rates above are current as of
 ## Article Four — Meetings
 
 **Regular meetings.** The club meets monthly, on the third Thursday, rotating between members' home breweries and local production breweries. The Board confirms each meeting's exact location in advance. A typical meeting includes a workshop, a technique nugget, and a style guide segment, and always includes homebrew sharing.
+
+**Board meetings.** The Board of Officers meets monthly, typically about one week before the regular club meeting, to align on initiatives, plan meeting content, and address club matters. Board meetings are closed (board members only) so that initiatives and sensitive matters — including member-wellbeing and conduct concerns under the Code of Conduct — can be discussed candidly; outcomes and decisions are shared with the membership as appropriate. The Board may invite a member or coordinator to a meeting for a specific topic. Board meetings may be held in person or virtually.
 
 **No annual meeting required.** The club does not hold a separate annual membership meeting; regular monthly meetings, digital voting (Article Six), and the Board's quarterly financial review (Article Twelve) cover club business.
 
@@ -133,6 +136,7 @@ In the event of general disagreements among members: both parties should first a
 | 2023-09-13 | 1.0 | Jordan LaFontaine | Document inception |
 | 2023-09-19 | 1.1 | Jordan LaFontaine | Dues and membership tier definitions |
 | 2026-08-17 | 2.0 (draft) | Jordan LaFontaine | Full rebuild: WCB rebrand/DBA; single Brusader tier + annual dues ($40/$65); rolling 12-month membership; digital-voting participation quorum (25% / 72h); at-will Board with no fixed terms; two-tier Board + Coordinator structure (incl. Emeritus); officer removal aligned to enforcement safeguards; Code of Conduct incorporated by reference; Committees article removed; apolitical-refuge purpose added; expenditure member-vote threshold $500. |
+| 2026-08-17 | 2.0 (draft, rev. 2) | Jordan LaFontaine | Leadership feedback: broadened purpose + membership to welcome all fermentation (beverage/food/otherwise), homebrewing remaining the founding core; added a monthly closed Board meeting (~1 week before the club meeting, in person or virtual). |
 
 ---
 
