@@ -53,3 +53,5 @@ eq-map.local.json
 
 # Superpowers SDD workspaces + brainstorm mockups (scratch)
 .superpowers/
+
+scripts/_transcript-sample.txt
