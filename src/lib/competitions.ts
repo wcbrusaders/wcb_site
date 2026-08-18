@@ -1,6 +1,8 @@
 import { prisma } from '@/lib/db'
+import { registerTracking as realRegisterTracking, UPS_CARRIER } from '@/lib/shipping/seventeentrack'
 
 export type EntryChannel = 'club_ship' | 'self_ship' | 'dropoff'
+export type DeliveryStatus = 'in_transit' | 'delivered' | 'exception'
 const SEVEN_DAYS = 7 * 86400000
 const BANNER_WINDOW_DAYS = 21 // surface items within ~3 weeks
 
@@ -11,6 +13,7 @@ export type CompetitionView = {
   shippingAddress: string; dropoffAddress: string | null; addedById: string
   commitByDate: Date; deliverByDate: Date; isPast: boolean
   shipmentCarrier: string | null; shipmentTracking: string | null; shippedAt: Date | null
+  deliveryStatus: DeliveryStatus | null; deliveredAt: Date | null
 }
 export type MemberCompView = CompetitionView & { myEntries: CompEntryView[] }
 export type OfficerCompView = CompetitionView & {
@@ -40,6 +43,7 @@ function toCompView(c: any, now: Date): CompetitionView {
     shippingAddress: c.shippingAddress, dropoffAddress: c.dropoffAddress ?? null, addedById: c.addedById,
     commitByDate: commitByDate(c.shippingDeadline), deliverByDate: deliverByDate(c.shippingDeadline), isPast: isPast(c.shippingDeadline, now),
     shipmentCarrier: c.shipmentCarrier ?? null, shipmentTracking: c.shipmentTracking ?? null, shippedAt: c.shippedAt ?? null,
+    deliveryStatus: (c.deliveryStatus ?? null) as DeliveryStatus | null, deliveredAt: c.deliveredAt ?? null,
   }
 }
 
@@ -116,14 +120,16 @@ export function computeBannerItems(comps: OfficerCompView[], memberId: string, i
       const reg = daysAway(c.registrationDeadline)
       if (reg >= 0 && reg <= BANNER_WINDOW_DAYS && mine.some((e) => !e.registered))
         items.push({ competitionId: c.id, competitionName: c.name, kind: 'register', date: c.registrationDeadline, daysAway: reg, detail: `Register your ${mine.length} entr${mine.length === 1 ? 'y' : 'ies'} on the comp site` })
-      if (myClubShip.length) {
+      // Once the club shipment is shipped, members have nothing left to do —
+      // suppress the "deliver your bottles to the shipper" nag.
+      if (myClubShip.length && !c.shippedAt) {
         const del = daysAway(c.deliverByDate)
         if (del >= 0 && del <= BANNER_WINDOW_DAYS)
           items.push({ competitionId: c.id, competitionName: c.name, kind: 'deliver', date: c.deliverByDate, daysAway: del, detail: `Deliver your ${myClubShip.length} club-ship entr${myClubShip.length === 1 ? 'y' : 'ies'} to the shipper` })
       }
     }
-    // Officer club-wide logistics
-    if (isBoard && c.podTotal > 0) {
+    // Officer club-wide logistics — also suppressed once shipped (it's done).
+    if (isBoard && c.podTotal > 0 && !c.shippedAt) {
       const ship = daysAway(c.shippingDeadline)
       if (ship >= 0 && ship <= BANNER_WINDOW_DAYS)
         items.push({ competitionId: c.id, competitionName: c.name, kind: 'ship', date: c.shippingDeadline, daysAway: ship, detail: `${c.entries.filter((e) => e.channel === 'club_ship').length} club-ship entries · ~${c.podTotal} bottles` })
@@ -157,11 +163,21 @@ export async function editCompetition(id: string, patch: Partial<NewCompetitionI
   return { ok: true }
 }
 
+// The trackingUrl UPS guard, reused: matches "UPS" but not "USPS".
+function isUpsCarrier(carrier: string | null): boolean {
+  if (!carrier) return false
+  const c = carrier.toLowerCase()
+  return c.includes('ups') && !c.includes('usps')
+}
+
 // Set (or clear) the club shipment tracking for a competition. Board-only.
 // Empty carrier+tracking clears it (un-shipped). Sets shippedAt when tracking present.
+// When a NEW/changed UPS tracking number is set, registers it with 17track so the
+// daily delivery poll can follow it — fail-soft (a registration error never blocks
+// saving) and quota-safe (only on a changed number, never on clear/unchanged/non-UPS).
 export async function setShipmentTracking(
   id: string, carrier: string | null, tracking: string | null,
-  deps: { db?: typeof prisma; now?: Date } = {},
+  deps: { db?: typeof prisma; now?: Date; registerTracking?: typeof realRegisterTracking } = {},
 ): Promise<MutResult> {
   const db = deps.db ?? prisma
   const c = await db.competition.findUnique({ where: { id } })
@@ -169,6 +185,7 @@ export async function setShipmentTracking(
   const cc = carrier?.trim() || null
   const tt = tracking?.trim() || null
   const hasTracking = !!tt
+  const changed = tt !== ((c as any).shipmentTracking ?? null)
   await db.competition.update({
     where: { id },
     data: {
@@ -176,6 +193,11 @@ export async function setShipmentTracking(
       shippedAt: hasTracking ? ((c as any).shippedAt ?? deps.now ?? new Date()) : null,
     },
   })
+  if (hasTracking && changed && isUpsCarrier(cc)) {
+    const register = deps.registerTracking ?? realRegisterTracking
+    // Fail-soft: never let a registration hiccup fail the save; the daily poll self-heals.
+    await register(tt, UPS_CARRIER).catch(() => {})
+  }
   return { ok: true }
 }
 

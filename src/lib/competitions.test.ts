@@ -1,8 +1,10 @@
 import { test, expect } from 'vitest'
+import { vi } from 'vitest'
 import {
   mapsUrl, isPast, commitByDate, deliverByDate, podTotal, trackingUrl,
   listMemberComps, listOfficerComps, computeBannerItems,
   addCompetition, editCompetition, deleteCompetition, addEntry, editEntry, deleteEntry,
+  setShipmentTracking,
 } from './competitions'
 
 test('trackingUrl builds carrier URLs and returns null for unknown/empty', () => {
@@ -145,4 +147,57 @@ test('entry mutations: owner-only', async () => {
   expect((await editEntry('e1', { beerName: 'X' }, 'm1', { db: store() })).ok).toBe(true)  // owner
   expect((await editEntry('e1', { beerName: 'X' }, 'm2', { db: store() })).ok).toBe(false) // not owner
   expect((await deleteEntry('e1', 'm2', { db: store() })).ok).toBe(false) // not owner
+})
+
+test('computeBannerItems: a SHIPPED club shipment suppresses both deliver and ship banners', async () => {
+  // Same setup as the "member/officer see items" test, but shippedAt is set.
+  const shippedComps = [comp({ shippedAt: new Date('2026-09-05T00:00:00Z') })]
+  const entries = [entry({ id: 'e1', memberId: 'm1', channel: 'club_ship' })]
+  const officer = await listOfficerComps({ db: db(shippedComps, entries, [{ id: 'm1', name: 'Amy' }]), now: NOW })
+  expect(officer[0].shippedAt).not.toBeNull()
+  // member: no 'deliver' item once shipped
+  const memberItems = computeBannerItems(officer, 'm1', false, NOW)
+  expect(memberItems.some((b) => b.kind === 'deliver')).toBe(false)
+  // officer: no 'ship' item once shipped
+  const officerItems = computeBannerItems(officer, 'nobody', true, NOW)
+  expect(officerItems.some((b) => b.kind === 'ship')).toBe(false)
+})
+
+test('computeBannerItems: an UN-shipped club shipment still shows deliver + ship (regression guard)', async () => {
+  const comps = [comp()] // shippedAt undefined/null
+  const entries = [entry({ id: 'e1', memberId: 'm1', channel: 'club_ship' })]
+  const officer = await listOfficerComps({ db: db(comps, entries, [{ id: 'm1', name: 'Amy' }]), now: NOW })
+  expect(computeBannerItems(officer, 'm1', false, NOW).some((b) => b.kind === 'deliver')).toBe(true)
+  expect(computeBannerItems(officer, 'nobody', true, NOW).some((b) => b.kind === 'ship')).toBe(true)
+})
+
+test('toCompView carries deliveryStatus + deliveredAt', async () => {
+  const delivered = new Date('2026-09-18T00:00:00Z')
+  const comps = [comp({ deliveryStatus: 'delivered', deliveredAt: delivered })]
+  const res = await listMemberComps('m1', { db: db(comps, [entry()]), now: NOW })
+  expect(res[0].deliveryStatus).toBe('delivered')
+  expect(res[0].deliveredAt).toEqual(delivered)
+})
+
+test('setShipmentTracking: registers a NEW UPS tracking number with 17track (fail-soft seam)', async () => {
+  const comps = [comp({ shipmentCarrier: null, shipmentTracking: null, shippedAt: null })]
+  const register = vi.fn(async () => {})
+  const r = await setShipmentTracking('c1', 'UPS', '1Z999', { db: db(comps, []), now: NOW, registerTracking: register })
+  expect(r.ok).toBe(true)
+  expect(register).toHaveBeenCalledTimes(1)
+  expect(register).toHaveBeenCalledWith('1Z999', expect.any(Number))
+})
+
+test('setShipmentTracking: does NOT re-register an unchanged number, or a non-UPS carrier, or a clear', async () => {
+  const register = vi.fn(async () => {})
+  // unchanged number
+  const same = [comp({ shipmentCarrier: 'UPS', shipmentTracking: '1Z999' })]
+  await setShipmentTracking('c1', 'UPS', '1Z999', { db: db(same, []), now: NOW, registerTracking: register })
+  // non-UPS carrier
+  const fedex = [comp({ shipmentCarrier: null, shipmentTracking: null })]
+  await setShipmentTracking('c1', 'FedEx', '77712', { db: db(fedex, []), now: NOW, registerTracking: register })
+  // clearing (blank)
+  const clearing = [comp({ shipmentCarrier: 'UPS', shipmentTracking: '1Z999' })]
+  await setShipmentTracking('c1', '', '', { db: db(clearing, []), now: NOW, registerTracking: register })
+  expect(register).not.toHaveBeenCalled()
 })
