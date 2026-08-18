@@ -2,10 +2,9 @@ import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/db'
-import { fetchAllRosterRows, normalizeEmail } from '@/lib/roster'
-import { AdminRoster } from '@/components/members/AdminRoster'
+import { fetchAllRosterRows } from '@/lib/roster'
 
-// Board-only console. Always reflect live roster (no static caching of member data).
+// Board-only admin hub. Always live (no static caching).
 export const dynamic = 'force-dynamic'
 
 export default async function AdminPage() {
@@ -13,59 +12,66 @@ export default async function AdminPage() {
   if (!session?.user?.memberId) redirect('/login')
   if (!session.user.isBoard) redirect('/members')
 
-  const rows = await fetchAllRosterRows()
+  // Lightweight counts for the area cards. Roster count comes from the sheet;
+  // the rest are cheap DB counts. Each is fail-soft so one slow source can't
+  // blank the whole hub.
+  const [rosterCount, loansOut, reviewCount, openCases] = await Promise.all([
+    fetchAllRosterRows().then((r) => r.length).catch(() => null),
+    prisma.loan.count({ where: { returnedAt: null } }).catch(() => null),
+    prisma.draftArticle.count({ where: { status: 'in_review' } }).catch(() => null),
+    prisma.enforcementCase.count({ where: { status: 'open' } }).catch(() => null),
+  ])
 
-  // Count meeting-note drafts awaiting officer review, to badge the queue link.
-  const reviewCount = await prisma.draftArticle.count({ where: { status: 'in_review' } })
-
-  // The roster rows come straight from the Google Sheet and have no DB id.
-  // Strikes (and enforcement generally) key on the Member.id cuid, so map
-  // emailAddress/googleEmail -> id once here and thread it through.
-  const dbMembers = await prisma.member.findMany({ select: { id: true, emailAddress: true, googleEmail: true } })
-  const idByEmail = new Map<string, string>()
-  for (const dm of dbMembers) {
-    idByEmail.set(normalizeEmail(dm.emailAddress), dm.id)
-    if (dm.googleEmail) idByEmail.set(normalizeEmail(dm.googleEmail), dm.id)
-  }
-
-  const members = rows.map((m) => ({
-    id: idByEmail.get(m.emailAddress) ?? m.emailAddress,
-    name: m.name ?? '(no name)',
-    email: m.emailAddress,
-    googleEmail: m.googleEmail,
-    tier: m.tier,
-    current: m.current,
-    isBoard: m.isBoard,
-    role: m.role,
-    partnerEmail: m.partnerEmail,
-    expires: m.expires ? m.expires.toISOString().slice(0, 10) : null,
-  }))
+  const areas = [
+    {
+      href: '/members/admin/roster',
+      title: 'Roster',
+      desc: 'View members; edit Google/partner email. Writes back to the sheet, logged.',
+      badge: rosterCount != null ? `${rosterCount} members` : null,
+    },
+    {
+      href: '/members/holdings',
+      title: 'Holdings',
+      desc: 'Everything currently checked out, by member. Mark items returned.',
+      badge: loansOut != null ? `${loansOut} out` : null,
+    },
+    {
+      href: '/members/admin/knowledge',
+      title: 'Knowledge review',
+      desc: 'Approve or reject AI-drafted meeting notes before members see them.',
+      badge: reviewCount ? `${reviewCount} to review` : null,
+    },
+    {
+      href: '/members/admin/enforcement',
+      title: 'Enforcement & cases',
+      desc: 'Conduct cases, cooldowns, and removal votes (with board safeguards).',
+      badge: openCases ? `${openCases} open` : null,
+    },
+  ]
 
   return (
     <div className="max-w-5xl mx-auto px-4 md:px-6 py-8">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-bold">Admin — Roster</h1>
-          <p className="text-foreground/50 text-sm mt-1">
-            Board-only. {members.length} members. Edits write back to the roster and are logged.
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-2 shrink-0">
+      <h1 className="text-2xl font-bold">Admin</h1>
+      <p className="text-foreground/50 text-sm mt-1">Board-only console. Pick an area.</p>
+      <div className="mt-6 grid sm:grid-cols-2 gap-3">
+        {areas.map((a) => (
           <Link
-            href="/members/admin/knowledge"
-            className="rounded-full border border-accent/40 bg-accent/10 px-4 py-2 text-sm font-semibold text-accent hover:bg-accent/20"
+            key={a.href}
+            href={a.href}
+            className="block rounded-2xl border border-border/60 bg-card-bg/30 hover:border-accent/40 p-5"
           >
-            Knowledge review{reviewCount > 0 ? ` (${reviewCount})` : ''} →
+            <div className="flex items-center justify-between gap-3">
+              <div className="font-semibold text-lg">{a.title}</div>
+              {a.badge && (
+                <span className="shrink-0 rounded-full border border-accent/40 bg-accent/10 px-2.5 py-0.5 text-xs font-semibold text-accent">
+                  {a.badge}
+                </span>
+              )}
+            </div>
+            <div className="text-sm text-foreground/55 mt-1">{a.desc}</div>
           </Link>
-          <Link
-            href="/members/admin/enforcement"
-            className="rounded-full border border-accent/40 bg-accent/10 px-4 py-2 text-sm font-semibold text-accent hover:bg-accent/20"
-          >
-            Enforcement &amp; cases →
-          </Link>
-        </div>
+        ))}
       </div>
-      <AdminRoster members={members} />
     </div>
   )
 }
