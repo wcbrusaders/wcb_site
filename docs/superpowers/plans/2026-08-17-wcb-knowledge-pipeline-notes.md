@@ -14,7 +14,7 @@
 - **Mandatory officer review — NO auto-publish.** Every draft requires an officer to approve before it becomes a member-visible `Article`. The sync/AI steps only ever produce `DraftArticle` rows with status; publishing is a human board action.
 - **Auth/gating:** review queue + all mutations are board-only (`auth()` → memberId→`/login`, `!isBoard`→`/members`), mirroring `src/app/members/admin/_actions/admin-actions.ts` (`requireBoard`). Published Knowledge articles are viewable by any logged-in member; each page carries its own login guard (the members layout does NOT gate — per prior finding).
 - **Secrets:** `ANTHROPIC_API_KEY` (in local `.env`; MUST be added to Vercel env before the cron runs in prod), Google OAuth (`GOOGLE_CLIENT_ID/SECRET/REFRESH_TOKEN`), `CRON_SECRET`. Never print secret values.
-- **Model:** use `claude-opus-4-8` for the extract (quality matters; volume is tiny — a few docs/month). Adaptive thinking; the call is small.
+- **Model:** use `claude-opus-5` for the extract (quality/judgment matters most for reliably stripping personal/sensitive content; volume is tiny — a few docs/month — so cost is negligible). Adaptive thinking (`thinking: { type: 'adaptive' }`); no `budget_tokens` (rejected on Opus 5). The call is small.
 - **Meeting-notes Drive source:** the "Notes by Gemini" / "Meeting Notes" docs (Community Documents area). Match by name pattern; exclude TEMPLATE/WORKFLOW docs.
 - **Do not commit real transcripts or extracted personal content** to git. Test artifacts stay local + git-ignored.
 - **No markdown lib for rendering** — store sanitized HTML, render like the existing governance bodies.
@@ -68,12 +68,12 @@ model DraftArticle {
 
 **Interfaces:**
 - Produces `buildExtractionPrompt(rawText: string): { system: string; user: string }` — PURE, unit-tested (asserts the prompt embeds the spec's template + must-strip rules).
-- Produces `extractMeetingNote(rawText: string, deps?: { client?: Anthropic }): Promise<{ title: string; bodyHtml: string; excerpt: string }>` — calls Claude (`claude-opus-4-8`), returns sanitized HTML. Live call NOT in unit tests (exercised in Task 7).
+- Produces `extractMeetingNote(rawText: string, deps?: { client?: Anthropic }): Promise<{ title: string; bodyHtml: string; excerpt: string }>` — calls Claude (`claude-opus-5`), returns sanitized HTML. Live call NOT in unit tests (exercised in Task 7).
 
 - [ ] **Step 1:** `npm install @anthropic-ai/sdk`.
 - [ ] **Step 2: Write failing tests** for `buildExtractionPrompt` — assert the system prompt contains the fixed template sections, the "teach the highlights / summarize admin" depth rule, and the must-strip categories (personal life, off-topic, sensitive third-party/club-politics, distilling legality), and instructs "invent nothing; if roll-call absent say 'named participants'". (Pure string assertions — no API call.)
 - [ ] **Step 3:** Run tests → FAIL.
-- [ ] **Step 4: Implement.** `buildExtractionPrompt` embeds the spec verbatim (copy the rules from `docs/governance/_knowledge-extraction-spec.md`). `extractMeetingNote` news up `new Anthropic()` (reads `ANTHROPIC_API_KEY`), calls `messages.create({ model: 'claude-opus-4-8', max_tokens: 4000, thinking: { type: 'adaptive' }, system, messages:[{role:'user',content:user}] })`, extracts the text, runs it through `sanitize-html` (reuse the allowed-tags set from `src/lib/knowledge/normalize.ts` if present, else inline the same list), derives excerpt. Ask Claude to return clean HTML directly (h2/h3/p/ul/li/strong/em) so no markdown lib is needed. Returns `{title, bodyHtml, excerpt}`.
+- [ ] **Step 4: Implement.** `buildExtractionPrompt` embeds the spec verbatim (copy the rules from `docs/governance/_knowledge-extraction-spec.md`). `extractMeetingNote` news up `new Anthropic()` (reads `ANTHROPIC_API_KEY`), calls `messages.create({ model: 'claude-opus-5', max_tokens: 4000, thinking: { type: 'adaptive' }, system, messages:[{role:'user',content:user}] })`, extracts the text, runs it through `sanitize-html` (reuse the allowed-tags set from `src/lib/knowledge/normalize.ts` if present, else inline the same list), derives excerpt. Ask Claude to return clean HTML directly (h2/h3/p/ul/li/strong/em) so no markdown lib is needed. Returns `{title, bodyHtml, excerpt}`.
 - [ ] **Step 5:** Run tests → PASS. `npx tsc --noEmit`.
 - [ ] **Step 6:** Commit: "feat(knowledge): meeting-notes AI extraction (validated spec)".
 
