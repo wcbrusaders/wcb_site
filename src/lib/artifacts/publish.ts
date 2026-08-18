@@ -10,6 +10,8 @@ export interface DraftForArtifact {
   mimeType: string
   thumbnailUrl: string | null
   sizeBytes: number | null
+  renderedPdfUrl: string | null
+  viewable: boolean
 }
 
 export interface ArtifactCreateFields {
@@ -22,6 +24,8 @@ export interface ArtifactCreateFields {
   thumbnailUrl: string | null
   sourceDriveId: string
   sizeBytes: number | null
+  renderedPdfUrl: string | null
+  viewable: boolean
   publishedAt: Date
   publishedBy: string
 }
@@ -54,6 +58,8 @@ export function draftToArtifact(
     thumbnailUrl: draft.thumbnailUrl ?? null,
     sourceDriveId: draft.sourceDriveId,
     sizeBytes: draft.sizeBytes ?? null,
+    renderedPdfUrl: draft.renderedPdfUrl ?? null,
+    viewable: draft.viewable ?? false,
     publishedAt: opts.now,
     publishedBy: opts.officerEmail,
   }
