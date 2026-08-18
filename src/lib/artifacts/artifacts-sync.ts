@@ -3,6 +3,7 @@ import { put } from '@vercel/blob'
 import { renderPageAsImage } from 'unpdf'
 import { prisma } from '@/lib/db'
 import type { ArtifactCategory } from './categories'
+import { describeArtifact, extractPdfText, cleanFilename, type ArtifactDescription } from './describe'
 
 // Whitelist of source mime types we're willing to pull into the artifacts
 // pipeline. Google-native docs/slides are included even though their *stored*
@@ -132,11 +133,14 @@ type PutFn = (
 
 type ThumbnailFn = (pdfBytes: Buffer) => Promise<Buffer>
 
+type DescribeFn = (textExcerpt: string, filename: string) => Promise<ArtifactDescription>
+
 type SyncDeps = {
   db?: typeof prisma
   drive?: DriveClient
   put?: PutFn
   renderPdfThumbnail?: ThumbnailFn
+  describe?: DescribeFn
 }
 
 function driveClient(): DriveClient {
@@ -251,6 +255,7 @@ export async function syncArtifacts(
   const drive = deps.drive ?? driveClient()
   const putFn = deps.put ?? defaultPut
   const renderPdfThumbnail = deps.renderPdfThumbnail ?? defaultRenderPdfThumbnail
+  const describeFn = deps.describe ?? describeArtifact
 
   const counters = { scanned: 0, created: 0 }
   const seenFolders = new Set<string>() // guard against cycles / shortcuts
@@ -383,6 +388,22 @@ export async function syncArtifacts(
           }
         }
 
+        // AI title + description suggestion. For PDFs (native or converted
+        // from Office/Google), extract a text excerpt and let the model read
+        // it; for images there's no meaningful text to extract, so skip the
+        // AI call entirely and title from the filename instead. Best-effort:
+        // describeArtifact never throws (it falls back to the cleaned
+        // filename internally), so this never blocks the sync.
+        let description: ArtifactDescription
+        if (IMAGE_MIME_SET.has(finalMimeType)) {
+          description = { title: cleanFilename(file.name), description: '' }
+        } else {
+          const textExcerpt = pdfBytesForThumbAndText
+            ? await extractPdfText(pdfBytesForThumbAndText)
+            : ''
+          description = await describeFn(textExcerpt, file.name)
+        }
+
         await db.artifactDraft.create({
           data: {
             sourceDriveId: file.id,
@@ -392,6 +413,8 @@ export async function syncArtifacts(
             thumbnailUrl,
             sizeBytes: bytes.byteLength,
             suggestedCategory: category ?? null,
+            suggestedTitle: description.title,
+            suggestedDescription: description.description || null,
             status: 'needs_review',
             renderedPdfUrl,
             viewable,
