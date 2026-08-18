@@ -89,11 +89,21 @@ export function CompetitionCard({ comp, viewerIsBoard, viewerId }: { comp: Membe
                 <p className="text-[11px] uppercase tracking-wide text-foreground/45">Club shipment</p>
                 {hasTracking ? (
                   <div className="text-sm mt-0.5">
-                    {comp.shippedAt && <span className="text-foreground/55">Shipped {iso(comp.shippedAt)} · </span>}
+                    {comp.deliveryStatus === 'delivered' && comp.deliveredAt ? (
+                      <span className="font-semibold text-[#4ade80]">Delivered {iso(comp.deliveredAt)} · </span>
+                    ) : comp.shippedAt ? (
+                      <span className="text-foreground/55">
+                        Shipped {iso(comp.shippedAt)}
+                        {comp.deliveryStatus === 'in_transit' && ' · In transit'} ·{' '}
+                      </span>
+                    ) : null}
                     <span className="font-semibold">{comp.shipmentCarrier || 'Carrier'}</span>
                     {comp.shipmentTracking && (url
                       ? <> · <a href={url} target="_blank" rel="noreferrer" className="text-accent hover:text-accent-hover underline underline-offset-2">{comp.shipmentTracking}</a></>
                       : <> · <span className="font-mono">{comp.shipmentTracking}</span></>
+                    )}
+                    {comp.deliveryStatus === 'exception' && (
+                      <span className="text-amber-400/80"> · Delivery exception — check tracking</span>
                     )}
                   </div>
                 ) : (
