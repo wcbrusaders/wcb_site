@@ -3,6 +3,7 @@ import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/db'
 import { KnowledgeQueue } from '@/components/members/KnowledgeQueue'
 import { ArtifactQueue } from '@/components/members/ArtifactQueue'
+import { PageHeader, SectionLabel } from '@/components/ui'
 
 // Board-only review queue. Always reflect live drafts (no static caching).
 export const dynamic = 'force-dynamic'
@@ -55,13 +56,16 @@ export default async function KnowledgeQueuePage() {
 
   return (
     <div className="max-w-4xl mx-auto px-4 md:px-6 py-8">
-      <h1 className="text-2xl font-bold">Knowledge — Review Queue</h1>
-      <p className="text-foreground/50 text-sm mt-1">
-        Board-only. Review AI-extracted meeting notes before they publish to the club. Nothing publishes automatically.
-      </p>
+      <PageHeader
+        back={{ href: '/members/admin', label: 'Admin' }}
+        eyebrow="🛡️ Board"
+        title="Knowledge — Review Queue"
+        lead="Review AI-extracted meeting notes before they publish to the club. Nothing publishes automatically."
+      />
+      <SectionLabel icon="📝">Meeting notes</SectionLabel>
       <KnowledgeQueue inReview={inReview} errored={errored} />
 
-      <h2 className="text-lg font-semibold mt-10">Artifacts awaiting review ({artifactDrafts.length})</h2>
+      <SectionLabel icon="📚">Artifacts awaiting review ({artifactDrafts.length})</SectionLabel>
       <ArtifactQueue artifacts={artifactDrafts} />
     </div>
   )

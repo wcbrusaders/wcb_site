@@ -3,6 +3,7 @@ import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/db'
 import { tallyVotes, isExpired, type VoteValue } from '@/lib/enforcement'
 import { EnforcementPanel } from '@/components/members/EnforcementPanel'
+import { PageHeader } from '@/components/ui'
 
 export const dynamic = 'force-dynamic'
 
@@ -34,8 +35,12 @@ export default async function EnforcementPage() {
 
   return (
     <div className="max-w-4xl mx-auto px-4 md:px-6 py-8">
-      <h1 className="text-2xl font-bold">Enforcement</h1>
-      <p className="text-foreground/50 text-sm mt-1">Board only. Interim freeze is one-key; removal needs quorum of 3 and two-thirds of votes cast.</p>
+      <PageHeader
+        back={{ href: '/members/admin', label: 'Admin' }}
+        eyebrow="🛡️ Board"
+        title="Enforcement"
+        lead="Interim freeze is one-key; removal needs quorum of 3 and two-thirds of votes cast."
+      />
       <EnforcementPanel
         cases={view}
         members={members.map((m) => ({ id: m.id, name: m.name ?? '(no name)', status: m.status }))}

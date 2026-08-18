@@ -1,8 +1,8 @@
 import { redirect } from 'next/navigation'
-import Link from 'next/link'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/db'
 import { fetchAllRosterRows } from '@/lib/roster'
+import { PageHeader, Card, CardTitle, CardBody } from '@/components/ui'
 
 // Board-only admin hub. Always live (no static caching).
 export const dynamic = 'force-dynamic'
@@ -51,25 +51,20 @@ export default async function AdminPage() {
 
   return (
     <div className="max-w-5xl mx-auto px-4 md:px-6 py-8">
-      <h1 className="text-2xl font-bold">Admin</h1>
-      <p className="text-foreground/50 text-sm mt-1">Board-only console. Pick an area.</p>
-      <div className="mt-6 grid sm:grid-cols-2 gap-3">
+      <PageHeader eyebrow="🛡️ Board" title="Admin" lead="Board-only console. Pick an area." />
+      <div className="grid sm:grid-cols-2 gap-3">
         {areas.map((a) => (
-          <Link
-            key={a.href}
-            href={a.href}
-            className="block rounded-2xl border border-border/60 bg-card-bg/30 hover:border-accent/40 p-5"
-          >
+          <Card key={a.href} href={a.href}>
             <div className="flex items-center justify-between gap-3">
-              <div className="font-semibold text-lg">{a.title}</div>
+              <CardTitle>{a.title}</CardTitle>
               {a.badge && (
                 <span className="shrink-0 rounded-full border border-accent/40 bg-accent/10 px-2.5 py-0.5 text-xs font-semibold text-accent">
                   {a.badge}
                 </span>
               )}
             </div>
-            <div className="text-sm text-foreground/55 mt-1">{a.desc}</div>
-          </Link>
+            <CardBody>{a.desc}</CardBody>
+          </Card>
         ))}
       </div>
     </div>

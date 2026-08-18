@@ -4,6 +4,7 @@ import { listMemberComps, listPastComps, listOfficerComps } from '@/lib/competit
 import { AddCompetitionForm } from '@/components/members/AddCompetitionForm'
 import { CompetitionCard } from '@/components/members/CompetitionCard'
 import { OfficerCompetitions } from '@/components/members/OfficerCompetitions'
+import { PageHeader, EmptyState } from '@/components/ui'
 
 export default async function CompetitionsPage() {
   const session = await auth()
@@ -16,13 +17,12 @@ export default async function CompetitionsPage() {
 
   return (
     <div className="max-w-4xl mx-auto px-4 md:px-6 py-8">
-      <h1 className="text-2xl font-bold">Competitions</h1>
-      <p className="text-foreground/50 text-sm mt-1">Track the comps you&apos;ve entered and your beers. Officers coordinate club shipping.</p>
+      <PageHeader eyebrow="🏆 Members" title="Competitions" lead="Track the comps you've entered and your beers. Officers coordinate club shipping." />
 
-      <div className="mt-6"><AddCompetitionForm /></div>
+      <div className="mb-6"><AddCompetitionForm /></div>
 
       {comps.length === 0 ? (
-        <p className="text-foreground/60">No active competitions. Add one above.</p>
+        <EmptyState icon="🏆">No active competitions. Add one above.</EmptyState>
       ) : (
         <div className="space-y-4">
           {comps.map((c) => <CompetitionCard key={c.id} comp={c} viewerIsBoard={isBoard} viewerId={memberId} />)}
