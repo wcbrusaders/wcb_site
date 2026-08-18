@@ -5,6 +5,7 @@ import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/db'
 import { draftToArticle, uniqueSlug } from '@/lib/knowledge/publish'
 import { sanitizeArticleHtml } from '@/lib/knowledge/extract-notes'
+import { isValidCategory } from '@/lib/knowledge/categories'
 
 type Actor = { memberId?: string; email: string }
 
@@ -28,9 +29,14 @@ export async function publishDraftAction(
   draftId: string,
   editedHtml?: string,
   editedTitle?: string,
+  category?: string,
 ): Promise<Result> {
   const actor = await requireBoard()
   if (!actor) return { ok: false, reason: 'Not authorized.' }
+
+  if (!category || !isValidCategory(category)) {
+    return { ok: false, reason: 'Pick a category before publishing.' }
+  }
 
   const draft = await prisma.draftArticle.findUnique({ where: { id: draftId } })
   if (!draft) return { ok: false, reason: 'Draft not found.' }
@@ -47,6 +53,7 @@ export async function publishDraftAction(
     { processedTitle, processedHtml, excerpt: draft.excerpt, meetingDate: draft.meetingDate },
     actor.email,
     new Date(),
+    category,
   )
 
   // Make the slug collision-safe: two same-titled notes (e.g. a date-less

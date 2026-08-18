@@ -48,13 +48,14 @@ describe('draftToArticle', () => {
   }
 
   it('maps a draft to Article create fields', () => {
-    const article = draftToArticle(draft, 'officer@wcb.com', now)
+    const article = draftToArticle(draft, 'officer@wcb.com', now, 'meeting')
     expect(article).toEqual({
       slug: 'wcb-monthly-meeting-july-2026-2026-07-16',
       title: 'WCB Monthly Meeting — July 2026',
       bodyHtml: '<h1>WCB Monthly Meeting</h1><p>Body</p>',
       excerpt: 'Body',
-      category: 'meeting-notes',
+      kind: 'meeting-notes',
+      category: 'meeting',
       meetingDate,
       publishedAt: now,
       publishedBy: 'officer@wcb.com',
@@ -62,8 +63,14 @@ describe('draftToArticle', () => {
   })
 
   it('handles a draft with no meetingDate', () => {
-    const article = draftToArticle({ ...draft, meetingDate: null }, 'officer@wcb.com', now)
+    const article = draftToArticle({ ...draft, meetingDate: null }, 'officer@wcb.com', now, 'meeting')
     expect(article.slug).toBe('wcb-monthly-meeting-july-2026')
     expect(article.meetingDate).toBeNull()
+  })
+
+  it('sets the passed category rather than hardcoding meeting-notes', () => {
+    const article = draftToArticle(draft, 'officer@wcb.com', now, 'financial')
+    expect(article.kind).toBe('meeting-notes')
+    expect(article.category).toBe('financial')
   })
 })

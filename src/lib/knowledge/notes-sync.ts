@@ -102,7 +102,9 @@ export async function syncMeetingNotes(deps: SyncDeps = {}): Promise<{ scanned: 
         data: {
           sourceDriveId: file.id,
           sourceName: file.name,
-          category: 'meeting-notes',
+          // kind defaults to 'meeting-notes' (pipeline discriminator). category
+          // stays null until a reviewer picks one of the six at publish.
+          kind: 'meeting-notes',
           status: 'needs_processing',
           rawText,
         },

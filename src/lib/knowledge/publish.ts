@@ -1,6 +1,8 @@
 // Pure helpers for turning a reviewed DraftArticle into a publishable Article.
 // No DB/network access here — keep testable without mocks.
 
+import type { NoteCategory } from './categories'
+
 function isoDate(d: Date): string {
   return d.toISOString().slice(0, 10)
 }
@@ -47,17 +49,20 @@ export interface ArticleCreateFields {
   title: string
   bodyHtml: string
   excerpt: string | null
-  category: 'meeting-notes'
+  kind: 'meeting-notes'
+  category: NoteCategory
   meetingDate: Date | null
   publishedAt: Date
   publishedBy: string
 }
 
-/** Maps a reviewed draft to Article create fields (Phase A: meeting-notes only). */
+/** Maps a reviewed draft to Article create fields. `category` is the officer-picked
+ * classification (validated by the caller before this runs). */
 export function draftToArticle(
   draft: DraftForArticle,
   officerEmail: string,
   now: Date,
+  category: NoteCategory,
 ): ArticleCreateFields {
   const title = draft.processedTitle ?? ''
   return {
@@ -65,7 +70,8 @@ export function draftToArticle(
     title,
     bodyHtml: draft.processedHtml ?? '',
     excerpt: draft.excerpt,
-    category: 'meeting-notes',
+    kind: 'meeting-notes',
+    category,
     meetingDate: draft.meetingDate,
     publishedAt: now,
     publishedBy: officerEmail,

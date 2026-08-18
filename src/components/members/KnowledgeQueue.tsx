@@ -3,6 +3,7 @@
 import { useState, useTransition } from 'react'
 import { publishDraftAction, rejectDraftAction, reprocessDraftAction } from '@/app/members/admin/knowledge/_actions'
 import { RichTextEditor } from '@/components/members/RichTextEditor'
+import { NOTE_CATEGORIES, audienceForCategory } from '@/lib/knowledge/categories'
 
 export type InReviewDraft = {
   id: string
@@ -41,11 +42,12 @@ function ReviewRow({ draft }: { draft: InReviewDraft }) {
   const [msg, setMsg] = useState<string | null>(null)
   const [title, setTitle] = useState(draft.processedTitle ?? '')
   const [html, setHtml] = useState(draft.processedHtml ?? '')
+  const [category, setCategory] = useState<string>('')
 
   function publish() {
     setMsg(null)
     start(async () => {
-      const r = await publishDraftAction(draft.id, html, title)
+      const r = await publishDraftAction(draft.id, html, title, category)
       setMsg(r.ok ? 'Published.' : (r.reason ?? 'Failed.'))
     })
   }
@@ -86,9 +88,35 @@ function ReviewRow({ draft }: { draft: InReviewDraft }) {
         </div>
       </div>
 
-      <div className="mt-3 flex flex-wrap gap-2">
+      <div className="mt-3 flex flex-wrap items-center gap-2">
+        <select
+          value={category}
+          onChange={(e) => setCategory(e.target.value)}
+          aria-label="Note category"
+          className="bg-transparent border border-border/40 focus:border-accent/60 outline-none rounded-full px-3 py-1 text-sm"
+        >
+          <option value="" disabled>
+            — pick category —
+          </option>
+          {NOTE_CATEGORIES.map((c) => (
+            <option key={c.value} value={c.value}>
+              {c.label}
+            </option>
+          ))}
+        </select>
+        {category && (
+          <span
+            className={
+              audienceForCategory(category) === 'officers'
+                ? 'text-xs font-medium text-amber-400'
+                : 'text-xs text-foreground/50'
+            }
+          >
+            {audienceForCategory(category) === 'officers' ? '→ Officers only' : '→ All members'}
+          </span>
+        )}
         <button
-          disabled={pending || !title || !html}
+          disabled={pending || !title || !html || !category}
           onClick={publish}
           className="border border-green-500/60 text-green-400 px-3 py-1 rounded-full text-sm disabled:opacity-50"
         >

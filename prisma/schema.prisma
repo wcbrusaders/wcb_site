@@ -218,12 +218,14 @@ model Article {
   title       String
   bodyHtml    String                 // sanitized, styled-ready HTML (no visible markup)
   excerpt     String?
-  category    String                 // 'meeting-notes' | 'workshop' | 'recipe' (Phase A: meeting-notes)
+  kind        String   @default("meeting-notes") // pipeline discriminator: distinguishes knowledge notes from other content
+  category    String?                // note category: meeting|event|workshop|board|annual|financial (set at publish)
   meetingDate DateTime?              // for notes: the meeting date
   publishedAt DateTime @default(now())
   publishedBy String?               // officer email who approved
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+  @@index([kind])
   @@index([category])
   @@index([slug])
 }
@@ -232,7 +234,8 @@ model DraftArticle {
   id            String   @id @default(cuid())
   sourceDriveId String   @unique      // Drive doc id — sync key (idempotent upsert)
   sourceName    String                // Drive doc title
-  category      String                // 'meeting-notes' (Phase A)
+  kind          String   @default("meeting-notes") // pipeline discriminator: distinguishes knowledge notes from other content
+  category      String?               // note category: meeting|event|workshop|board|annual|financial (set at publish)
   status        String   @default("needs_processing") // needs_processing | in_review | published | rejected | error
   rawText       String                // exported transcript text (kept for re-processing/audit; board-only)
   processedHtml String?               // AI-extracted, sanitized HTML
@@ -243,5 +246,7 @@ model DraftArticle {
   processedAt   DateTime?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
+  @@index([kind])
   @@index([status])
+  @@index([category])
 }
