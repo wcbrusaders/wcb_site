@@ -4,7 +4,6 @@ import { auth } from '@/lib/auth'
 import { getMemberDashboard, formatTenure, membershipStatus, visibleCards } from '@/lib/dashboard'
 import { listOfficerComps, computeBannerItems } from '@/lib/competitions'
 import { InfoCard, Row } from '@/components/members/InfoCard'
-import { FeatureNav } from '@/components/members/FeatureNav'
 import { CompBanner } from '@/components/members/CompBanner'
 
 function fmtDate(d: Date | null): string | null {
@@ -77,9 +76,6 @@ export default async function MembersPage() {
             )}
           </div>
         )}
-
-        <h2 className="text-xl font-semibold mb-4">Member Features</h2>
-        <FeatureNav isBoard={!!session.user.isBoard} />
       </main>
     </div>
   )
