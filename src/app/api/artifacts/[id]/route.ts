@@ -9,12 +9,17 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   const artifact = await prisma.artifact.findUnique({ where: { id } })
   if (!artifact) return new NextResponse(null, { status: 404 })
 
-  // Security-critical: officer-audience artifacts require a board session.
-  // 404 (not 403) so a member probing ids can't distinguish "not board" from
-  // "doesn't exist" — existence of officers-only artifacts is never revealed.
-  if (artifact.audience === 'officers') {
-    const session = await auth()
-    if (!session?.user?.isBoard) return new NextResponse(null, { status: 404 })
+  // This route serves member-area files; require a logged-in member for ANY
+  // tier (the /members/* layout doesn't cover /api/*, so gate here explicitly).
+  const session = await auth()
+  if (!session?.user?.memberId) return new NextResponse(null, { status: 404 })
+
+  // Security-critical: officer-audience artifacts additionally require a board
+  // session. 404 (not 403) so a member probing ids can't distinguish "not
+  // board" from "doesn't exist" — existence of officers-only artifacts is never
+  // revealed.
+  if (artifact.audience === 'officers' && !session.user.isBoard) {
+    return new NextResponse(null, { status: 404 })
   }
 
   // Officer bytes must be proxied, never redirected: a redirect to the public
