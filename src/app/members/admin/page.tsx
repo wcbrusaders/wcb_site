@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/db'
 import { fetchAllRosterRows } from '@/lib/roster'
+import { getStats } from '@/lib/stats/query'
 import { PageHeader, Card, CardTitle, CardBody } from '@/components/ui'
 
 // Board-only admin hub. Always live (no static caching).
@@ -15,11 +16,12 @@ export default async function AdminPage() {
   // Lightweight counts for the area cards. Roster count comes from the sheet;
   // the rest are cheap DB counts. Each is fail-soft so one slow source can't
   // blank the whole hub.
-  const [rosterCount, loansOut, reviewCount, openCases] = await Promise.all([
+  const [rosterCount, loansOut, reviewCount, openCases, stats] = await Promise.all([
     fetchAllRosterRows().then((r) => r.length).catch(() => null),
     prisma.loan.count({ where: { returnedAt: null } }).catch(() => null),
     prisma.draftArticle.count({ where: { status: 'in_review' } }).catch(() => null),
     prisma.enforcementCase.count({ where: { status: 'open' } }).catch(() => null),
+    getStats({ days: 30 }).catch(() => null),
   ])
 
   const areas = [
@@ -46,6 +48,12 @@ export default async function AdminPage() {
       title: 'Enforcement & cases',
       desc: 'Conduct cases, cooldowns, and removal votes (with board safeguards).',
       badge: openCases ? `${openCases} open` : null,
+    },
+    {
+      href: '/members/admin/stats',
+      title: 'Site stats',
+      desc: 'Main-site vs member-feature traffic and active members (last 30 days).',
+      badge: stats ? `${stats.publicViews + stats.memberViews} views/30d` : null,
     },
   ]
 

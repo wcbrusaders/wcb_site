@@ -177,6 +177,25 @@ model AuditLog {
   detail         String?
 }
 
+// Aggregate site-usage counters (board stats). No per-visit history.
+model PageViewDay {
+  id    String @id @default(cuid())
+  day   String // 'YYYY-MM-DD' (UTC)
+  area  String // 'public' | 'members'
+  count Int    @default(0)
+  @@unique([day, area])
+  @@index([day])
+}
+
+// One row per member per day → distinct active-member count = row count.
+model MemberActiveDay {
+  id       String @id @default(cuid())
+  day      String // 'YYYY-MM-DD'
+  memberId String
+  @@unique([day, memberId])
+  @@index([day])
+}
+
 model EnforcementCase {
   id                 String     @id @default(cuid())
   createdAt          DateTime   @default(now())
