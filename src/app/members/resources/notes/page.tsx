@@ -2,6 +2,8 @@ import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/db'
+import { categoriesForViewer, audienceForCategory, isValidCategory } from '@/lib/knowledge/categories'
+import { NotesCategoryFilter, type NotesListItem } from '@/components/members/NotesCategoryFilter'
 
 export const dynamic = 'force-dynamic'
 
@@ -11,11 +13,23 @@ export default async function MeetingNotesPage() {
   const session = await auth()
   if (!session?.user?.memberId) redirect('/login')
 
+  const isBoard = !!session.user.isBoard
+  const allowedCategories = categoriesForViewer(isBoard)
+
   const notes = await prisma.article.findMany({
-    where: { category: 'meeting-notes' },
+    where: { kind: 'meeting-notes', category: { in: allowedCategories } },
     orderBy: [{ meetingDate: 'desc' }, { publishedAt: 'desc' }],
-    select: { slug: true, title: true, excerpt: true, meetingDate: true, publishedAt: true },
+    select: { slug: true, title: true, excerpt: true, meetingDate: true, publishedAt: true, category: true },
   })
+
+  const items: NotesListItem[] = notes.map((n) => ({
+    slug: n.slug,
+    title: n.title,
+    excerpt: n.excerpt,
+    meetingDate: iso(n.meetingDate),
+    category: isValidCategory(n.category) ? n.category : null,
+    officersOnly: audienceForCategory(n.category ?? '') === 'officers',
+  }))
 
   return (
     <div className="max-w-3xl mx-auto px-4 md:px-6 py-8">
@@ -25,27 +39,10 @@ export default async function MeetingNotesPage() {
         What we covered at club meetings and events — the brewing takeaways, so you get them even if you missed it.
       </p>
 
-      {notes.length === 0 ? (
+      {items.length === 0 ? (
         <p className="text-foreground/50 mt-6">No notes published yet.</p>
       ) : (
-        <ul className="mt-6 space-y-3">
-          {notes.map((n) => (
-            <li key={n.slug}>
-              <Link
-                href={`/members/resources/notes/${n.slug}`}
-                className="block rounded-xl border border-border/60 bg-card-bg/30 hover:border-accent/40 px-4 py-3"
-              >
-                <div className="flex items-baseline justify-between gap-3 flex-wrap">
-                  <span className="font-semibold">{n.title}</span>
-                  {iso(n.meetingDate) && (
-                    <span className="text-xs text-foreground/40">{iso(n.meetingDate)}</span>
-                  )}
-                </div>
-                {n.excerpt && <p className="text-sm text-foreground/55 mt-1">{n.excerpt}</p>}
-              </Link>
-            </li>
-          ))}
-        </ul>
+        <NotesCategoryFilter notes={items} categories={allowedCategories} />
       )}
     </div>
   )

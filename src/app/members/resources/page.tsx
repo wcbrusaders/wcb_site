@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/db'
 import { HOWTO_PAGES, KNOWLEDGE_DRIVE_LINKS } from '@/lib/resources-links'
+import { categoriesForViewer } from '@/lib/knowledge/categories'
 
 export const dynamic = 'force-dynamic'
 
@@ -11,8 +12,10 @@ export default async function ResourcesPage() {
   const session = await auth()
   if (!session?.user?.memberId) redirect('/login')
 
+  const isBoard = !!session.user.isBoard
+
   const meetingNotes = await prisma.article.findMany({
-    where: { category: 'meeting-notes' },
+    where: { kind: 'meeting-notes', category: { in: categoriesForViewer(isBoard) } },
     orderBy: { publishedAt: 'desc' },
     select: { slug: true, title: true, meetingDate: true, excerpt: true },
   })

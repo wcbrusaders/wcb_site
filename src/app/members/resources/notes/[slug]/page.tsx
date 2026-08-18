@@ -2,6 +2,7 @@ import { redirect, notFound } from 'next/navigation'
 import Link from 'next/link'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/db'
+import { audienceForCategory } from '@/lib/knowledge/categories'
 
 export const dynamic = 'force-dynamic'
 
@@ -14,6 +15,12 @@ export default async function MeetingNotePage({ params }: { params: Promise<{ sl
   // so "not found" is the only "not published" case to guard.
   const article = await prisma.article.findUnique({ where: { slug } })
   if (!article) notFound()
+
+  // Server-side audience gate: a member with a direct link to an
+  // officers-only note (or a note with an unknown/missing category, which
+  // fails safe to 'officers') must never see the content — 404, not a redirect,
+  // so the note's existence isn't confirmed either.
+  if (audienceForCategory(article.category ?? '') === 'officers' && !session.user.isBoard) notFound()
 
   // The stored body leads with an <h1> title; the page renders its own title
   // header, so strip a leading <h1> to avoid showing it twice.
