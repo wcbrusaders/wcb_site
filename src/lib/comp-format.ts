@@ -23,5 +23,23 @@ export function daysUntil(date: Date | string | number, now: Date = new Date()):
   return Math.ceil((new Date(date).getTime() - now.getTime()) / DAY)
 }
 export function isUrgent(date: Date | string | number, now: Date = new Date()): boolean {
-  return daysUntil(date, now) <= 7
+  const d = daysUntil(date, now)
+  // Only upcoming-and-close is urgent — a PAST date is not "urgent", it's passed.
+  return d >= 0 && d <= 7
+}
+
+// State of the per-card "get your bottles to the shipper" nudge.
+//   hidden   — the club shipment is already shipped (officer set shippedAt): the
+//              members' job is done, so there's nothing to nag about.
+//   upcoming — not shipped yet, deadline today or in the future: show a countdown.
+//   passed   — not shipped yet, deadline already gone: show a quiet "deadline was
+//              <date>" (NOT a negative countdown, NOT a red alarm).
+// Reuses shippedAt (already set for delivery tracking) — no new member input.
+export function deliverBannerState(
+  deliverByDate: Date | string | number,
+  shippedAt: Date | string | null,
+  now: Date = new Date(),
+): 'hidden' | 'upcoming' | 'passed' {
+  if (shippedAt) return 'hidden'
+  return daysUntil(deliverByDate, now) >= 0 ? 'upcoming' : 'passed'
 }

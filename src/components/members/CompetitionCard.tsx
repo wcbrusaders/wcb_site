@@ -2,7 +2,7 @@
 import { useState, useTransition } from 'react'
 import type { MemberCompView, EntryChannel } from '@/lib/competitions'
 import { mapsUrl, trackingUrl } from '@/lib/competitions'
-import { channelBadge, daysUntil, isUrgent, type BadgeVariant } from '@/lib/comp-format'
+import { channelBadge, daysUntil, isUrgent, deliverBannerState, type BadgeVariant } from '@/lib/comp-format'
 import { addEntryAction, editEntryAction, deleteEntryAction, deleteCompetitionAction, setShipmentTrackingAction } from '@/app/members/_actions/competition-actions'
 
 const BADGE_CLASS: Record<BadgeVariant, string> = {
@@ -61,7 +61,25 @@ export function CompetitionCard({ comp, viewerIsBoard, viewerId }: { comp: Membe
       </div>
 
       {hasClubShip && (() => {
+        const state = deliverBannerState(comp.deliverByDate, comp.shippedAt)
+        if (state === 'hidden') return null // club shipment already shipped — nothing for members to do
         const clubCount = comp.myEntries.filter((e) => e.channel === 'club_ship').length
+        const subtext = `${clubCount} club-ship entr${clubCount === 1 ? 'y' : 'ies'} · club covers shipping for this comp`
+
+        if (state === 'passed') {
+          // Deadline gone, not yet marked shipped: quiet neutral note, no alarm, no negative countdown.
+          return (
+            <div className="mt-4 flex items-center gap-3 rounded-xl border border-border/50 bg-background/40 p-3.5">
+              <span className="text-xl">📦</span>
+              <div>
+                <div className="font-semibold text-sm text-foreground/70">Deliver-by deadline was {iso(comp.deliverByDate)}</div>
+                <div className="text-xs text-foreground/55">{subtext}</div>
+              </div>
+            </div>
+          )
+        }
+
+        // upcoming
         const urgent = isUrgent(comp.deliverByDate)
         const days = daysUntil(comp.deliverByDate)
         return (
@@ -69,9 +87,9 @@ export function CompetitionCard({ comp, viewerIsBoard, viewerId }: { comp: Membe
             <span className="text-xl">{urgent ? '⏰' : '📦'}</span>
             <div>
               <div className="font-bold text-sm">Get your bottles to the shipper by{' '}
-                <span className={urgent ? 'text-red-400' : 'text-accent'}>{iso(comp.deliverByDate)} · {days} day{days === 1 ? '' : 's'}</span>
+                <span className={urgent ? 'text-red-400' : 'text-accent'}>{iso(comp.deliverByDate)} · in {days} day{days === 1 ? '' : 's'}</span>
               </div>
-              <div className="text-xs text-foreground/55">{clubCount} club-ship entr{clubCount === 1 ? 'y' : 'ies'} · club covers shipping for this comp</div>
+              <div className="text-xs text-foreground/55">{subtext}</div>
             </div>
           </div>
         )

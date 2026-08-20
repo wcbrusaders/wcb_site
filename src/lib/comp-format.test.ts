@@ -1,5 +1,5 @@
 import { test, expect } from 'vitest'
-import { channelBadge, daysUntil, isUrgent } from './comp-format'
+import { channelBadge, daysUntil, isUrgent, deliverBannerState } from './comp-format'
 
 test('channelBadge maps each channel to label + variant', () => {
   expect(channelBadge('club_ship')).toEqual({ label: 'Club ships', variant: 'club' })
@@ -21,11 +21,22 @@ test('daysUntil uses ceil day math (matches the banner)', () => {
   expect(daysUntil(new Date(NOW.getTime() + 0.5 * 86400000), NOW)).toBe(1) // half a day -> ceil to 1
 })
 
-test('isUrgent: <=7 days is urgent (7 yes, 8 no, today yes)', () => {
+test('isUrgent: upcoming and within 7 days (7 yes, 8 no, today yes, PAST no)', () => {
   expect(isUrgent(plus(7), NOW)).toBe(true)
   expect(isUrgent(plus(8), NOW)).toBe(false)
   expect(isUrgent(plus(0), NOW)).toBe(true)     // today
-  expect(isUrgent(plus(-1), NOW)).toBe(true)    // already past -> still urgent (member reminder)
+  expect(isUrgent(plus(-1), NOW)).toBe(false)   // past is NOT urgent (was the '-6 days' bug)
+})
+
+test('deliverBannerState: hidden when shipped, upcoming/passed otherwise', () => {
+  // shipped (officer already set shippedAt) -> nag gone regardless of date
+  expect(deliverBannerState(plus(3), plus(-1), NOW)).toBe('hidden')
+  expect(deliverBannerState(plus(-6), '2026-08-25T00:00:00Z', NOW)).toBe('hidden')
+  // not shipped, future/today deadline -> upcoming countdown
+  expect(deliverBannerState(plus(3), null, NOW)).toBe('upcoming')
+  expect(deliverBannerState(plus(0), null, NOW)).toBe('upcoming')
+  // not shipped, past deadline -> passed (quiet 'was <date>', not a negative countdown)
+  expect(deliverBannerState(plus(-6), null, NOW)).toBe('passed')
 })
 
 // Date fields serialize to ISO STRINGS when a server component passes them to a
