@@ -6,6 +6,8 @@ import { prisma } from '@/lib/db'
 import { draftToArticle, uniqueSlug } from '@/lib/knowledge/publish'
 import { sanitizeArticleHtml } from '@/lib/knowledge/extract-notes'
 import { isValidCategory } from '@/lib/knowledge/categories'
+import { buildPastedDraftData } from '@/lib/knowledge/ingest-transcript'
+import { processPendingDrafts } from '@/lib/knowledge/process-drafts'
 
 type Actor = { memberId?: string; email: string }
 
@@ -65,6 +67,32 @@ export async function publishDraftAction(
     prisma.article.create({ data: fields }),
     prisma.draftArticle.update({ where: { id: draftId }, data: { status: 'published' } }),
   ])
+
+  revalidateKnowledge()
+  return { ok: true }
+}
+
+// Ingest a raw transcript pasted by a board member: create a needs_processing
+// draft (same shape as the Drive sync produces), then run the AI extractor now
+// so it lands straight in the review queue rather than waiting for the daily
+// cron. Processing failures don't fail the ingest — the draft just shows as
+// 'error' in the queue with a Reprocess button (same as Drive-sourced drafts).
+export async function ingestTranscriptAction(title: string, rawText: string): Promise<Result> {
+  const actor = await requireBoard()
+  if (!actor) return { ok: false, reason: 'Not authorized.' }
+
+  const built = buildPastedDraftData(title, rawText, crypto.randomUUID())
+  if (!built.ok) return built
+
+  await prisma.draftArticle.create({ data: built.data })
+
+  // Best-effort immediate processing; if it throws, the draft remains in the
+  // queue (needs_processing/error) and the cron/Reprocess will pick it up.
+  try {
+    await processPendingDrafts()
+  } catch {
+    // swallow — ingest succeeded; processing can be retried from the queue
+  }
 
   revalidateKnowledge()
   return { ok: true }
