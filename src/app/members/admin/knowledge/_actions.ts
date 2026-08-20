@@ -3,7 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/db'
-import { draftToArticle, uniqueSlug } from '@/lib/knowledge/publish'
+import { draftToArticle, uniqueSlug, slugForNote, syncBodyH1 } from '@/lib/knowledge/publish'
 import { sanitizeArticleHtml } from '@/lib/knowledge/extract-notes'
 import { isValidCategory } from '@/lib/knowledge/categories'
 import { buildPastedDraftData } from '@/lib/knowledge/ingest-transcript'
@@ -105,6 +105,42 @@ export async function rejectDraftAction(draftId: string): Promise<Result> {
   await prisma.draftArticle.update({ where: { id: draftId }, data: { status: 'rejected' } })
   revalidateKnowledge()
   return { ok: true }
+}
+
+// Edit the title of an ALREADY-PUBLISHED note. Updates title, syncs the body
+// <h1>, and re-slugs (collision-safe). Board-gated. Lets an officer fix a note
+// whose title came out wrong (e.g. an AI-generated title on a note published
+// before the paste-title carry-through). Returns the (possibly new) slug so the
+// caller can navigate to it, since the slug changes with the title.
+export async function editArticleTitleAction(
+  articleId: string,
+  title: string,
+): Promise<Result & { slug?: string }> {
+  const actor = await requireBoard()
+  if (!actor) return { ok: false, reason: 'Not authorized.' }
+  const name = title.trim()
+  if (!name) return { ok: false, reason: 'Title is required.' }
+
+  const article = await prisma.article.findUnique({ where: { id: articleId } })
+  if (!article) return { ok: false, reason: 'Note not found.' }
+
+  const base = slugForNote(name, article.meetingDate)
+  const others = await prisma.article.findMany({
+    where: { id: { not: articleId } },
+    select: { slug: true },
+  })
+  const slug = uniqueSlug(base, others.map((a) => a.slug))
+  const bodyHtml = syncBodyH1(article.bodyHtml, name)
+
+  await prisma.article.update({
+    where: { id: articleId },
+    data: { title: name, slug, bodyHtml },
+  })
+
+  revalidateKnowledge()
+  revalidatePath('/members/resources/notes')
+  revalidatePath(`/members/resources/notes/${slug}`)
+  return { ok: true, slug }
 }
 
 // Rename a draft's title at ANY stage (needs_processing / error / in_review),

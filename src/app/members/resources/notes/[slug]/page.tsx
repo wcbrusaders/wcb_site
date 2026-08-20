@@ -3,6 +3,7 @@ import Link from 'next/link'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/db'
 import { audienceForCategory } from '@/lib/knowledge/categories'
+import { EditNoteTitle } from '@/components/members/EditNoteTitle'
 
 export const dynamic = 'force-dynamic'
 
@@ -36,6 +37,7 @@ export default async function MeetingNotePage({ params }: { params: Promise<{ sl
       {article.meetingDate && (
         <p className="text-foreground/50 text-sm mt-1">{article.meetingDate.toISOString().slice(0, 10)}</p>
       )}
+      {session.user.isBoard && <EditNoteTitle articleId={article.id} currentTitle={article.title} />}
 
       {/* bodyHtml is sanitized in src/lib/knowledge/extract-notes.ts before storage. */}
       <div
