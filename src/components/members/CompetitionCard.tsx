@@ -2,7 +2,7 @@
 import { useState, useTransition } from 'react'
 import type { MemberCompView, EntryChannel } from '@/lib/competitions'
 import { mapsUrl, trackingUrl } from '@/lib/competitions'
-import { channelBadge, daysUntil, isUrgent, deliverBannerState, type BadgeVariant } from '@/lib/comp-format'
+import { channelBadge, isUrgent, deliverBannerState, humanDate, relDays, compTimeline, type BadgeVariant } from '@/lib/comp-format'
 import { addEntryAction, editEntryAction, deleteEntryAction, deleteCompetitionAction, setShipmentTrackingAction } from '@/app/members/_actions/competition-actions'
 
 const BADGE_CLASS: Record<BadgeVariant, string> = {
@@ -16,78 +16,113 @@ const BADGE_CLASS: Record<BadgeVariant, string> = {
 const SEG_CHANNELS: { v: EntryChannel; label: string }[] = [
   { v: 'club_ship', label: 'Club ships' }, { v: 'self_ship', label: 'I ship it' }, { v: 'dropoff', label: 'I drop off' },
 ]
-const iso = (d: Date) => new Date(d).toISOString().slice(0, 10)
+const field = 'w-full rounded-lg border border-border bg-background/60 px-3 py-2 text-sm outline-none focus:border-accent/60'
+
+// Colors + labels for the 3-step timeline states.
+const DOT: Record<string, { color: string; ring: string }> = {
+  done: { color: '#4ade80', ring: 'rgba(74,222,128,.5)' },
+  upcoming: { color: '#ff9500', ring: 'rgba(255,149,0,.5)' },
+  future: { color: '#5a5a5a', ring: 'transparent' },
+  pending: { color: '#5a5a5a', ring: 'transparent' },
+}
 
 export function CompetitionCard({ comp, viewerIsBoard, viewerId }: { comp: MemberCompView; viewerIsBoard: boolean; viewerId: string }) {
   const [pending, start] = useTransition()
   const [err, setErr] = useState<string | null>(null)
   const [adding, setAdding] = useState(false)
   const [editingShip, setEditingShip] = useState(false)
+  const [menuOpen, setMenuOpen] = useState(false)
   const [shipDraft, setShipDraft] = useState({ carrier: comp.shipmentCarrier ?? '', tracking: comp.shipmentTracking ?? '' })
   const [draft, setDraft] = useState({ beerName: '', style: '', channel: 'club_ship' as EntryChannel, registered: false })
   const canEditComp = viewerIsBoard || comp.addedById === viewerId
   const hasClubShip = comp.myEntries.some((e) => e.channel === 'club_ship')
+  const myCount = comp.myEntries.length
+  const timeline = compTimeline(comp)
 
   function run(fn: () => Promise<{ ok: boolean }>) { setErr(null); start(async () => { const r = await fn(); if (!r.ok) setErr('Action failed — refresh.') }) }
 
   return (
-    <div className="rounded-2xl border border-border/50 bg-card-bg/30 p-6 md:p-8">
-      <div className="flex items-start justify-between gap-4 flex-wrap">
+    <div className="rounded-2xl border p-5 md:p-6 bg-[linear-gradient(#1c1c1c,#161616)]" style={{ borderColor: '#2c2c2c' }}>
+      {/* --- Status-first header --- */}
+      <div className="flex items-start justify-between gap-3 flex-wrap">
         <div className="min-w-0">
-          <a href={comp.homepageUrl} target="_blank" rel="noreferrer" className="text-lg font-bold hover:text-accent">{comp.name}</a>
-          <div className="flex gap-2 flex-wrap mt-2">
-            <span className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-background/60 px-2.5 py-1 text-xs">
-              <span className="text-foreground/45 uppercase text-[10px] tracking-wide">Entry reg</span>
-              <span className="font-semibold">{iso(comp.registrationDeadline)}</span>
-            </span>
-            <span className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs ${isUrgent(comp.shippingDeadline) ? 'border-red-400/50' : 'border-border'} bg-background/60`}>
-              <span className="text-foreground/45 uppercase text-[10px] tracking-wide">Beer arrives</span>
-              <span className={`font-semibold ${isUrgent(comp.shippingDeadline) ? 'text-red-400' : ''}`}>{iso(comp.shippingDeadline)}</span>
-            </span>
-            <span className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-background/60 px-2.5 py-1 text-xs">
-              <span className="text-foreground/45 uppercase text-[10px] tracking-wide">Bottles/entry</span>
-              <span className="font-semibold">{comp.bottlesRequired}</span>
-            </span>
-          </div>
-          <div className="flex gap-2 mt-2">
-            <a href={mapsUrl(comp.shippingAddress)} target="_blank" rel="noreferrer" className="rounded-lg border border-accent/30 text-accent hover:bg-accent/10 px-2.5 py-1 text-xs">📍 Ship-to</a>
-            {comp.dropoffAddress && <a href={mapsUrl(comp.dropoffAddress)} target="_blank" rel="noreferrer" className="rounded-lg border border-accent/30 text-accent hover:bg-accent/10 px-2.5 py-1 text-xs">📍 Drop-off</a>}
-          </div>
+          <a href={comp.homepageUrl} target="_blank" rel="noreferrer" className="text-lg font-bold hover:text-accent">{comp.name} <span className="text-foreground/30 font-normal text-sm">↗</span></a>
+          <div className="text-xs text-foreground/50 mt-0.5">{comp.bottlesRequired} bottles/entry</div>
         </div>
-        {canEditComp && viewerIsBoard && (
-          <button disabled={pending} onClick={() => { if (confirm(`Delete "${comp.name}" and all its entries?`)) run(() => deleteCompetitionAction(comp.id)) }}
-            className="border border-red-500/40 text-red-400 px-3 py-1 rounded-full text-xs shrink-0">Delete comp</button>
-        )}
+        <div className="flex items-center gap-2 shrink-0">
+          {myCount > 0 ? (
+            <span className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold text-[#4ade80]" style={{ background: 'rgba(74,222,128,.13)' }}>
+              ✓ You&apos;re in · {myCount} entr{myCount === 1 ? 'y' : 'ies'}
+            </span>
+          ) : (
+            <span className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium text-foreground/50 border border-border/60">Not entered yet</span>
+          )}
+          {canEditComp && viewerIsBoard && (
+            <div className="relative">
+              <button aria-label="Competition actions" disabled={pending} onClick={() => setMenuOpen((o) => !o)}
+                className="text-foreground/40 hover:text-foreground px-2 py-1 rounded-lg border border-border/50 text-sm leading-none">⋯</button>
+              {menuOpen && (
+                <div className="absolute right-0 mt-1 z-10 rounded-lg border border-border bg-card-bg shadow-lg py-1 min-w-[9rem]">
+                  <button disabled={pending} onClick={() => { setMenuOpen(false); if (confirm(`Delete "${comp.name}" and all its entries?`)) run(() => deleteCompetitionAction(comp.id)) }}
+                    className="block w-full text-left px-3 py-1.5 text-xs text-red-400 hover:bg-red-500/10">Delete competition</button>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
       </div>
 
+      {/* --- Visual timeline: Register -> Beer arrives -> Delivered --- */}
+      <div className="mt-4 flex items-start">
+        {timeline.map((step, i) => {
+          const d = DOT[step.state] ?? DOT.future
+          const isLast = i === timeline.length - 1
+          const active = step.state === 'upcoming'
+          return (
+            <div key={step.key} className="flex-1 flex flex-col items-center relative">
+              {/* connector to next */}
+              {!isLast && <span className="absolute top-[7px] left-1/2 w-full h-0.5" style={{ background: '#2c2c2c' }} />}
+              <span className="relative z-[1] w-3.5 h-3.5 rounded-full" style={{ background: d.color, boxShadow: d.ring !== 'transparent' ? `0 0 0 3px ${d.ring}` : undefined }} />
+              <span className={`mt-1.5 text-[10px] uppercase tracking-wide ${active ? 'text-accent' : 'text-foreground/45'}`}>{step.label}</span>
+              <span className={`text-xs font-semibold ${step.state === 'done' ? 'text-[#4ade80]' : active ? 'text-accent' : 'text-foreground/70'}`}>
+                {step.key === 'delivered' && step.state !== 'done' ? '—' : humanDate(step.date)}
+              </span>
+              {active && step.date && <span className="text-[10px] text-foreground/40">{relDays(step.date)}</span>}
+            </div>
+          )
+        })}
+      </div>
+
+      {/* ship-to / drop-off quick links */}
+      <div className="flex gap-2 mt-4">
+        <a href={mapsUrl(comp.shippingAddress)} target="_blank" rel="noreferrer" className="rounded-lg border border-accent/30 text-accent hover:bg-accent/10 px-2.5 py-1 text-xs">📍 Ship-to</a>
+        {comp.dropoffAddress && <a href={mapsUrl(comp.dropoffAddress)} target="_blank" rel="noreferrer" className="rounded-lg border border-accent/30 text-accent hover:bg-accent/10 px-2.5 py-1 text-xs">📍 Drop-off</a>}
+      </div>
+
+      {/* --- Deliver-by nudge (unchanged logic, System-B styling) --- */}
       {hasClubShip && (() => {
         const state = deliverBannerState(comp.deliverByDate, comp.shippedAt)
-        if (state === 'hidden') return null // club shipment already shipped — nothing for members to do
+        if (state === 'hidden') return null
         const clubCount = comp.myEntries.filter((e) => e.channel === 'club_ship').length
-        const subtext = `${clubCount} club-ship entr${clubCount === 1 ? 'y' : 'ies'} · club covers shipping for this comp`
-
+        const subtext = `${clubCount} club-ship entr${clubCount === 1 ? 'y' : 'ies'} · club covers shipping`
         if (state === 'passed') {
-          // Deadline gone, not yet marked shipped: quiet neutral note, no alarm, no negative countdown.
           return (
             <div className="mt-4 flex items-center gap-3 rounded-xl border border-border/50 bg-background/40 p-3.5">
               <span className="text-xl">📦</span>
               <div>
-                <div className="font-semibold text-sm text-foreground/70">Deliver-by deadline was {iso(comp.deliverByDate)}</div>
+                <div className="font-semibold text-sm text-foreground/70">Deliver-by deadline was {humanDate(comp.deliverByDate)}</div>
                 <div className="text-xs text-foreground/55">{subtext}</div>
               </div>
             </div>
           )
         }
-
-        // upcoming
         const urgent = isUrgent(comp.deliverByDate)
-        const days = daysUntil(comp.deliverByDate)
         return (
           <div className={`mt-4 flex items-center gap-3 rounded-xl border p-3.5 ${urgent ? 'border-red-400/55 bg-red-400/[0.08]' : 'border-accent/45 bg-accent/[0.08]'}`}>
             <span className="text-xl">{urgent ? '⏰' : '📦'}</span>
             <div>
               <div className="font-bold text-sm">Get your bottles to the shipper by{' '}
-                <span className={urgent ? 'text-red-400' : 'text-accent'}>{iso(comp.deliverByDate)} · in {days} day{days === 1 ? '' : 's'}</span>
+                <span className={urgent ? 'text-red-400' : 'text-accent'}>{humanDate(comp.deliverByDate)} · {relDays(comp.deliverByDate)}</span>
               </div>
               <div className="text-xs text-foreground/55">{subtext}</div>
             </div>
@@ -95,10 +130,10 @@ export function CompetitionCard({ comp, viewerIsBoard, viewerId }: { comp: Membe
         )
       })()}
 
+      {/* --- Club shipment status (unchanged logic, System-B styling) --- */}
       {(() => {
         const url = trackingUrl(comp.shipmentCarrier, comp.shipmentTracking)
         const hasTracking = !!(comp.shipmentCarrier || comp.shipmentTracking)
-        // Every member sees the club shipment status; only board can set/edit it.
         if (!hasTracking && !viewerIsBoard) return null
         return (
           <div className="mt-4 rounded-xl border border-border/60 bg-background/40 p-3.5">
@@ -108,10 +143,10 @@ export function CompetitionCard({ comp, viewerIsBoard, viewerId }: { comp: Membe
                 {hasTracking ? (
                   <div className="text-sm mt-0.5">
                     {comp.deliveryStatus === 'delivered' && comp.deliveredAt ? (
-                      <span className="font-semibold text-[#4ade80]">Delivered {iso(comp.deliveredAt)} · </span>
+                      <span className="font-semibold text-[#4ade80]">Delivered {humanDate(comp.deliveredAt)} · </span>
                     ) : comp.shippedAt ? (
                       <span className="text-foreground/55">
-                        Shipped {iso(comp.shippedAt)}
+                        Shipped {humanDate(comp.shippedAt)}
                         {comp.deliveryStatus === 'in_transit' && ' · In transit'} ·{' '}
                       </span>
                     ) : null}
@@ -135,8 +170,8 @@ export function CompetitionCard({ comp, viewerIsBoard, viewerId }: { comp: Membe
             </div>
             {viewerIsBoard && editingShip && (
               <div className="mt-3 space-y-2">
-                <input placeholder="Carrier (UPS, FedEx)" value={shipDraft.carrier} onChange={(e) => setShipDraft({ ...shipDraft, carrier: e.target.value })} className="w-full rounded-lg border border-border bg-background/60 px-3 py-2 text-sm" />
-                <input placeholder="Tracking number" value={shipDraft.tracking} onChange={(e) => setShipDraft({ ...shipDraft, tracking: e.target.value })} className="w-full rounded-lg border border-border bg-background/60 px-3 py-2 text-sm" />
+                <input placeholder="Carrier (UPS, FedEx)" value={shipDraft.carrier} onChange={(e) => setShipDraft({ ...shipDraft, carrier: e.target.value })} className={field} />
+                <input placeholder="Tracking number" value={shipDraft.tracking} onChange={(e) => setShipDraft({ ...shipDraft, tracking: e.target.value })} className={field} />
                 <div className="flex gap-2">
                   <button disabled={pending} onClick={() => run(async () => { const r = await setShipmentTrackingAction(comp.id, shipDraft.carrier, shipDraft.tracking); if (r.ok) setEditingShip(false); return r })} className="bg-accent hover:bg-accent-hover text-background px-3 py-1 rounded-full text-sm disabled:opacity-50">Save tracking</button>
                   <button onClick={() => setEditingShip(false)} className="border border-border px-3 py-1 rounded-full text-sm">Cancel</button>
@@ -148,8 +183,9 @@ export function CompetitionCard({ comp, viewerIsBoard, viewerId }: { comp: Membe
         )
       })()}
 
+      {/* --- Your entries --- */}
       <div className="mt-4">
-        <p className="text-sm font-medium mb-2">Your entries · {comp.myEntries.length}</p>
+        <p className="text-xs font-semibold uppercase tracking-wide text-foreground/45 mb-2">Your entries · {myCount}</p>
         <ul className="space-y-2">
           {comp.myEntries.map((e) => {
             const cb = channelBadge(e.channel)
@@ -170,6 +206,7 @@ export function CompetitionCard({ comp, viewerIsBoard, viewerId }: { comp: Membe
             )
           })}
         </ul>
+
         {comp.allEntries.length > 0 && (
           <details className="mt-3">
             <summary className="cursor-pointer text-sm text-foreground/50 hover:text-foreground">
@@ -190,8 +227,8 @@ export function CompetitionCard({ comp, viewerIsBoard, viewerId }: { comp: Membe
 
         {adding ? (
           <div className="mt-2 space-y-2">
-            <input placeholder="Beer name" value={draft.beerName} onChange={(e) => setDraft({ ...draft, beerName: e.target.value })} className="w-full rounded-lg border border-border bg-background/60 px-3 py-2 text-sm" />
-            <input placeholder="Style" value={draft.style} onChange={(e) => setDraft({ ...draft, style: e.target.value })} className="w-full rounded-lg border border-border bg-background/60 px-3 py-2 text-sm" />
+            <input placeholder="Beer name" value={draft.beerName} onChange={(e) => setDraft({ ...draft, beerName: e.target.value })} className={field} />
+            <input placeholder="Style" value={draft.style} onChange={(e) => setDraft({ ...draft, style: e.target.value })} className={field} />
             <div>
               <p className="text-[11px] uppercase tracking-wide text-foreground/45 mb-1.5">How it gets there</p>
               <div className="flex gap-1.5">
@@ -210,7 +247,7 @@ export function CompetitionCard({ comp, viewerIsBoard, viewerId }: { comp: Membe
             </div>
           </div>
         ) : (
-          <button disabled={pending} onClick={() => setAdding(true)} className="mt-2 border border-border px-3 py-1 rounded-full text-xs">Add entry</button>
+          <button disabled={pending} onClick={() => setAdding(true)} className="mt-2 border border-border px-3 py-1 rounded-full text-xs">+ Add entry</button>
         )}
       </div>
       {err && <p className="mt-2 text-sm text-red-400">{err}</p>}

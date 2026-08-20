@@ -1,5 +1,5 @@
 import { test, expect } from 'vitest'
-import { channelBadge, daysUntil, isUrgent, deliverBannerState } from './comp-format'
+import { channelBadge, daysUntil, isUrgent, deliverBannerState, humanDate, relDays, compTimeline } from './comp-format'
 
 test('channelBadge maps each channel to label + variant', () => {
   expect(channelBadge('club_ship')).toEqual({ label: 'Club ships', variant: 'club' })
@@ -37,6 +37,36 @@ test('deliverBannerState: hidden when shipped, upcoming/passed otherwise', () =>
   expect(deliverBannerState(plus(0), null, NOW)).toBe('upcoming')
   // not shipped, past deadline -> passed (quiet 'was <date>', not a negative countdown)
   expect(deliverBannerState(plus(-6), null, NOW)).toBe('passed')
+})
+
+test('humanDate: short "Mon D" (UTC), tolerant of Date | ISO string', () => {
+  expect(humanDate(new Date('2026-09-20T12:00:00Z'))).toBe('Sep 20')
+  expect(humanDate('2026-01-05T12:00:00Z')).toBe('Jan 5')
+  expect(humanDate(null)).toBe('—')
+})
+
+test('relDays: relative label for a date vs now', () => {
+  expect(relDays(plus(19), NOW)).toBe('in 19d')
+  expect(relDays(plus(1), NOW)).toBe('in 1d')
+  expect(relDays(plus(0), NOW)).toBe('today')
+  expect(relDays(plus(-1), NOW)).toBe('passed')
+  expect(relDays(plus(-6), NOW)).toBe('passed')
+})
+
+test('compTimeline: 3-step state (register -> arrives -> delivered)', () => {
+  // register within 7d (upcoming), arrival far out (future), not shipped
+  const base = { registrationDeadline: plus(5), shippingDeadline: plus(19), shippedAt: null, deliveryStatus: null, deliveredAt: null }
+  const t1 = compTimeline(base, NOW)
+  expect(t1.map((s) => s.key)).toEqual(['register', 'arrives', 'delivered'])
+  expect(t1.find((s) => s.key === 'delivered')!.state).toBe('pending')
+  expect(t1.find((s) => s.key === 'register')!.state).toBe('upcoming')
+  expect(t1.find((s) => s.key === 'arrives')!.state).toBe('future')
+
+  // past register, shipped + delivered: register done, arrives done, delivered done
+  const t2 = compTimeline({ registrationDeadline: plus(-30), shippingDeadline: plus(-10), shippedAt: plus(-12), deliveryStatus: 'delivered', deliveredAt: plus(-8) }, NOW)
+  expect(t2.find((s) => s.key === 'register')!.state).toBe('done')
+  expect(t2.find((s) => s.key === 'delivered')!.state).toBe('done')
+  expect(t2.find((s) => s.key === 'delivered')!.date).toEqual(plus(-8))
 })
 
 // Date fields serialize to ISO STRINGS when a server component passes them to a
