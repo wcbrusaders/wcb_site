@@ -3,6 +3,7 @@ import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/db'
 import { KnowledgeQueue } from '@/components/members/KnowledgeQueue'
 import { ArtifactQueue } from '@/components/members/ArtifactQueue'
+import { PasteTranscriptForm } from '@/components/members/PasteTranscriptForm'
 import { PageHeader, SectionLabel } from '@/components/ui'
 
 // Board-only review queue. Always reflect live drafts (no static caching).
@@ -63,6 +64,7 @@ export default async function KnowledgeQueuePage() {
         lead="Review AI-extracted meeting notes before they publish to the club. Nothing publishes automatically."
       />
       <SectionLabel icon="📝">Meeting notes</SectionLabel>
+      <PasteTranscriptForm />
       <KnowledgeQueue inReview={inReview} errored={errored} />
 
       <SectionLabel icon="📚">Artifacts awaiting review ({artifactDrafts.length})</SectionLabel>
