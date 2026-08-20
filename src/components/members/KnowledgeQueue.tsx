@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import { publishDraftAction, rejectDraftAction, reprocessDraftAction } from '@/app/members/admin/knowledge/_actions'
+import { publishDraftAction, rejectDraftAction, reprocessDraftAction, renameDraftAction } from '@/app/members/admin/knowledge/_actions'
 import { RichTextEditor } from '@/components/members/RichTextEditor'
 import { NOTE_CATEGORIES, audienceForCategory } from '@/lib/knowledge/categories'
 
@@ -138,20 +138,56 @@ function ReviewRow({ draft }: { draft: InReviewDraft }) {
 function ErrorRow({ draft }: { draft: ErrorDraft }) {
   const [pending, start] = useTransition()
   const [msg, setMsg] = useState<string | null>(null)
+  const [title, setTitle] = useState(draft.sourceName)
+  const dirty = title.trim() !== draft.sourceName
 
   function reprocess() {
     setMsg(null)
     start(async () => {
+      // Persist any title edit before re-processing so it survives (processing
+      // preserves an existing title).
+      if (dirty) {
+        const rn = await renameDraftAction(draft.id, title)
+        if (!rn.ok) { setMsg(rn.reason ?? 'Rename failed.'); return }
+      }
       const r = await reprocessDraftAction(draft.id)
       setMsg(r.ok ? 'Queued for re-processing.' : (r.reason ?? 'Failed.'))
     })
   }
 
+  function saveTitle() {
+    setMsg(null)
+    start(async () => {
+      const r = await renameDraftAction(draft.id, title)
+      setMsg(r.ok ? 'Title saved.' : (r.reason ?? 'Failed.'))
+    })
+  }
+
   return (
     <div className="rounded-xl border border-red-500/30 bg-card-bg/30 p-4">
-      <div className="font-semibold">{draft.sourceName}</div>
-      {draft.errorText && <p className="text-red-400/80 text-sm mt-1 whitespace-pre-wrap">{draft.errorText}</p>}
-      <div className="mt-3">
+      <input
+        value={title}
+        onChange={(e) => setTitle(e.target.value)}
+        name="note-title"
+        autoComplete="off"
+        autoCorrect="off"
+        spellCheck={false}
+        data-1p-ignore
+        data-lpignore="true"
+        aria-label="Note title"
+        className="font-semibold bg-transparent border-b border-border/40 focus:border-accent/60 outline-none w-full"
+      />
+      {draft.errorText && <p className="text-red-400/80 text-sm mt-2 whitespace-pre-wrap">{draft.errorText}</p>}
+      <div className="mt-3 flex flex-wrap gap-2">
+        {dirty && (
+          <button
+            disabled={pending || !title.trim()}
+            onClick={saveTitle}
+            className="border border-accent/40 text-accent px-3 py-1 rounded-full text-sm disabled:opacity-50"
+          >
+            Save title
+          </button>
+        )}
         <button
           disabled={pending}
           onClick={reprocess}

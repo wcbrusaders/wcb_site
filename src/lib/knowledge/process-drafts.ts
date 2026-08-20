@@ -5,12 +5,18 @@ import { extractMeetingNote, type ExtractedMeetingNote } from './extract-notes'
 // move a draft from needs_processing into the officer review queue. Kept
 // separate from the loop below so the mapping itself is trivially unit
 // testable without any db/extract fakes.
-export function draftToReviewFields(extract: ExtractedMeetingNote, now: Date) {
+//
+// existingTitle: a human-set title already on the draft (e.g. typed at paste
+// ingest). When present it WINS over the AI's generated title — the AI still
+// writes the body, but a title the user chose is preserved (and still editable
+// at review). meetingDate is parsed from whichever title is used.
+export function draftToReviewFields(extract: ExtractedMeetingNote, now: Date, existingTitle?: string | null) {
+  const title = existingTitle?.trim() || extract.title
   return {
-    processedTitle: extract.title,
+    processedTitle: title,
     processedHtml: extract.bodyHtml,
     excerpt: extract.excerpt,
-    meetingDate: parseMeetingDate(extract.title),
+    meetingDate: parseMeetingDate(title),
     status: 'in_review',
     processedAt: now,
     errorText: null,
@@ -77,7 +83,7 @@ export async function processPendingDrafts(
 
       await db.draftArticle.update({
         where: { id: draft.id },
-        data: draftToReviewFields(extracted, now()),
+        data: draftToReviewFields(extracted, now(), draft.processedTitle),
       })
       processed++
     } catch (err) {
