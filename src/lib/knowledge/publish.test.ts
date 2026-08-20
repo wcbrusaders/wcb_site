@@ -1,5 +1,17 @@
 import { describe, it, expect } from 'vitest'
-import { slugForNote, draftToArticle, uniqueSlug } from './publish'
+import { slugForNote, draftToArticle, uniqueSlug, syncBodyH1 } from './publish'
+
+describe('syncBodyH1', () => {
+  it('replaces an existing leading <h1> with the new title', () => {
+    expect(syncBodyH1('<h1>Old Title</h1><p>Body.</p>', 'New Title')).toBe('<h1>New Title</h1><p>Body.</p>')
+  })
+  it('inserts an <h1> when the body has none', () => {
+    expect(syncBodyH1('<p>Body only.</p>', 'A Title')).toBe('<h1>A Title</h1><p>Body only.</p>')
+  })
+  it('escapes HTML-significant chars in the title', () => {
+    expect(syncBodyH1('<h1>x</h1><p>c</p>', 'Tom & Jerry <brew>')).toBe('<h1>Tom &amp; Jerry &lt;brew&gt;</h1><p>c</p>')
+  })
+})
 
 describe('uniqueSlug', () => {
   it('returns the base when unused', () => {

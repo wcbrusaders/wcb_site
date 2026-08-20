@@ -37,6 +37,19 @@ export function uniqueSlug(base: string, existing: Iterable<string>): string {
   return `${base}-${n}`
 }
 
+/**
+ * Replace (or insert) the leading <h1> of a note body so it matches an updated
+ * title. The published note page strips the leading <h1> when rendering, but we
+ * keep body + title in sync so exports / re-renders never diverge. Pure.
+ */
+export function syncBodyH1(bodyHtml: string, title: string): string {
+  const esc = title.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+  if (/^\s*<h1[^>]*>[\s\S]*?<\/h1>/i.test(bodyHtml)) {
+    return bodyHtml.replace(/^\s*<h1[^>]*>[\s\S]*?<\/h1>/i, `<h1>${esc}</h1>`)
+  }
+  return `<h1>${esc}</h1>${bodyHtml}`
+}
+
 export interface DraftForArticle {
   processedTitle: string | null
   processedHtml: string | null
