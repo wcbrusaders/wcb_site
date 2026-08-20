@@ -9,6 +9,7 @@ describe('buildPastedDraftData', () => {
       data: {
         sourceDriveId: `${PASTE_SOURCE_PREFIX}abc123`,
         sourceName: 'WCB Monthly Meeting Notes — Aug 20, 2026',
+        processedTitle: 'WCB Monthly Meeting Notes — Aug 20, 2026',
         kind: 'meeting-notes',
         status: 'needs_processing',
         rawText: 'raw transcript text', // trimmed

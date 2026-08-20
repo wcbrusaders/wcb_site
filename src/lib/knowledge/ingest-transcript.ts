@@ -14,6 +14,10 @@ export type PastedDraftResult =
       data: {
         sourceDriveId: string
         sourceName: string
+        // The pasted title also seeds processedTitle so the human-typed title
+        // carries through as the note's proposed title (processing preserves an
+        // existing processedTitle rather than overwriting with the AI's guess).
+        processedTitle: string
         kind: 'meeting-notes'
         status: 'needs_processing'
         rawText: string
@@ -36,6 +40,7 @@ export function buildPastedDraftData(title: string, rawText: string, id: string)
     data: {
       sourceDriveId: `${PASTE_SOURCE_PREFIX}${id}`,
       sourceName: name,
+      processedTitle: name,
       kind: 'meeting-notes',
       status: 'needs_processing',
       rawText: text,

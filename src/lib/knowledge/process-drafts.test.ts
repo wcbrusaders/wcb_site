@@ -39,6 +39,30 @@ describe('draftToReviewFields', () => {
       errorText: null,
     })
   })
+
+  it('prefers a human-set existingTitle over the AI title (and parses its date)', () => {
+    const extract: ExtractedMeetingNote = {
+      title: 'WCB Monthly Meeting — July 16, 2026', // AI guess
+      bodyHtml: '<h1>x</h1><p>Content.</p>',
+      excerpt: 'Content.',
+    }
+    const now = new Date('2026-08-17T12:00:00.000Z')
+    const fields = draftToReviewFields(extract, now, 'Kombucha Workshop — August 20, 2026')
+    expect(fields.processedTitle).toBe('Kombucha Workshop — August 20, 2026')
+    // meetingDate parsed from the human title, not the AI one
+    expect(fields.meetingDate).toEqual(new Date(Date.UTC(2026, 7, 20, 12)))
+  })
+
+  it('falls back to the AI title when existingTitle is blank/whitespace', () => {
+    const extract: ExtractedMeetingNote = {
+      title: 'WCB Monthly Meeting — July 16, 2026',
+      bodyHtml: '<h1>x</h1><p>c</p>',
+      excerpt: 'c',
+    }
+    const now = new Date('2026-08-17T12:00:00.000Z')
+    expect(draftToReviewFields(extract, now, '   ').processedTitle).toBe(extract.title)
+    expect(draftToReviewFields(extract, now, null).processedTitle).toBe(extract.title)
+  })
 })
 
 // Minimal fake db shape: just the draftArticle.findMany/update surface that

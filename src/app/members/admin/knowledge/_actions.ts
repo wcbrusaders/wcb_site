@@ -107,6 +107,24 @@ export async function rejectDraftAction(draftId: string): Promise<Result> {
   return { ok: true }
 }
 
+// Rename a draft's title at ANY stage (needs_processing / error / in_review),
+// not just at approval. Sets both processedTitle (the note's proposed title,
+// which processing now preserves) and sourceName (the queue label) so the new
+// title survives a re-process. Board-gated.
+export async function renameDraftAction(draftId: string, title: string): Promise<Result> {
+  const actor = await requireBoard()
+  if (!actor) return { ok: false, reason: 'Not authorized.' }
+  const name = title.trim()
+  if (!name) return { ok: false, reason: 'Title is required.' }
+
+  await prisma.draftArticle.update({
+    where: { id: draftId },
+    data: { processedTitle: name, sourceName: name },
+  })
+  revalidateKnowledge()
+  return { ok: true }
+}
+
 export async function reprocessDraftAction(draftId: string): Promise<Result> {
   const actor = await requireBoard()
   if (!actor) return { ok: false, reason: 'Not authorized.' }
