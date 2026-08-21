@@ -102,9 +102,6 @@ const BYLAWS_HTML = `
 <p><strong>Voluntary.</strong> A member may end their membership at any time by notifying the Board digitally or in writing. Membership otherwise lapses automatically at the end of its twelve-month term if dues are not renewed.</p>
 <p><strong>Refunds.</strong> Annual dues are non-refundable. A member who leaves before their term ends is not owed a refund; their membership simply lapses at its expiry.</p>
 <p><strong>Involuntary.</strong> A membership may be terminated for cause under the Code of Conduct enforcement process (Article Eleven), including its Board safeguards.</p>
-
-<h2>Status</h2>
-<p><em>Status: DRAFT v2.0 — pending ratification by Board vote. Flagged real-world to-dos: verify the "Wake County Brusaders" assumed-name (DBA) certificate is filed in NC; confirm 501(c)(7) status; verify the registered-agent renewal (Articles of Incorporation list Sept 13, 2024).</em></p>
 `
 
 const CODE_OF_CONDUCT_HTML = `
