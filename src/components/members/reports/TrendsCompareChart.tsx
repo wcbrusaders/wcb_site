@@ -135,7 +135,20 @@ export function TrendsCompareChart({ trends, revenue }: { trends: TrendRow[]; re
   const { indexed } = useMemo(() => buildIndexedRows(chartRows), [chartRows])
 
   const quarterSet = new Set(chartRows.map((r) => r.quarter))
-  const visibleMilestones = MILESTONES.filter((m) => quarterSet.has(m.quarter))
+  // Anchor each milestone label so a long string stays inside the plot: a
+  // centered label ('top') on the last/first quarter overruns the axis edge
+  // and clips (the plan asked for legible, on-canvas markers). Labels in the
+  // trailing third hang LEFT of their line, the leading third hang RIGHT, the
+  // middle stay centered.
+  const visibleMilestones = chartRows
+    .map((r, i) => ({ milestone: MILESTONES.find((m) => m.quarter === r.quarter), index: i }))
+    .filter((x): x is { milestone: { quarter: string; label: string }; index: number } => x.milestone != null)
+    .map(({ milestone, index }) => {
+      const frac = chartRows.length <= 1 ? 0.5 : index / (chartRows.length - 1)
+      const labelPosition: 'insideTopLeft' | 'insideTopRight' | 'top' =
+        frac > 0.66 ? 'insideTopLeft' : frac < 0.34 ? 'insideTopRight' : 'top'
+      return { ...milestone, labelPosition }
+    })
 
   function toggle(key: SeriesKey) {
     setVisible((prev) => ({ ...prev, [key]: !prev[key] }))
@@ -224,7 +237,7 @@ export function TrendsCompareChart({ trends, revenue }: { trends: TrendRow[]; re
               strokeDasharray="4 3"
               label={{
                 value: m.label,
-                position: 'top',
+                position: m.labelPosition,
                 fill: '#898781',
                 fontSize: 10,
                 angle: 0,
