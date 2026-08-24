@@ -3,29 +3,47 @@ import { auth } from '@/lib/auth'
 import { getMembershipReports } from '@/lib/metrics'
 import { PageHeader, SectionLabel, EmptyState } from '@/components/ui'
 import { InfoCard, Row } from '@/components/members/InfoCard'
+import { TrendsCompareChart } from '@/components/members/reports/TrendsCompareChart'
+import { TierDonut } from '@/components/members/reports/TierDonut'
+import { SeasonalityBars } from '@/components/members/reports/SeasonalityBars'
 
 export const dynamic = 'force-dynamic'
 
-// Small inline bar (no chart lib — matches the site-stats page convention).
-function Bar({ label, value, max, hint }: { label: string; value: number; max: number; hint?: string }) {
-  const pct = max > 0 ? Math.round((value / max) * 100) : 0
+const fmtPct = (n: number | null) => (n == null ? '—' : `${n}%`)
+const fmtUsd = (n: number) => `$${n.toFixed(2)}`
+
+// A big-number tile for the positive-first KPI row. `tone` colors the delta.
+function KpiTile({
+  label,
+  value,
+  delta,
+  tone = 'neutral',
+}: {
+  label: string
+  value: string
+  delta?: string
+  tone?: 'good' | 'muted' | 'neutral'
+}) {
+  const deltaColor = tone === 'good' ? '#0ca30c' : tone === 'muted' ? '#898781' : '#c3c2b7'
   return (
-    <div className="flex items-center gap-3 text-sm">
-      <span className="w-24 shrink-0 text-foreground/50 tabular-nums">{label}</span>
-      <div className="flex-1 h-4">
-        <span
-          className="block h-full rounded"
-          style={{ width: `${pct}%`, background: 'color-mix(in srgb, #ff9500 75%, transparent)' }}
-          title={hint ?? String(value)}
-        />
-      </div>
-      <span className="w-16 shrink-0 text-right text-foreground/60 tabular-nums">{value}</span>
+    <div className="rounded-2xl border p-5 bg-[linear-gradient(#1c1c1c,#161616)]" style={{ borderColor: '#2c2c2c' }}>
+      <p className="text-[11px] font-semibold uppercase tracking-widest text-foreground/45 mb-2">{label}</p>
+      <p className="text-3xl font-bold text-foreground">{value}</p>
+      {delta && <p className="text-xs mt-1.5" style={{ color: deltaColor }}>{delta}</p>}
     </div>
   )
 }
 
-const fmtPct = (n: number | null) => (n == null ? '—' : `${n}%`)
-const fmtUsd = (n: number) => `$${n.toFixed(2)}`
+// A smaller, muted secondary tile — for the turnover/lapsed row that's
+// shown but not led with (positive-first framing).
+function SecondaryTile({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-xl border px-4 py-3" style={{ borderColor: '#242424' }}>
+      <p className="text-[10px] uppercase tracking-widest text-foreground/40 mb-1">{label}</p>
+      <p className="text-lg font-semibold text-foreground/70">{value}</p>
+    </div>
+  )
+}
 
 export default async function MembershipReportsPage() {
   const session = await auth()
@@ -34,12 +52,26 @@ export default async function MembershipReportsPage() {
 
   const r = await getMembershipReports()
   const k = r.kpis
+  const g = r.growthSummary
 
-  const seasonMax = Math.max(1, ...r.seasonality.map((s) => s.joins))
   const generated = new Date(r.generatedAt).toISOString().slice(0, 16).replace('T', ' ') + ' UTC'
 
+  // Momentum callout lines (positive-first framing) — built from growthSummary.
+  const momentumLines: string[] = []
+  if (g.atRecord && g.recordActive > 0) {
+    momentumLines.push(`🏆 Record ${g.recordActive} active members`)
+  }
+  if (g.bestRecruitmentQuarter) {
+    momentumLines.push(`Best recruitment quarter: ${g.bestRecruitmentQuarter} (+${g.bestRecruitmentNew})`)
+  }
+  if (g.consecutiveGrowthQuarters >= 2) {
+    momentumLines.push(`${g.consecutiveGrowthQuarters} consecutive quarters of growth`)
+  }
+
+  const netGrowthTone: 'good' | 'muted' = (g.latestNetGrowthPct ?? 0) > 0 ? 'good' : 'muted'
+
   return (
-    <div className="max-w-4xl mx-auto px-4 md:px-6 py-8">
+    <div className="max-w-5xl mx-auto px-4 md:px-6 py-8">
       <PageHeader
         back={{ href: '/members/admin', label: 'Admin' }}
         eyebrow="🛡️ Board"
@@ -47,61 +79,75 @@ export default async function MembershipReportsPage() {
         lead="Membership health computed from the club's own records — the same metrics as the roster workbook, always current. Board-only."
       />
 
-      {/* KPIs */}
-      <div className="grid gap-4 sm:grid-cols-3">
-        <InfoCard title="Members" icon="🧑‍🤝‍🧑">
-          <Row label="Active" value={String(k.activeMembers)} />
-          <Row label="Lapsed (all-time)" value={String(k.lapsedAllTime)} />
-          <Row label="Total (ever)" value={String(k.totalEver)} />
-        </InfoCard>
-        <InfoCard title="Retention" icon="📈">
-          <Row label="Retention rate" value={fmtPct(k.retentionPct)} />
-          <Row label="Overall turnover" value={fmtPct(k.overallTurnoverPct)} />
-          <Row label="Rolling 12-mo turnover" value={fmtPct(k.rolling12moTurnoverPct)} />
-        </InfoCard>
-        <InfoCard title="Growth & tenure" icon="🌱">
-          <Row label="New (last 12 mo)" value={String(k.newLast12mo)} />
-          <Row label="New (this year)" value={String(k.newThisYear)} />
-          <Row label="Avg tenure" value={`${k.avgTenureMonths} mo (${k.avgTenureYears} yr)`} />
-        </InfoCard>
-        <InfoCard title="Renewals" icon="⏰">
-          <Row label="Expiring (next 30 days)" value={String(k.expiringNext30)} />
-          <Row label="Lapsed (last 12 mo)" value={String(k.lapsedLast12mo)} />
-          <Row label="Avg tenure at lapse" value={`${k.avgTenureAtLapseMonths} mo`} />
-        </InfoCard>
-        <InfoCard title="Longest-tenured" icon="🏅">
-          <Row label="Member" value={k.longestTenuredMember ?? '—'} />
-        </InfoCard>
+      {/* Zone 1: KPI tiles — positive-first framing. */}
+      <div className="grid gap-4 sm:grid-cols-4">
+        <KpiTile
+          label="Active members"
+          value={String(k.activeMembers)}
+          delta={g.latestNetGrowthPct != null ? `${g.latestNetGrowthPct > 0 ? '↑' : g.latestNetGrowthPct < 0 ? '↓' : '→'} ${Math.abs(g.latestNetGrowthPct)}% vs last quarter` : undefined}
+          tone={g.latestNetGrowthPct != null && g.latestNetGrowthPct > 0 ? 'good' : 'neutral'}
+        />
+        <KpiTile
+          label="Net growth (latest qtr)"
+          value={fmtPct(g.latestNetGrowthPct)}
+          tone={netGrowthTone}
+        />
+        <KpiTile label="New (12 mo)" value={String(k.newLast12mo)} />
+        <KpiTile label="Retention" value={fmtPct(k.retentionPct)} />
       </div>
 
-      {/* Trends (per quarter) */}
-      <SectionLabel icon="📊">Trends by quarter</SectionLabel>
-      {r.trends.length === 0 ? (
-        <EmptyState icon="📊">No quarterly data yet.</EmptyState>
+      {momentumLines.length > 0 && (
+        <div
+          className="mt-4 rounded-xl border px-4 py-3 flex flex-col gap-1"
+          style={{ borderColor: 'color-mix(in srgb, #0ca30c 30%, #2c2c2c)', background: 'color-mix(in srgb, #0ca30c 8%, transparent)' }}
+        >
+          {momentumLines.map((line) => (
+            <p key={line} className="text-sm text-foreground/85">{line}</p>
+          ))}
+        </div>
+      )}
+
+      {/* Secondary row — turnover/lapsed, muted, shown but not led with. */}
+      <div className="mt-4 grid gap-3 sm:grid-cols-4">
+        <SecondaryTile label="Turnover (overall)" value={fmtPct(k.overallTurnoverPct)} />
+        <SecondaryTile label="Turnover (rolling 12mo)" value={fmtPct(k.rolling12moTurnoverPct)} />
+        <SecondaryTile label="Lapsed (12 mo)" value={String(k.lapsedLast12mo)} />
+        <SecondaryTile label="Expiring (60d)" value={String(r.expiringSoon.length)} />
+      </div>
+
+      {/* Zone 2: comparison chart — the centerpiece. */}
+      <SectionLabel icon="📊">Trends comparison (quarterly)</SectionLabel>
+      <TrendsCompareChart trends={r.trends} revenue={r.revenue} />
+
+      {/* Zone 3: composition row. */}
+      <SectionLabel icon="🎟️">Composition</SectionLabel>
+      <div className="grid gap-4 md:grid-cols-2">
+        <TierDonut tierMix={r.tierMix} />
+        <SeasonalityBars seasonality={r.seasonality} />
+      </div>
+
+      {/* Zone 4: dense tables — cohort retention + revenue. */}
+      <SectionLabel icon="👥">Cohort retention (by join quarter)</SectionLabel>
+      {r.cohorts.length === 0 ? (
+        <EmptyState icon="👥">No cohort data yet.</EmptyState>
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full text-sm tabular-nums">
             <thead className="text-foreground/50 text-left">
               <tr>
-                <th className="py-1 pr-3 font-medium">Quarter</th>
-                <th className="py-1 px-2 font-medium text-right">New</th>
-                <th className="py-1 px-2 font-medium text-right">Churn</th>
-                <th className="py-1 px-2 font-medium text-right">Active</th>
-                <th className="py-1 px-2 font-medium text-right">Turnover</th>
+                <th className="py-1 pr-3 font-medium">Cohort</th>
+                <th className="py-1 px-2 font-medium text-right">Joined</th>
+                <th className="py-1 px-2 font-medium text-right">Still active</th>
                 <th className="py-1 px-2 font-medium text-right">Retention</th>
-                <th className="py-1 px-2 font-medium text-right">Net growth</th>
               </tr>
             </thead>
             <tbody>
-              {r.trends.map((t) => (
-                <tr key={t.quarter} className="border-t" style={{ borderColor: '#242424' }}>
-                  <td className="py-1 pr-3">{t.quarter}</td>
-                  <td className="py-1 px-2 text-right">{t.new}</td>
-                  <td className="py-1 px-2 text-right">{t.churn}</td>
-                  <td className="py-1 px-2 text-right">{t.activeEOQ}</td>
-                  <td className="py-1 px-2 text-right">{fmtPct(t.turnoverPct)}</td>
-                  <td className="py-1 px-2 text-right">{fmtPct(t.retentionPct)}</td>
-                  <td className="py-1 px-2 text-right">{t.netGrowthPct == null ? '—' : `${t.netGrowthPct}%`}</td>
+              {r.cohorts.map((c) => (
+                <tr key={c.cohort} className="border-t" style={{ borderColor: '#242424' }}>
+                  <td className="py-1 pr-3">{c.cohort}</td>
+                  <td className="py-1 px-2 text-right">{c.joined}</td>
+                  <td className="py-1 px-2 text-right">{c.stillActive}</td>
+                  <td className="py-1 px-2 text-right">{fmtPct(c.retentionPct)}</td>
                 </tr>
               ))}
             </tbody>
@@ -109,75 +155,88 @@ export default async function MembershipReportsPage() {
         </div>
       )}
 
-      {/* Tier mix */}
-      <SectionLabel icon="🎟️">Tier mix</SectionLabel>
-      <div className="grid gap-2 sm:grid-cols-2">
-        {r.tierMix.map((t) => (
-          <div key={t.tier} className="flex justify-between text-sm rounded-lg border px-3 py-2" style={{ borderColor: '#242424' }}>
-            <span className="text-foreground/60">{t.tier}</span>
-            <span className="tabular-nums">{t.count}</span>
-          </div>
-        ))}
-      </div>
-
-      {/* Seasonality */}
-      <SectionLabel icon="🗓️">Joins by month (all-time)</SectionLabel>
-      <div className="space-y-1.5">
-        {r.seasonality.map((s) => (
-          <Bar key={s.month} label={s.month} value={s.joins} max={seasonMax} hint={`${s.joins} joins in ${s.month}`} />
-        ))}
-      </div>
-
-      {/* Cohort retention */}
-      <SectionLabel icon="👥">Cohort retention (by join quarter)</SectionLabel>
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm tabular-nums">
-          <thead className="text-foreground/50 text-left">
-            <tr>
-              <th className="py-1 pr-3 font-medium">Cohort</th>
-              <th className="py-1 px-2 font-medium text-right">Joined</th>
-              <th className="py-1 px-2 font-medium text-right">Still active</th>
-              <th className="py-1 px-2 font-medium text-right">Retention</th>
-            </tr>
-          </thead>
-          <tbody>
-            {r.cohorts.map((c) => (
-              <tr key={c.cohort} className="border-t" style={{ borderColor: '#242424' }}>
-                <td className="py-1 pr-3">{c.cohort}</td>
-                <td className="py-1 px-2 text-right">{c.joined}</td>
-                <td className="py-1 px-2 text-right">{c.stillActive}</td>
-                <td className="py-1 px-2 text-right">{fmtPct(c.retentionPct)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-
-      {/* Revenue */}
       <SectionLabel icon="💵">Revenue by quarter</SectionLabel>
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm tabular-nums">
-          <thead className="text-foreground/50 text-left">
-            <tr>
-              <th className="py-1 pr-3 font-medium">Quarter</th>
-              <th className="py-1 px-2 font-medium text-right">Net dues</th>
-              <th className="py-1 px-2 font-medium text-right">Payments</th>
-              <th className="py-1 px-2 font-medium text-right">New</th>
-              <th className="py-1 px-2 font-medium text-right">Renewals</th>
-            </tr>
-          </thead>
-          <tbody>
-            {r.revenue.map((rev) => (
-              <tr key={rev.quarter} className="border-t" style={{ borderColor: '#242424' }}>
-                <td className="py-1 pr-3">{rev.quarter}</td>
-                <td className="py-1 px-2 text-right">{fmtUsd(rev.netDues)}</td>
-                <td className="py-1 px-2 text-right">{rev.duesPayments}</td>
-                <td className="py-1 px-2 text-right">{rev.newMembers}</td>
-                <td className="py-1 px-2 text-right">{rev.renewals}</td>
+      {r.revenue.length === 0 ? (
+        <EmptyState icon="💵">No revenue data yet.</EmptyState>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm tabular-nums">
+            <thead className="text-foreground/50 text-left">
+              <tr>
+                <th className="py-1 pr-3 font-medium">Quarter</th>
+                <th className="py-1 px-2 font-medium text-right">Net dues</th>
+                <th className="py-1 px-2 font-medium text-right">Payments</th>
+                <th className="py-1 px-2 font-medium text-right">New</th>
+                <th className="py-1 px-2 font-medium text-right">Renewals</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {r.revenue.map((rev) => (
+                <tr key={rev.quarter} className="border-t" style={{ borderColor: '#242424' }}>
+                  <td className="py-1 pr-3">{rev.quarter}</td>
+                  <td className="py-1 px-2 text-right">{fmtUsd(rev.netDues)}</td>
+                  <td className="py-1 px-2 text-right">{rev.duesPayments}</td>
+                  <td className="py-1 px-2 text-right">{rev.newMembers}</td>
+                  <td className="py-1 px-2 text-right">{rev.renewals}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* Zone 5: tenure top-5, expiring-soon callout, payment mix. */}
+      <SectionLabel icon="🏅">Tenure, renewals & payments</SectionLabel>
+      <div className="grid gap-4 md:grid-cols-3">
+        <InfoCard title="Top 5 tenure" icon="🏅">
+          {r.tenureTop5.length === 0 ? (
+            <p className="text-sm text-foreground/40">No current members with a join date.</p>
+          ) : (
+            r.tenureTop5.map((t, i) => (
+              <Row key={t.name + t.joinDate} label={`${i + 1}. ${t.name}`} value={`${t.tenureMonths} mo`} />
+            ))
+          )}
+        </InfoCard>
+
+        {/* Expiring-soon — highlighted actionable callout card. */}
+        <div
+          className="rounded-2xl border p-5 md:p-6"
+          style={{
+            borderColor: r.expiringSoon.length > 0 ? 'color-mix(in srgb, #eda100 35%, #2c2c2c)' : '#2c2c2c',
+            background: r.expiringSoon.length > 0 ? 'color-mix(in srgb, #eda100 6%, #1c1c1c)' : 'linear-gradient(#1c1c1c,#161616)',
+          }}
+        >
+          <p className="text-accent font-semibold tracking-widest uppercase text-[11px] mb-4 flex items-center gap-2">
+            <span aria-hidden>⏰</span> Expiring soon (60 days)
+          </p>
+          {r.expiringSoon.length === 0 ? (
+            <p className="text-sm text-foreground/40">Nothing expiring in the next 60 days.</p>
+          ) : (
+            <ul className="space-y-2">
+              {r.expiringSoon.map((e) => (
+                <li key={e.name + e.expires} className="flex justify-between gap-3 text-sm">
+                  <span className="text-foreground/80">{e.name}</span>
+                  <span className="text-foreground/50 text-right tabular-nums">
+                    {e.expires} · {e.daysLeft}d
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+
+        <InfoCard title="Payment mix" icon="💳">
+          {r.paymentMix.bySource.length === 0 ? (
+            <p className="text-sm text-foreground/40">No payment records yet.</p>
+          ) : (
+            <>
+              {r.paymentMix.bySource.map((s) => (
+                <Row key={s.source} label={s.source} value={`${s.count} · ${fmtUsd(s.total)}`} />
+              ))}
+              <Row label="Avg dues / payment" value={fmtUsd(r.paymentMix.avgDues)} />
+            </>
+          )}
+        </InfoCard>
       </div>
 
       <p className="mt-8 text-[11px] text-foreground/40">

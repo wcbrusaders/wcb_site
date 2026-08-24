@@ -17,6 +17,16 @@ import {
   type CohortRow,
 } from './composition'
 import { computeRevenue, type RevenueRow } from './revenue'
+import {
+  computeTenureLeaderboard,
+  computeExpiringSoon,
+  computePaymentMix,
+  computeGrowthSummary,
+  type TenureLeaderboardRow,
+  type ExpiringSoonRow,
+  type PaymentMix,
+  type GrowthSummary,
+} from './lists'
 import type { Kpis, MemberLite, PaymentLite } from './types'
 
 export type MembershipReports = {
@@ -26,6 +36,10 @@ export type MembershipReports = {
   seasonality: SeasonalityRow[]
   cohorts: CohortRow[]
   revenue: RevenueRow[]
+  tenureTop5: TenureLeaderboardRow[]
+  expiringSoon: ExpiringSoonRow[]
+  paymentMix: PaymentMix
+  growthSummary: GrowthSummary
   generatedAt: string // ISO — when this snapshot was computed
 }
 
@@ -40,13 +54,18 @@ export function computeMembershipReports(
   opts: { now: Date },
 ): MembershipReports {
   const { now } = opts
+  const trends = computeTrends(members, { now })
   return {
     kpis: computeKpis(members, { now }),
-    trends: computeTrends(members, { now }),
+    trends,
     tierMix: computeTierMix(members),
     seasonality: computeSeasonality(members),
     cohorts: computeCohortRetention(members),
     revenue: computeRevenue(members, payments, { now }),
+    tenureTop5: computeTenureLeaderboard(members, { now }, 5),
+    expiringSoon: computeExpiringSoon(members, { now, windowDays: 60 }),
+    paymentMix: computePaymentMix(payments),
+    growthSummary: computeGrowthSummary(trends),
     generatedAt: now.toISOString(),
   }
 }

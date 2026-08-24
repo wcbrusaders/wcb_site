@@ -14,7 +14,7 @@ const payments: PaymentLite[] = [
   { date: new Date('2024-02-11'), netDues: 65, source: 'PayPal' },
 ]
 
-test('computeMembershipReports returns all six report sections + generatedAt', () => {
+test('computeMembershipReports returns all report sections + generatedAt', () => {
   const r = computeMembershipReports(members, payments, { now: NOW })
   // every section present and the right shape
   expect(r.kpis.activeMembers).toBe(2) // Alice + Bob current
@@ -25,6 +25,24 @@ test('computeMembershipReports returns all six report sections + generatedAt', (
   expect(Array.isArray(r.cohorts)).toBe(true)
   expect(Array.isArray(r.revenue)).toBe(true)
   expect(r.generatedAt).toBe(NOW.toISOString())
+
+  // Task 2: tenureTop5 — current members with joinDate, earliest first (Bob then Alice; Carol excluded, lapsed)
+  expect(r.tenureTop5.map((t) => t.name)).toEqual(['Bob', 'Alice'])
+
+  // expiringSoon (60d window from NOW=2026-08-24): none of the fixtures fall in [now, now+60d]
+  expect(r.expiringSoon).toEqual([])
+
+  // paymentMix: one Stripe (30) + one PayPal (65)
+  expect(r.paymentMix.totalPayments).toBe(2)
+  expect(r.paymentMix.bySource).toEqual(
+    expect.arrayContaining([
+      { source: 'Stripe', count: 1, total: 30 },
+      { source: 'PayPal', count: 1, total: 65 },
+    ])
+  )
+
+  // growthSummary derives from the same trends the report already computed
+  expect(r.growthSummary.currentActive).toBe(r.trends[r.trends.length - 1].activeEOQ)
 })
 
 test('getMembershipReports fetches via injected db then computes', async () => {
