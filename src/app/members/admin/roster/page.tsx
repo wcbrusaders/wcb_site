@@ -26,9 +26,11 @@ export default async function AdminRosterPage() {
   }
 
   const members = rows.map((m) => ({
-    id: idByEmail.get(m.emailAddress) ?? m.emailAddress,
+    id: (m.emailAddress ? idByEmail.get(m.emailAddress) : undefined) ?? m.emailAddress ?? m.name ?? '(unknown)',
     name: m.name ?? '(no name)',
-    email: m.emailAddress,
+    // Honorary members may have no email (see roster.ts mapSheetRow). Admin UI
+    // still expects a string here; empty string signals "no email" to the UI.
+    email: m.emailAddress ?? '',
     googleEmail: m.googleEmail,
     tier: m.tier,
     current: m.current,

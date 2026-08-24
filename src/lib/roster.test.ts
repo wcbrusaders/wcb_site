@@ -27,8 +27,29 @@ test('mapSheetRow marks non-current member', () => {
   expect(mapSheetRow(HEADERS, row)!.current).toBe(false)
 })
 
-test('mapSheetRow returns null when no email', () => {
+// This fixture has a NAME ('NoEmail') with a blank Email Address cell — it is
+// a named member row, not a blank spacer. Previously mapSheetRow dropped ANY
+// blank-email row (the bug this task fixes: email-less honorary members were
+// silently discarded). It must now return a record with a null email rather
+// than null itself. (Tier here is 'Full', not 'Honorary', so membershipState
+// is 'active' per the current-tab default — see the dedicated honorary test
+// below for the Honorary-tier case.)
+test('mapSheetRow keeps a named member with a blank email (does not drop them)', () => {
   const row = ['NoEmail','Full','','','TRUE','','','No']
+  const m = mapSheetRow(HEADERS, row)
+  expect(m).not.toBeNull()
+  expect(m!.emailAddress).toBeNull()
+  expect(m!.name).toBe('NoEmail')
+  expect(m!.membershipState).toBe('active')
+})
+
+// TRUE spacer row: no name AND no email. This is the only case that should
+// still return null (preserves fetchAllRosterRows()'s filter(m => m !== null)
+// behavior for genuinely blank rows; see setRosterField's raw-row-scan comment
+// for why compaction of the *filtered* array must never affect physical-row
+// math — that logic never runs mapSheetRow at all, so it is unaffected here).
+test('mapSheetRow returns null for a blank spacer row (no name and no email)', () => {
+  const row = ['','Full','','','TRUE','','','No']
   expect(mapSheetRow(HEADERS, row)).toBeNull()
 })
 
@@ -37,11 +58,66 @@ test('mapSheetRow parses board member true', () => {
   expect(mapSheetRow(HEADERS, row)!.isBoard).toBe(true)
 })
 
+// current tab (default): membershipState derives from Tier / Current column.
+
+test('mapSheetRow: current tab, normal member -> membershipState active, current from column', () => {
+  const row = ['Jane Doe','Full','jane@x.com','2027-01-01','TRUE','','','No']
+  const m = mapSheetRow(HEADERS, row, { tab: 'current' })!
+  expect(m.membershipState).toBe('active')
+  expect(m.current).toBe(true)
+})
+
+test('mapSheetRow: current tab, Honorary tier + no email -> membershipState honorary, emailAddress null, not dropped', () => {
+  const row = ['Cat Pearce','Honorary','','','TRUE','','','No']
+  const m = mapSheetRow(HEADERS, row, { tab: 'current' })
+  expect(m).not.toBeNull()
+  expect(m!.membershipState).toBe('honorary')
+  expect(m!.emailAddress).toBeNull()
+  expect(m!.name).toBe('Cat Pearce')
+})
+
+test('mapSheetRow: Honorary tier match is case-insensitive', () => {
+  const row = ['Cat Pearce','honorary','','','TRUE','','','No']
+  const m = mapSheetRow(HEADERS, row, { tab: 'current' })!
+  expect(m.membershipState).toBe('honorary')
+})
+
+// lapsed tab: header is "Current?" (with a question mark) on the real sheet,
+// which a `cell(...,'Current')` lookup misses entirely. The lapsed tab must
+// NOT rely on that column at all — it forces current=false and
+// membershipState='lapsed' regardless of what the sheet says.
+
+const LAPSED_HEADERS = ['Name','Tier','Email Address','Expires','Current?','Google Email','Partner Email','Board Member']
+
+test('mapSheetRow: lapsed tab forces current=false and membershipState=lapsed even if Current?=TRUE', () => {
+  const row = ['Old Member','Full','old@x.com','2020-01-01','TRUE','','','No']
+  const m = mapSheetRow(LAPSED_HEADERS, row, { tab: 'lapsed' })!
+  expect(m.membershipState).toBe('lapsed')
+  expect(m.current).toBe(false)
+  expect(m.emailAddress).toBe('old@x.com')
+})
+
+test('mapSheetRow: lapsed tab, email-less honorary-style row is not dropped either', () => {
+  const row = ['Old Honorary','Honorary','','2020-01-01','TRUE','','','No']
+  const m = mapSheetRow(LAPSED_HEADERS, row, { tab: 'lapsed' })
+  expect(m).not.toBeNull()
+  expect(m!.membershipState).toBe('lapsed')
+  expect(m!.current).toBe(false)
+  expect(m!.emailAddress).toBeNull()
+})
+
+test('mapSheetRow: default tab (no opts) behaves like "current" for back-compat', () => {
+  const row = ['Jane Doe','Full','jane@x.com','2027-01-01','TRUE','','','No']
+  const m = mapSheetRow(HEADERS, row)!
+  expect(m.membershipState).toBe('active')
+  expect(m.current).toBe(true)
+})
+
 test('syncRoster upserts fetched rows and deactivates absent members', async () => {
   const { syncRoster } = await import('./roster')
   const fetched = [
-    { emailAddress: 'a@x.com', googleEmail: null, name: 'A', tier: null, current: true, isBoard: false, role: null, partnerEmail: null, expires: null, joinDate: null, paymentDate: null, referredBy: null },
-    { emailAddress: 'b@x.com', googleEmail: null, name: 'B', tier: null, current: false, isBoard: false, role: null, partnerEmail: null, expires: null, joinDate: null, paymentDate: null, referredBy: null },
+    { emailAddress: 'a@x.com', googleEmail: null, name: 'A', tier: null, current: true, isBoard: false, role: null, partnerEmail: null, expires: null, joinDate: null, paymentDate: null, referredBy: null, membershipState: 'active' },
+    { emailAddress: 'b@x.com', googleEmail: null, name: 'B', tier: null, current: false, isBoard: false, role: null, partnerEmail: null, expires: null, joinDate: null, paymentDate: null, referredBy: null, membershipState: 'active' },
   ]
   const upserts: string[] = []
   let updateManyWhereIn: string[] = []
@@ -72,8 +148,8 @@ test('syncRoster upserts fetched rows and deactivates absent members', async () 
 test('syncRoster does not call updateMany when no absent members', async () => {
   const { syncRoster } = await import('./roster')
   const fetched = [
-    { emailAddress: 'a@x.com', googleEmail: null, name: 'A', tier: null, current: true, isBoard: false, role: null, partnerEmail: null, expires: null, joinDate: null, paymentDate: null, referredBy: null },
-    { emailAddress: 'b@x.com', googleEmail: null, name: 'B', tier: null, current: false, isBoard: false, role: null, partnerEmail: null, expires: null, joinDate: null, paymentDate: null, referredBy: null },
+    { emailAddress: 'a@x.com', googleEmail: null, name: 'A', tier: null, current: true, isBoard: false, role: null, partnerEmail: null, expires: null, joinDate: null, paymentDate: null, referredBy: null, membershipState: 'active' },
+    { emailAddress: 'b@x.com', googleEmail: null, name: 'B', tier: null, current: false, isBoard: false, role: null, partnerEmail: null, expires: null, joinDate: null, paymentDate: null, referredBy: null, membershipState: 'active' },
   ]
   const upserts: string[] = []
   let updateManyWasCalled = false
@@ -99,7 +175,7 @@ test('syncRoster does not call updateMany when no absent members', async () => {
 
 // isCurrentMember tests
 
-const M = (over = {}) => ({ emailAddress: 'a@x.com', googleEmail: null, name: 'A', tier: null, current: true, isBoard: false, role: null, partnerEmail: null, expires: null, joinDate: null, paymentDate: null, referredBy: null, ...over })
+const M = (over = {}) => ({ emailAddress: 'a@x.com', googleEmail: null, name: 'A', tier: null, current: true, isBoard: false, role: null, partnerEmail: null, expires: null, joinDate: null, paymentDate: null, referredBy: null, membershipState: 'active', ...over })
 
 function fakeDb(row: any, honorsWhere = false) {
   return { member: {
@@ -227,8 +303,8 @@ test('syncRoster sets resourceAccess from group membership', async () => {
     updateMany: async () => ({ count: 0 }),
   } } as any
   const rows = [
-    { emailAddress:'in@x.com', googleEmail:null, name:'A', tier:null, current:true, isBoard:false, role:null, partnerEmail:null, expires:null, joinDate:null, paymentDate:null, referredBy:null },
-    { emailAddress:'out@x.com', googleEmail:null, name:'B', tier:null, current:true, isBoard:false, role:null, partnerEmail:null, expires:null, joinDate:null, paymentDate:null, referredBy:null },
+    { emailAddress:'in@x.com', googleEmail:null, name:'A', tier:null, current:true, isBoard:false, role:null, partnerEmail:null, expires:null, joinDate:null, paymentDate:null, referredBy:null, membershipState:'active' },
+    { emailAddress:'out@x.com', googleEmail:null, name:'B', tier:null, current:true, isBoard:false, role:null, partnerEmail:null, expires:null, joinDate:null, paymentDate:null, referredBy:null, membershipState:'active' },
   ]
   await syncRoster({ db, fetchAll: async () => rows, fetchGroupMembers: async () => new Set(['in@x.com']) })
   const inU = upserts.find(u => u.where.emailAddress === 'in@x.com')
@@ -244,7 +320,7 @@ test('syncRoster is fail-soft when the group read throws (resourceAccess untouch
     findMany: async () => [],
     updateMany: async () => ({ count: 0 }),
   } } as any
-  const rows = [{ emailAddress:'a@x.com', googleEmail:null, name:'A', tier:null, current:true, isBoard:false, role:null, partnerEmail:null, expires:null, joinDate:null, paymentDate:null, referredBy:null }]
+  const rows = [{ emailAddress:'a@x.com', googleEmail:null, name:'A', tier:null, current:true, isBoard:false, role:null, partnerEmail:null, expires:null, joinDate:null, paymentDate:null, referredBy:null, membershipState:'active' }]
   const r = await syncRoster({ db, fetchAll: async () => rows, fetchGroupMembers: async () => { throw new Error('directory down') } })
   expect(r.synced).toBe(1)                                  // sheet sync still completed
   expect('resourceAccess' in upserts[0].update).toBe(false) // omitted -> left unchanged
