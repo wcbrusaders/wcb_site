@@ -134,6 +134,78 @@ export async function fetchAllRosterRows(): Promise<MemberRecord[]> {
     .filter((m): m is MemberRecord => m !== null)
 }
 
+async function realGetTab(tabName: string): Promise<string[][]> {
+  if (!SHEET_ID) throw new Error('MEMBER_ROSTER_SHEET_ID not set')
+  const sheets = sheetsClient()
+  const res = await sheets.spreadsheets.values.get({
+    spreadsheetId: SHEET_ID,
+    range: tabName,
+  })
+  return (res.data.values ?? []).map((r) => r.map((c) => String(c ?? '')))
+}
+
+type FetchAllMembersDeps = {
+  getTab?: (tabName: string) => Promise<string[][]>
+}
+
+const LAPSED_TAB = 'Lapsed Members'
+
+// Reads BOTH the current-members tab (Sheet1) and the Lapsed Members tab and
+// concatenates them, tagging each with the right `tab` so mapSheetRow derives
+// current/membershipState correctly (current -> active/honorary per Tier,
+// lapsed -> current=false/membershipState='lapsed' regardless of the sheet's
+// own 'Current?' column). Unlike fetchAllRosterRows, this is the fn T4's sync
+// should use — fetchAllRosterRows stays current-only for its existing callers.
+export async function fetchAllMembers(deps: FetchAllMembersDeps = {}): Promise<MemberRecord[]> {
+  const getTab = deps.getTab ?? realGetTab
+
+  async function readTab(tabName: string, tab: 'current' | 'lapsed'): Promise<MemberRecord[]> {
+    const values = await getTab(tabName)
+    if (values.length < 2) return []
+    const headers = values[0].map((h) => String(h).trim())
+    return values.slice(1)
+      .map((r) => mapSheetRow(headers, r.map((c) => String(c ?? '')), { tab }))
+      .filter((m): m is MemberRecord => m !== null)
+  }
+
+  const [current, lapsed] = await Promise.all([
+    readTab(TAB, 'current'),
+    readTab(LAPSED_TAB, 'lapsed'),
+  ])
+  return [...current, ...lapsed]
+}
+
+export type PaymentRecord = { date: Date; netDues: number; source: string }
+
+type FetchPaymentsDeps = {
+  getTab?: (tabName: string) => Promise<string[][]>
+}
+
+const PAYMENTS_TAB = 'Payments'
+
+// Reads the Payments tab (headers: Date, Net Dues, Source). Skips the header
+// row plus any row whose date or amount doesn't parse (including fully blank
+// rows, which fail the date parse).
+export async function fetchPayments(deps: FetchPaymentsDeps = {}): Promise<PaymentRecord[]> {
+  const getTab = deps.getTab ?? realGetTab
+  const values = await getTab(PAYMENTS_TAB)
+  if (values.length < 2) return []
+  const headers = values[0].map((h) => String(h).trim())
+  const out: PaymentRecord[] = []
+  for (const raw of values.slice(1)) {
+    const row = raw.map((c) => String(c ?? ''))
+    const dateStr = cell(headers, row, 'Date')
+    const netDuesStr = cell(headers, row, 'Net Dues')
+    const source = cell(headers, row, 'Source')
+    const date = parseDate(dateStr)
+    if (!date) continue
+    const netDues = parseFloat(netDuesStr)
+    if (isNaN(netDues)) continue
+    out.push({ date, netDues, source })
+  }
+  return out
+}
+
 export async function fetchRosterRowByEmail(email: string): Promise<MemberRecord | null> {
   const target = normalizeEmail(email)
   const rows = await fetchAllRosterRows()

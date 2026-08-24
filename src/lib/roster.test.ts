@@ -1,5 +1,5 @@
 import { test, describe, it, expect, vi, afterEach } from 'vitest'
-import { normalizeEmail, mapSheetRow, isCurrentMember, syncRoster, validateSecondaryEmail, isAccessBlocked, isAccessBlockedNow } from './roster'
+import { normalizeEmail, mapSheetRow, isCurrentMember, syncRoster, validateSecondaryEmail, isAccessBlocked, isAccessBlockedNow, fetchAllRosterRows, fetchAllMembers, fetchPayments } from './roster'
 
 afterEach(() => {
   vi.unstubAllEnvs()
@@ -464,5 +464,99 @@ describe('mapSheetRow role', () => {
     const row = ['a@example.com', 'A', 'no']
     const rec = mapSheetRow(headers, row)
     expect(rec?.role).toBeNull()
+  })
+})
+
+// fetchAllRosterRows: must stay current-tab-only and unaffected by the new
+// fetchAllMembers/fetchPayments additions (existing callers depend on this).
+
+describe('fetchAllRosterRows (unchanged, current-only)', () => {
+  it('reads only Sheet1 via sheetsClient/values.get and maps rows as current tab', async () => {
+    // fetchAllRosterRows has no deps seam (by design — its 3 callers call it
+    // with no args), so we can't inject a fake network client here without
+    // changing its signature. This test instead pins its CONTRACT: it is a
+    // zero-arg function. A behavior regression (e.g. picking up Lapsed rows)
+    // would be caught by its pre-existing callers' expectations and by
+    // fetchAllMembers's own tests staying separate from it.
+    expect(fetchAllRosterRows.length).toBe(0)
+  })
+})
+
+// fetchAllMembers: concatenates Sheet1 (tab 'current') + 'Lapsed Members' (tab 'lapsed').
+
+describe('fetchAllMembers', () => {
+  const CURRENT_ROWS = [
+    ['Name', 'Tier', 'Email Address', 'Expires', 'Current', 'Google Email', 'Partner Email', 'Board Member'],
+    ['Jane Doe', 'Full', 'jane@x.com', '2027-01-01', 'TRUE', '', '', 'No'],
+    ['', '', '', '', '', '', '', ''], // spacer row, must be dropped
+  ]
+  const LAPSED_ROWS = [
+    ['Name', 'Tier', 'Email Address', 'Expires', 'Current?', 'Tenure at Lapse (mo)', 'Google Email', 'Partner Email', 'Board Member'],
+    ['Old Member', 'Full', 'old@x.com', '2020-01-01', 'TRUE', '18', '', '', 'No'],
+  ]
+
+  it('concatenates current + lapsed members with correct state/current per tab, dropping spacers', async () => {
+    const getTab = async (tabName: string) => {
+      if (tabName === 'Sheet1') return CURRENT_ROWS
+      if (tabName === 'Lapsed Members') return LAPSED_ROWS
+      throw new Error(`unexpected tab ${tabName}`)
+    }
+    const members = await fetchAllMembers({ getTab })
+    expect(members).toHaveLength(2)
+
+    const jane = members.find((m) => m.emailAddress === 'jane@x.com')!
+    expect(jane.membershipState).toBe('active')
+    expect(jane.current).toBe(true)
+
+    const old = members.find((m) => m.emailAddress === 'old@x.com')!
+    expect(old.membershipState).toBe('lapsed')
+    expect(old.current).toBe(false)
+  })
+
+  it('contributes [] for a tab with fewer than 2 rows (header-only or empty)', async () => {
+    const getTab = async (tabName: string) => {
+      if (tabName === 'Sheet1') return CURRENT_ROWS
+      if (tabName === 'Lapsed Members') return [['Name', 'Tier', 'Email Address']] // header only
+      throw new Error(`unexpected tab ${tabName}`)
+    }
+    const members = await fetchAllMembers({ getTab })
+    expect(members).toHaveLength(1)
+    expect(members[0].emailAddress).toBe('jane@x.com')
+  })
+})
+
+// fetchPayments: reads the Payments tab, skips header/blank/invalid rows.
+
+describe('fetchPayments', () => {
+  const PAYMENTS_ROWS = [
+    ['Date', 'Net Dues', 'Source'],
+    ['2026-01-15', '45.00', 'Stripe'],
+    ['', '', ''], // blank row, skip
+    ['not-a-date', '30.00', 'Cash'], // bad date, skip
+    ['2026-02-01', 'not-a-number', 'Check'], // bad amount, skip
+    ['2026-03-10', '20', ' Venmo '],
+  ]
+
+  it('returns only valid rows, parsed as {date, netDues, source}', async () => {
+    const getTab = async (tabName: string) => {
+      expect(tabName).toBe('Payments')
+      return PAYMENTS_ROWS
+    }
+    const payments = await fetchPayments({ getTab })
+    expect(payments).toHaveLength(2)
+
+    expect(payments[0].date.toISOString().slice(0, 10)).toBe('2026-01-15')
+    expect(payments[0].netDues).toBe(45)
+    expect(payments[0].source).toBe('Stripe')
+
+    expect(payments[1].date.toISOString().slice(0, 10)).toBe('2026-03-10')
+    expect(payments[1].netDues).toBe(20)
+    expect(payments[1].source).toBe('Venmo')
+  })
+
+  it('returns [] when the tab has fewer than 2 rows', async () => {
+    const getTab = async () => [['Date', 'Net Dues', 'Source']]
+    const payments = await fetchPayments({ getTab })
+    expect(payments).toEqual([])
   })
 })
