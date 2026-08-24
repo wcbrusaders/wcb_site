@@ -6,6 +6,7 @@ import { InfoCard, Row } from '@/components/members/InfoCard'
 import { TrendsCompareChart } from '@/components/members/reports/TrendsCompareChart'
 import { TierDonut } from '@/components/members/reports/TierDonut'
 import { SeasonalityBars } from '@/components/members/reports/SeasonalityBars'
+import { MembershipInsights } from '@/components/members/MembershipInsights'
 
 export const dynamic = 'force-dynamic'
 
@@ -238,6 +239,10 @@ export default async function MembershipReportsPage() {
           )}
         </InfoCard>
       </div>
+
+      {/* Zone 6: on-demand AI analysis over the metrics above. */}
+      <SectionLabel icon="✨">AI insights</SectionLabel>
+      <MembershipInsights />
 
       <p className="mt-8 text-[11px] text-foreground/40">
         Computed from the club roster + payment records. Generated {generated}. Events income isn&apos;t tracked yet (shown as $0 in totals).
