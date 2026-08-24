@@ -113,10 +113,12 @@ export interface GenerateInsightsDeps {
  * response) returns a friendly string rather than throwing — this is an
  * on-demand nice-to-have, never something that should crash the reports page.
  */
+export type InsightsResult = { ok: true; text: string } | { ok: false; error: string }
+
 export async function generateInsights(
   reports: MembershipReports,
   deps: GenerateInsightsDeps = {}
-): Promise<string> {
+): Promise<InsightsResult> {
   try {
     const client = deps.client ?? new Anthropic()
     const user = buildInsightsPrompt(reports)
@@ -137,8 +139,11 @@ export async function generateInsights(
       .join('\n')
       .trim()
 
-    return text || FRIENDLY_ERROR
+    // Empty response is still a failure the UI should flag, not present as an insight.
+    if (!text) return { ok: false, error: FRIENDLY_ERROR }
+    return { ok: true, text }
   } catch {
-    return FRIENDLY_ERROR
+    // Fail-soft: never throw to the caller (this must not crash the page).
+    return { ok: false, error: FRIENDLY_ERROR }
   }
 }

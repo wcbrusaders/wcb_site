@@ -127,12 +127,20 @@ test('returns the model text on success', async () => {
   const capture: { args?: unknown } = {}
   const client = fakeClient(capture, 'FAKE INSIGHT')
   const result = await generateInsights(reports, { client: client as never })
-  expect(result).toBe('FAKE INSIGHT')
+  expect(result).toEqual({ ok: true, text: 'FAKE INSIGHT' })
 })
 
-test('fails soft: a throwing client returns a friendly string, never throws', async () => {
+test('fails soft: a throwing client returns an error result, never throws', async () => {
   const client = throwingClient()
-  await expect(generateInsights(reports, { client: client as never })).resolves.toEqual(
-    expect.stringContaining('try again')
-  )
+  await expect(generateInsights(reports, { client: client as never })).resolves.toEqual({
+    ok: false,
+    error: expect.stringContaining('try again'),
+  })
+})
+
+test('an empty model response is an error result, not a blank insight', async () => {
+  const capture: { args?: unknown } = {}
+  const client = fakeClient(capture, '   ') // whitespace-only → trims to empty
+  const result = await generateInsights(reports, { client: client as never })
+  expect(result).toEqual({ ok: false, error: expect.stringContaining('try again') })
 })
