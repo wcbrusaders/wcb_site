@@ -242,8 +242,23 @@ type SyncDeps = {
   db?: typeof prisma
 }
 
+// syncRoster is membership-state-aware: rows come from fetchAllMembers (T3),
+// which concatenates the current-members tab and the Lapsed Members tab, so a
+// lapsed member IS "seen" this run (membershipState 'lapsed', current false)
+// and must not be confused with a member who vanished from BOTH tabs entirely
+// (membershipState 'former' — set by the sweep below).
+//
+// Email-less honorary members (Member.emailAddress nullable, see schema
+// comment) can't be upserted `where: { emailAddress }`. They're matched by
+// NAME against existing null-email rows instead: exactly one match -> update
+// that row by id; no match -> create; multiple matches -> log a warning and
+// update the first (arbitrary-but-deterministic; documented in the T4
+// report — avoids crashing on a same-named-honorary edge case rather than
+// picking a "cleverer" disambiguation that isn't worth the complexity here).
+// They're tracked as seen via a separate `name:<name>` key so the sweep
+// doesn't deactivate them.
 export async function syncRoster(deps: SyncDeps = {}): Promise<{ synced: number; deactivated: number }> {
-  const fetchAll = deps.fetchAll ?? fetchAllRosterRows
+  const fetchAll = deps.fetchAll ?? fetchAllMembers
   const fetchGroupMembers = deps.fetchGroupMembers ?? fetchAccessGroupMembers
   const db = deps.db ?? prisma
   const rows = await fetchAll()
@@ -257,38 +272,115 @@ export async function syncRoster(deps: SyncDeps = {}): Promise<{ synced: number;
   }
 
   let synced = 0
-  const seen = new Set<string>()
-  // T4: this loop is email-keyed and (still) skips email-less honorary members
-  // entirely — they aren't upserted/deactivated here yet. mapSheetRow (T2) no
-  // longer drops them from fetchAllRosterRows()'s output, but wiring their
-  // state-aware (name-keyed) sync into the DB is Task 4's job, not this one.
+  const seenEmails = new Set<string>()
+  const seenNameKeys = new Set<string>()
+
   for (const m of rows) {
-    if (!m.emailAddress) continue
-    const email = m.emailAddress
-    const access = groupSet === null
-      ? {}
-      : { resourceAccess: groupSet.has(email) || (m.googleEmail ? groupSet.has(m.googleEmail) : false) }
-    await db.member.upsert({
-      where: { emailAddress: email },
-      update: { googleEmail: m.googleEmail, name: m.name, tier: m.tier, current: m.current, isBoard: m.isBoard, role: m.role, partnerEmail: m.partnerEmail, expires: m.expires, joinDate: m.joinDate, paymentDate: m.paymentDate, referredBy: m.referredBy, ...access },
-      create: { emailAddress: email, googleEmail: m.googleEmail, name: m.name, tier: m.tier, current: m.current, isBoard: m.isBoard, role: m.role, partnerEmail: m.partnerEmail, expires: m.expires, joinDate: m.joinDate, paymentDate: m.paymentDate, referredBy: m.referredBy, ...access },
-    })
-    seen.add(email)
+    // Defensive: fetchAllMembers/mapSheetRow already drop true blank-spacer
+    // rows (no name AND no email), but guard here too rather than trust that
+    // invariant holds forever upstream.
+    if (!m.emailAddress && !m.name) continue
+
+    const commonFields = {
+      googleEmail: m.googleEmail,
+      name: m.name,
+      tier: m.tier,
+      current: m.current,
+      isBoard: m.isBoard,
+      role: m.role,
+      partnerEmail: m.partnerEmail,
+      expires: m.expires,
+      joinDate: m.joinDate,
+      paymentDate: m.paymentDate,
+      referredBy: m.referredBy,
+      membershipState: m.membershipState,
+    }
+
+    if (m.emailAddress) {
+      const email = m.emailAddress
+      const access = groupSet === null
+        ? {}
+        : { resourceAccess: groupSet.has(email) || (m.googleEmail ? groupSet.has(m.googleEmail) : false) }
+      await db.member.upsert({
+        where: { emailAddress: email },
+        update: { ...commonFields, ...access },
+        create: { emailAddress: email, ...commonFields, ...access },
+      })
+      seenEmails.add(email)
+      synced++
+      continue
+    }
+
+    // Email-less (honorary) member: match by name against existing null-email rows.
+    const name = m.name as string
+    const matches = await db.member.findMany({ where: { name, emailAddress: null } })
+    if (matches.length > 1) {
+      console.warn(`syncRoster: multiple null-email members named "${name}" — updating the first, skipping the rest`, matches.map((x: any) => x.id))
+    }
+    if (matches.length >= 1) {
+      await db.member.update({ where: { id: matches[0].id }, data: { ...commonFields } })
+    } else {
+      await db.member.create({ data: { emailAddress: null, ...commonFields } })
+    }
+    seenNameKeys.add(`name:${name}`)
     synced++
   }
-  const existing = await db.member.findMany({ select: { emailAddress: true } })
-  // emailAddress is now nullable (email-less honorary). The email-keyed sweep
-  // only applies to email-having members; null-email members are handled by the
-  // state-aware sync (Task 4). Filter nulls so the `in` clause stays string[].
-  const toDeactivate = existing
-    .map((e) => e.emailAddress)
-    .filter((e): e is string => e != null && !seen.has(e))
+
+  // Sweep: anything in the DB not seen this run (present in neither tab) is
+  // genuinely gone — distinct from an explicitly-lapsed member, who WAS seen
+  // (via the Lapsed tab) and already carries membershipState 'lapsed'.
   let deactivated = 0
-  if (toDeactivate.length) {
-    const r = await db.member.updateMany({ where: { emailAddress: { in: toDeactivate }, current: true }, data: { current: false } })
-    deactivated = r.count
+
+  const existingByEmail = await db.member.findMany({ where: { emailAddress: { not: null } } })
+  const toDeactivateEmails = existingByEmail
+    .map((e: any) => e.emailAddress as string | null)
+    .filter((e): e is string => e != null && !seenEmails.has(e))
+  if (toDeactivateEmails.length) {
+    const r = await db.member.updateMany({
+      where: { emailAddress: { in: toDeactivateEmails } },
+      data: { current: false, membershipState: 'former' },
+    })
+    deactivated += r.count
   }
+
+  // Null-email (honorary) members: no compound key to updateMany on safely by
+  // name (names aren't unique), so sweep them individually by id instead.
+  const existingNullEmail = await db.member.findMany({ where: { emailAddress: null } })
+  for (const e of existingNullEmail as Array<{ id: string; name: string | null }>) {
+    const key = e.name ? `name:${e.name}` : null
+    if (key && seenNameKeys.has(key)) continue
+    await db.member.update({ where: { id: e.id }, data: { current: false, membershipState: 'former' } })
+    deactivated++
+  }
+
   return { synced, deactivated }
+}
+
+type PaymentSyncDeps = {
+  fetchPayments?: () => Promise<PaymentRecord[]>
+  db?: typeof prisma
+}
+
+// Idempotent sync of the Payments tab into the Payment table. Upserts on the
+// (date, netDues, source) compound unique so re-running the sync (e.g. the
+// daily cron) never duplicates a row already recorded for that exact
+// date+amount+source combination. Kept separate from syncRoster per the
+// phase-1 plan — the cron calls both.
+export async function syncPayments(deps: PaymentSyncDeps = {}): Promise<{ payments: number }> {
+  const fetchPaymentsFn = deps.fetchPayments ?? fetchPayments
+  const db = deps.db ?? prisma
+  const rows = await fetchPaymentsFn()
+
+  let payments = 0
+  for (const p of rows) {
+    await db.payment.upsert({
+      where: { date_netDues_source: { date: p.date, netDues: p.netDues, source: p.source } },
+      create: { date: p.date, netDues: p.netDues, source: p.source },
+      update: {},
+    })
+    payments++
+  }
+  return { payments }
 }
 
 export function validateSecondaryEmail(email: string): { ok: true; value: string } | { ok: false; reason: string } {
