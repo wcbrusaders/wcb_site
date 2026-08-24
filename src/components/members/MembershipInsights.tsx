@@ -21,8 +21,9 @@ export function MembershipInsights() {
       if (result.ok) {
         setText(result.text)
       } else {
+        // Keep any prior insight on screen; surface the error separately rather
+        // than wiping the panel back to a blank "Generate insights" state.
         setError(result.error)
-        setText(null)
       }
     })
   }

@@ -57,47 +57,6 @@ type ChartRow = {
   revenueNetDues: number
 }
 
-/**
- * Joins trends + revenue by quarter and indexes every series to 100 at the
- * first quarter it has data for. All series then share ONE y-axis — a
- * dual-axis chart invents an alignment between unrelated scales (counts vs
- * % vs $) that isn't in the data, so this indexes instead of adding a second
- * axis. Hovering the tooltip still shows each series' real value+unit.
- */
-function buildIndexedRows(
-  chartRows: ChartRow[]
-): { indexed: Record<string, number | string>[]; baselines: Record<SeriesKey, number | null> } {
-  const baselines: Record<SeriesKey, number | null> = {
-    new: null,
-    churn: null,
-    activeEOQ: null,
-    retentionPct: null,
-    revenueNetDues: null,
-  }
-  for (const def of SERIES) {
-    for (const row of chartRows) {
-      const v = row[def.key]
-      if (v !== 0) {
-        baselines[def.key] = v
-        break
-      }
-    }
-    // If every value is 0, fall back to null (rendered as flat 0 line via guard below).
-  }
-
-  const indexed = chartRows.map((row) => {
-    const out: Record<string, number | string> = { quarter: row.quarter }
-    for (const def of SERIES) {
-      const base = baselines[def.key]
-      const v = row[def.key]
-      out[def.key] = base ? (v / base) * 100 : 0
-    }
-    return out
-  })
-
-  return { indexed, baselines }
-}
-
 function fmtRaw(key: SeriesKey, value: number): string {
   const def = SERIES.find((s) => s.key === key)!
   if (def.unit === 'pct') return `${value}%`
@@ -124,15 +83,9 @@ export function TrendsCompareChart({ trends, revenue }: { trends: TrendRow[]; re
     }))
   }, [trends, revenue])
 
-  // Raw values keyed by quarter, for the tooltip (which should show real
-  // units, not the indexed-to-100 plot value).
-  const rawByQuarter = useMemo(() => {
-    const m = new Map<string, ChartRow>()
-    for (const row of chartRows) m.set(row.quarter, row)
-    return m
-  }, [chartRows])
-
-  const { indexed } = useMemo(() => buildIndexedRows(chartRows), [chartRows])
+  // The right ("rate") axis only appears when a %/$ series is toggled on — a
+  // second axis for scales nobody's looking at is just clutter.
+  const showRateAxis = SERIES.some((s) => visible[s.key] && s.unit !== 'count')
 
   const quarterSet = new Set(chartRows.map((r) => r.quarter))
   // Anchor each milestone label so a long string stays inside the plot: a
@@ -187,34 +140,49 @@ export function TrendsCompareChart({ trends, revenue }: { trends: TrendRow[]; re
       </div>
 
       <p className="text-[11px] text-foreground/40 mb-2">
-        All series indexed to 100 at their first non-zero quarter, so counts/%/$ share one axis — hover for real values.
+        Real values per quarter. Counts use the left axis; a % or $ series adds a right axis — hover for exact figures.
       </p>
 
       <ResponsiveContainer width="100%" height={340}>
-        <LineChart data={indexed} margin={{ top: 8, right: 16, bottom: 8, left: 0 }}>
+        <LineChart data={chartRows} margin={{ top: 8, right: 16, bottom: 8, left: 0 }}>
           <CartesianGrid stroke="#2c2c2c" strokeDasharray="0" vertical={false} />
           <XAxis dataKey="quarter" stroke="#666666" tick={{ fill: '#898781', fontSize: 11 }} tickLine={false} axisLine={{ stroke: '#383835' }} />
+          {/* Left axis: counts (Active/New/Churn) in real member numbers. */}
           <YAxis
+            yAxisId="count"
+            allowDecimals={false}
             stroke="#666666"
             tick={{ fill: '#898781', fontSize: 11 }}
             tickLine={false}
             axisLine={{ stroke: '#383835' }}
-            label={{ value: 'Index (100 = each series’ first non-zero quarter)', angle: -90, position: 'insideLeft', fill: '#898781', fontSize: 11 }}
+            label={{ value: 'Members', angle: -90, position: 'insideLeft', fill: '#898781', fontSize: 11 }}
           />
+          {/* Right axis: rates/currency (Retention %, Revenue $) — only mounted
+              when such a series is visible, so counts aren't squashed. */}
+          {showRateAxis && (
+            <YAxis
+              yAxisId="rate"
+              orientation="right"
+              stroke="#666666"
+              tick={{ fill: '#898781', fontSize: 11 }}
+              tickLine={false}
+              axisLine={{ stroke: '#383835' }}
+              label={{ value: '% / $', angle: 90, position: 'insideRight', fill: '#898781', fontSize: 11 }}
+            />
+          )}
           <Tooltip
             content={({ active, payload, label }) => {
               if (!active || !payload || payload.length === 0) return null
-              const raw = rawByQuarter.get(String(label))
               return (
                 <div style={{ background: '#161616', border: '1px solid #2c2c2c', borderRadius: 8, padding: '8px 10px', fontSize: 12 }}>
                   <div style={{ color: '#f5f5f5', marginBottom: 4, fontWeight: 600 }}>{label}</div>
                   {payload.map((p) => {
                     const key = p.dataKey as SeriesKey
                     const def = SERIES.find((s) => s.key === key)
-                    if (!def || !raw) return null
+                    if (!def) return null
                     return (
                       <div key={key} style={{ color: def.color }}>
-                        {def.label}: {fmtRaw(key, raw[key] as number)}
+                        {def.label}: {fmtRaw(key, Number(p.value))}
                       </div>
                     )
                   })}
@@ -232,6 +200,7 @@ export function TrendsCompareChart({ trends, revenue }: { trends: TrendRow[]; re
           {visibleMilestones.map((m) => (
             <ReferenceLine
               key={m.quarter}
+              yAxisId="count"
               x={m.quarter}
               stroke="#666666"
               strokeDasharray="4 3"
@@ -247,6 +216,7 @@ export function TrendsCompareChart({ trends, revenue }: { trends: TrendRow[]; re
           {SERIES.filter((s) => visible[s.key]).map((s) => (
             <Line
               key={s.key}
+              yAxisId={s.unit === 'count' ? 'count' : 'rate'}
               type="monotone"
               dataKey={s.key}
               name={s.label}
