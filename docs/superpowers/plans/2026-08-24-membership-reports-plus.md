@@ -25,11 +25,24 @@
 - [ ] Step 4: PASS + tsc.
 - [ ] Step 5: commit `feat(metrics): tenure top-5, expiring-soon, payment mix`.
 
-## Task 2: wire the 3 into getMembershipReports + the page
-**Files:** `src/lib/metrics/index.ts` (add to MembershipReports + computeMembershipReports), `src/app/members/admin/membership/page.tsx`.
-- [ ] Add `tenureTop5`, `expiringSoon` (60-day), `paymentMix` to `MembershipReports` + `computeMembershipReports` (pass members/payments/now). Update the index test.
-- [ ] Page: replace the single "Longest-tenured" card with a **Top-5 tenure** list; add an **Expiring soon (next 60 days)** section (name + date + days-left; board-only — the whole page already is); add a **Payment mix** card (Stripe/PayPal count+total, avg dues). Keep System-B styling. tsc + next build.
-- [ ] commit `feat(admin): tenure top-5, expiring-soon, payment mix on reports page`.
+## Task 2: data wiring + PROFESSIONAL dashboard redesign (Recharts, zones, comparison chart)
+**Files:** `src/lib/metrics/index.ts` (add reports), `src/app/members/admin/membership/page.tsx` (redesign), new client chart components under `src/components/members/reports/`. Add `recharts` dependency.
+
+Design goals (Jordan): professional + easy to digest (real graphs, clear visual separation) + **compare multiple metrics for correlation-spotting**.
+
+- [ ] **Data:** add `tenureTop5`, `expiringSoon` (60d), `paymentMix` to `MembershipReports` + `computeMembershipReports`; update index test. (These are Task-1's fns.)
+- [ ] **Add Recharts** (`npm i recharts`). Charts are client components ('use client'); the page stays a server component that fetches + passes data down.
+- [ ] **Dashboard zones layout** (replace the single-scroll table page):
+  1. **KPI tiles** row — big-number tiles: Active, Retention %, Net growth (latest qtr), New (12mo), Expiring (60d). At-a-glance health.
+  2. **Trends — multi-series COMPARISON chart** (the correlation tool): one Recharts chart on a shared **quarter x-axis** with TOGGLEABLE series — New, Churn, Active (EOQ), Retention %, Revenue (net dues). Legend toggles which lines show so you can overlay any two to eyeball correlation (e.g. revenue vs new members). Use a dual Y-axis where scales differ (counts vs % vs $) OR normalize — implementer picks the clean approach; default-show Active + New. This is the centerpiece; build it as `TrendsCompareChart.tsx` taking the trends[] + revenue[] joined by quarter.
+  3. **Composition row** — two charts side-by-side: **tier mix donut** + **joins-by-month bar** (seasonality).
+  4. **Tables** for the dense grids: cohort retention + revenue (keep tabular — good for scanning exact numbers).
+  5. **Top-5 tenure** list (replaces single longest-tenured) + **Expiring-soon (60d)** as a highlighted actionable callout card (name + date + days-left) + **Payment mix** card (Stripe/PayPal count+total, avg dues).
+  - Use System-B surfaces (Card/InfoCard/SectionLabel) for the zone containers so it matches the site. Charts themed to the dark surface (axis/grid/tooltip colors readable on #1c1c1c; accent #ff9500 for primary series).
+- [ ] tsc + `next build` (Recharts SSR: charts must be client components; wrap in a client boundary; verify the build compiles the route). Handle empty/short data (few quarters) gracefully.
+- [ ] commit `feat(admin): Recharts dashboard — KPI tiles, multi-series comparison chart, composition charts, tenure/expiring/payment`.
+
+NOTE: the multi-series comparison chart is also the future home for **event-attribution** (Phase 5) — event markers on the same quarter/time axis. Build the series-toggle so adding an "events" overlay later is natural.
 
 ## Task 3: AI insights — server action + button
 **Files:** `src/lib/metrics/insights.ts` (Claude call), `src/app/members/admin/membership/_actions.ts` (server action), a small client component `src/components/members/MembershipInsights.tsx`, wire into the page.
