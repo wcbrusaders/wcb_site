@@ -39,6 +39,13 @@ model Member {
   // bot strips a suspended member's roles, so it can restore them exactly on
   // reinstatement. Null = no snapshot (not suspended, or already restored).
   discordRoleSnapshot String?
+  // SITE-OWNED (do NOT add to the roster sync's write field lists in roster.ts —
+  // the sync mirrors the sheet and must leave these alone). Board notes on why a
+  // member lapsed, filled in on the membership admin page when the reason is
+  // known. lapseReason is one of a fixed set (see LAPSE_REASONS); lapseNote is
+  // free text. Null = not yet recorded.
+  lapseReason  String?
+  lapseNote    String?
   updatedAt    DateTime  @updatedAt
 
   @@index([emailAddress])
