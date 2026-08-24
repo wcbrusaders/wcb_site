@@ -29,6 +29,7 @@
     "next-auth": "5.0.0-beta.29",
     "react": "19.2.0",
     "react-dom": "19.2.0",
+    "recharts": "^3.10.1",
     "resend": "^4.0.0",
     "sanitize-html": "^2.17.7",
     "unpdf": "^1.8.1"

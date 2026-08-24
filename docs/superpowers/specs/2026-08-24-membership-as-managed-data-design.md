@@ -179,6 +179,18 @@ makes the site ingest Stripe/PayPal directly (explicitly out of scope here).
 - Metrics sheet's exact columns → map to MembershipSnapshot fields.
 - Auth: confirm a null-email Member can't break the NextAuth flow.
 
+## Future work (captured, not yet built)
+- **Event→signup attribution (Jordan, 2026-08-24):** correlate calendar events /
+  meeting topics with joins in the days after, to find which events RECRUIT (e.g.
+  the Martin Keene / Brulosophy exBEERiment meeting → ~4 signups that week). High
+  value, but its own project — needs: (1) a calendar-events data source INTO the
+  site (the Discord bot reads Google Calendar today; the site doesn't — either
+  share that or sync events to a table); (2) a temporal correlation model (joins
+  within N days of an event = proxy attribution, not ground truth); (3) ideally
+  event TAGGING (guest-speaker / exBEERiment / social / comp) so you compare event
+  TYPES, not one-offs; (4) strongest form needs a join→source field (an optional
+  "what brought you?" at signup — same data gap as referrals). Phase 5+ candidate.
+
 ## Out of scope
 - Discord bot changes beyond pointing counts at `membershipState`/`current` (already
   privacy-safe; bot never shows payment amounts or the reports — those are admin-only).
