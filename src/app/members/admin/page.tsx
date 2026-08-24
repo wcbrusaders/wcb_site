@@ -32,6 +32,12 @@ export default async function AdminPage() {
       badge: rosterCount != null ? `${rosterCount} members` : null,
     },
     {
+      href: '/members/admin/membership',
+      title: 'Membership reports',
+      desc: 'KPIs, trends, tier mix, seasonality, cohort retention & revenue — computed from our records.',
+      badge: null,
+    },
+    {
       href: '/members/holdings',
       title: 'Holdings',
       desc: 'Everything currently checked out, by member. Mark items returned.',
