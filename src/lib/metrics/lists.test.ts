@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import { computeTenureLeaderboard, computeExpiringSoon, computePaymentMix } from './lists'
+import { computeTenureLeaderboard, computeExpiringSoon, computePaymentMix, computeGrowthSummary } from './lists'
+import type { TrendRow } from './trends'
 import type { MemberLite, PaymentLite } from './types'
 
 const d = (s: string) => new Date(`${s}T00:00:00.000Z`)
@@ -141,5 +142,50 @@ describe('computePaymentMix', () => {
     const result = computePaymentMix(payments)
     expect(result.bySource).toEqual([{ source: 'Stripe', count: 2, total: 20.01 }])
     expect(result.avgDues).toBe(10.01) // 20.01 / 2 = 10.005 -> round2 -> 10.01 (JS float rounds up here)
+  })
+})
+
+describe('computeGrowthSummary', () => {
+  const tr = (quarter: string, activeEOQ: number, newCount: number, netGrowthPct: number | null): TrendRow => ({
+    quarter, new: newCount, churn: 0, activeEOQ, turnoverPct: 0, retentionPct: 100,
+    newYoyPct: null, netGrowthPct,
+  })
+
+  it('empty trends -> zeroed summary', () => {
+    expect(computeGrowthSummary([])).toEqual({
+      currentActive: 0, latestNetGrowthPct: null, recordActive: 0, recordActiveQuarter: null,
+      atRecord: false, bestRecruitmentQuarter: null, bestRecruitmentNew: 0, consecutiveGrowthQuarters: 0,
+    })
+  })
+
+  it('surfaces current active, record, best recruitment, and growth streak', () => {
+    const trends = [
+      tr('2025-Q1', 10, 3, null),   // first
+      tr('2025-Q2', 9, 1, -10),     // dip (breaks any streak before it)
+      tr('2025-Q3', 14, 6, 55.6),   // best recruitment (6) + growth
+      tr('2025-Q4', 16, 3, 14.3),   // growth
+      tr('2026-Q1', 16, 2, 0),      // flat -> NOT >0, breaks trailing streak
+      tr('2026-Q2', 20, 5, 25),     // growth (record active = 20)
+    ]
+    const g = computeGrowthSummary(trends)
+    expect(g.currentActive).toBe(20)
+    expect(g.latestNetGrowthPct).toBe(25)
+    expect(g.recordActive).toBe(20)
+    expect(g.recordActiveQuarter).toBe('2026-Q2')
+    expect(g.atRecord).toBe(true)
+    expect(g.bestRecruitmentQuarter).toBe('2025-Q3')
+    expect(g.bestRecruitmentNew).toBe(6)
+    // trailing positive-growth run from the end: 2026-Q2(+25) then 2026-Q1(0) stops it -> 1
+    expect(g.consecutiveGrowthQuarters).toBe(1)
+  })
+
+  it('counts a multi-quarter trailing growth streak', () => {
+    const trends = [
+      tr('2025-Q3', 14, 6, 55.6),
+      tr('2025-Q4', 16, 3, 14.3),
+      tr('2026-Q2', 20, 5, 25),
+    ]
+    // all three have netGrowthPct > 0 -> streak 3
+    expect(computeGrowthSummary(trends).consecutiveGrowthQuarters).toBe(3)
   })
 })

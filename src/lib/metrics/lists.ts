@@ -1,5 +1,6 @@
 import type { MemberLite, PaymentLite } from './types'
 import { completeMonths } from './kpis'
+import type { TrendRow } from './trends'
 
 /**
  * List-shaped membership reports: tenure leaderboard, expiring-soon roster,
@@ -25,7 +26,7 @@ function isoDate(date: Date): string {
 
 export type TenureLeaderboardRow = {
   name: string
-  joinDate: string | null
+  joinDate: string // never null — null-joinDate members are filtered out
   tenureMonths: number
 }
 
@@ -141,4 +142,64 @@ export function computePaymentMix(payments: PaymentLite[]): PaymentMix {
   const avgDues = round2(overallTotal / totalPayments)
 
   return { bySource, avgDues, totalPayments }
+}
+
+// --- Growth summary (POSITIVE framing — "when are we doing well") ------------
+
+export type GrowthSummary = {
+  currentActive: number          // latest quarter's active (EOQ)
+  latestNetGrowthPct: number | null  // latest quarter's net growth %
+  recordActive: number           // all-time-high active count
+  recordActiveQuarter: string | null // the quarter that hit it
+  atRecord: boolean              // is current active == the record?
+  bestRecruitmentQuarter: string | null // quarter with the most New joins
+  bestRecruitmentNew: number     // that quarter's New count
+  consecutiveGrowthQuarters: number // trailing run of quarters with netGrowth > 0
+}
+
+/**
+ * Derive the club's growth/positive-momentum headline from the per-quarter
+ * Trends (which already carries activeEOQ / new / netGrowthPct). Surfaces the
+ * "what's going RIGHT" story that the turnover/lapsed metrics don't — record
+ * active membership, best recruitment quarter, and the current growth streak.
+ * Pure: derives entirely from the passed trends array (no clock needed).
+ */
+export function computeGrowthSummary(trends: TrendRow[]): GrowthSummary {
+  if (trends.length === 0) {
+    return {
+      currentActive: 0, latestNetGrowthPct: null, recordActive: 0,
+      recordActiveQuarter: null, atRecord: false, bestRecruitmentQuarter: null,
+      bestRecruitmentNew: 0, consecutiveGrowthQuarters: 0,
+    }
+  }
+  const last = trends[trends.length - 1]
+  const currentActive = last.activeEOQ
+  const latestNetGrowthPct = last.netGrowthPct
+
+  let recordActive = -Infinity
+  let recordActiveQuarter: string | null = null
+  let bestRecruitmentNew = -Infinity
+  let bestRecruitmentQuarter: string | null = null
+  for (const t of trends) {
+    if (t.activeEOQ > recordActive) { recordActive = t.activeEOQ; recordActiveQuarter = t.quarter }
+    if (t.new > bestRecruitmentNew) { bestRecruitmentNew = t.new; bestRecruitmentQuarter = t.quarter }
+  }
+
+  // trailing run of quarters with positive net growth (from the most recent back)
+  let consecutiveGrowthQuarters = 0
+  for (let i = trends.length - 1; i >= 0; i--) {
+    if ((trends[i].netGrowthPct ?? 0) > 0) consecutiveGrowthQuarters++
+    else break
+  }
+
+  return {
+    currentActive,
+    latestNetGrowthPct,
+    recordActive: recordActive === -Infinity ? 0 : recordActive,
+    recordActiveQuarter,
+    atRecord: currentActive === recordActive,
+    bestRecruitmentQuarter,
+    bestRecruitmentNew: bestRecruitmentNew === -Infinity ? 0 : bestRecruitmentNew,
+    consecutiveGrowthQuarters,
+  }
 }
