@@ -21,7 +21,7 @@ export default async function AdminRosterPage() {
   const dbMembers = await prisma.member.findMany({ select: { id: true, emailAddress: true, googleEmail: true } })
   const idByEmail = new Map<string, string>()
   for (const dm of dbMembers) {
-    idByEmail.set(normalizeEmail(dm.emailAddress), dm.id)
+    if (dm.emailAddress) idByEmail.set(normalizeEmail(dm.emailAddress), dm.id)
     if (dm.googleEmail) idByEmail.set(normalizeEmail(dm.googleEmail), dm.id)
   }
 

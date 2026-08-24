@@ -178,7 +178,12 @@ export async function syncRoster(deps: SyncDeps = {}): Promise<{ synced: number;
     synced++
   }
   const existing = await db.member.findMany({ select: { emailAddress: true } })
-  const toDeactivate = existing.map((e) => e.emailAddress).filter((e) => !seen.has(e))
+  // emailAddress is now nullable (email-less honorary). The email-keyed sweep
+  // only applies to email-having members; null-email members are handled by the
+  // state-aware sync (Task 4). Filter nulls so the `in` clause stays string[].
+  const toDeactivate = existing
+    .map((e) => e.emailAddress)
+    .filter((e): e is string => e != null && !seen.has(e))
   let deactivated = 0
   if (toDeactivate.length) {
     const r = await db.member.updateMany({ where: { emailAddress: { in: toDeactivate }, current: true }, data: { current: false } })

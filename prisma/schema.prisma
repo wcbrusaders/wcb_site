@@ -9,7 +9,11 @@ datasource db {
 
 model Member {
   id           String    @id @default(cuid())
-  emailAddress String    @unique
+  // Nullable: honorary members (e.g. Cat Pearce) have no email. Unique WHEN
+  // PRESENT — Postgres allows multiple NULLs under a unique index, so email-less
+  // members coexist. Email-keyed sync/upsert must skip null-email rows and match
+  // them by name instead (see roster sync).
+  emailAddress String?   @unique
   googleEmail  String?
   name         String?
   tier         String?
@@ -17,6 +21,10 @@ model Member {
   isBoard      Boolean   @default(false)
   role         String?
   partnerEmail String?
+  // Membership lifecycle state (distinct from `status`, which is the ENFORCEMENT
+  // field: active/interim/banned). Values: active | lapsed | honorary | former.
+  // Set by the roster sync from which workbook tab a member came from.
+  membershipState String @default("active")
   expires      DateTime?
   joinDate     DateTime?
   paymentDate  DateTime?
@@ -35,6 +43,22 @@ model Member {
 
   @@index([emailAddress])
   @@index([googleEmail])
+}
+
+// Dues transactions synced from the roster workbook's "Payments" tab (Stripe/
+// PayPal). Source of truth stays the sheet until a future Stripe/PayPal-direct
+// ingestion refactor. Powers the Revenue/metrics reports (computed, not stored
+// per-report). The @@unique is a best-effort idempotency key so re-syncing the
+// same tab doesn't duplicate rows.
+model Payment {
+  id        String   @id @default(cuid())
+  date      DateTime
+  netDues   Float
+  source    String
+  createdAt DateTime @default(now())
+
+  @@unique([date, netDues, source])
+  @@index([date])
 }
 
 // --- NextAuth (Auth.js) Prisma adapter models ---
