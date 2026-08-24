@@ -1,5 +1,6 @@
 import type { MemberLite } from './types'
 import { round1 } from './kpis'
+import { type QuarterKey, quarterOf, quarterLabel, enumerateQuarters, quarterIndex } from './quarters'
 
 /**
  * Composition reports, reproducing the roster sheet's Tier Mix, Seasonality,
@@ -66,41 +67,6 @@ export function computeSeasonality(members: MemberLite[]): SeasonalityRow[] {
   return MONTH_LABELS.map((month, i) => ({ month, joins: joinsByMonth[i] }))
 }
 
-/** A quarter identified by its year and quarter-of-year (1-4). */
-type QuarterKey = { year: number; q: 1 | 2 | 3 | 4 }
-
-function quarterOfMonth(monthIndex0: number): 1 | 2 | 3 | 4 {
-  return (Math.floor(monthIndex0 / 3) + 1) as 1 | 2 | 3 | 4
-}
-
-/** The quarter (UTC) containing the given date. */
-function quarterOf(date: Date): QuarterKey {
-  return { year: date.getUTCFullYear(), q: quarterOfMonth(date.getUTCMonth()) }
-}
-
-function quarterLabel(key: QuarterKey): string {
-  return `${key.year}-Q${key.q}`
-}
-
-/** The quarter immediately following the given one. */
-function nextQuarter(key: QuarterKey): QuarterKey {
-  return key.q === 4 ? { year: key.year + 1, q: 1 } : { year: key.year, q: ((key.q + 1) as 1 | 2 | 3 | 4) }
-}
-
-/** Ordered list of quarters from `first` through `last`, inclusive. */
-function enumerateQuarters(first: QuarterKey, last: QuarterKey): QuarterKey[] {
-  const quarters: QuarterKey[] = []
-  let cur = first
-  // Linear index comparison avoids infinite loop if first > last.
-  const toIndex = (k: QuarterKey) => k.year * 4 + (k.q - 1)
-  const lastIndex = toIndex(last)
-  while (toIndex(cur) <= lastIndex) {
-    quarters.push(cur)
-    cur = nextQuarter(cur)
-  }
-  return quarters
-}
-
 /**
  * Cohort Retention — ALL members grouped by their join QUARTER. For each
  * cohort quarter (from the earliest joinDate's quarter through the latest
@@ -118,12 +84,11 @@ export function computeCohortRetention(members: MemberLite[]): CohortRow[] {
   if (withJoinDate.length === 0) return []
 
   const quarters = withJoinDate.map((m) => quarterOf(m.joinDate))
-  const toIndex = (k: QuarterKey) => k.year * 4 + (k.q - 1)
   let first = quarters[0]
   let last = quarters[0]
   for (const q of quarters) {
-    if (toIndex(q) < toIndex(first)) first = q
-    if (toIndex(q) > toIndex(last)) last = q
+    if (quarterIndex(q) < quarterIndex(first)) first = q
+    if (quarterIndex(q) > quarterIndex(last)) last = q
   }
 
   const allQuarters = enumerateQuarters(first, last)
