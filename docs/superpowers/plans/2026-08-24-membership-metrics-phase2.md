@@ -50,7 +50,13 @@ Expected (captured): 2026-Q2 → New 6, Churn 0, Active 30, Turnover 0, Retentio
 ### Tier Mix — count members by tier → Single 28, Couple 3 (+ any others). (current members; confirm current-vs-all against sheet: sheet reads Sheet1 = current.)
 ### Seasonality — count ALL members' joins by calendar month (Jan..Dec) → Jan 2, Feb 3, Mar 2, Apr 2, May 4, Jun 4, Jul 4, Aug 1, Sep 4, Oct 5, Nov 7, Dec 1.
 ### Cohort Retention — by join-quarter: Joined = count(members joined that quarter, any state); Still Active = of those, count(current=true); Retention% = round(active/joined*100). (Captured: 2023-Q4 joined 6 / active 3 / 50%; 2024-Q2 4/2/50%; etc.)
-### Revenue (per quarter) — Net Dues = sum(Payment.netDues in quarter); Dues Payments = count(payments in quarter); New Members / Renewals = split of those payments (New = payment whose member joined that quarter; Renewal = otherwise). Events Income = 0 (no source yet). Total = Net Dues + Events. (Captured: 2026-Q2 Net 406.36, 10 payments, 6 new, 4 renewals.)
+### Revenue (per quarter) — CORRECTED to the sheet's ACTUAL cell formula (pulled from the live Revenue tab; supersedes the earlier per-payment approximation):
+- Net Dues = `SUMIFS(Payments!B, date in [start,end))` = sum(Payment.netDues in quarter), 2dp.
+- Dues Payments = `COUNTIFS(Payments!A, date in [start,end))` = count(payments in quarter).
+- New Members = `COUNTIFS(Sheet1!R,in-Q)+COUNTIFS('Lapsed'!R,in-Q)` = count(ALL members, any state, joinDate in quarter) — a JOIN count, NOT payer-linked.
+- Renewals = `MAX(0, DuesPayments − NewMembers)` — an arithmetic residual, NOT a per-payment classification.
+- Events Income = 0 (no source yet). Total = Net Dues + Events.
+NOTE: the sheet itself does NOT link payments to payers (the `Payment` table has no memberId FK), so this residual is the SHEET'S OWN definition — matching it is correct per "match the sheet exactly," even though it can misattribute in an edge case (an unpaid new joiner + a separate renewal in the same quarter). If we later want a true per-payment split, that needs a Payment→Member link (future; out of scope). (Captured: 2026-Q2 Net 406.36 / 10 payments / 6 new / 4 renewals; 2025-Q1 8/2/6.)
 
 ## Tasks
 
