@@ -21,14 +21,16 @@ export default async function AdminRosterPage() {
   const dbMembers = await prisma.member.findMany({ select: { id: true, emailAddress: true, googleEmail: true } })
   const idByEmail = new Map<string, string>()
   for (const dm of dbMembers) {
-    idByEmail.set(normalizeEmail(dm.emailAddress), dm.id)
+    if (dm.emailAddress) idByEmail.set(normalizeEmail(dm.emailAddress), dm.id)
     if (dm.googleEmail) idByEmail.set(normalizeEmail(dm.googleEmail), dm.id)
   }
 
   const members = rows.map((m) => ({
-    id: idByEmail.get(m.emailAddress) ?? m.emailAddress,
+    id: (m.emailAddress ? idByEmail.get(m.emailAddress) : undefined) ?? m.emailAddress ?? m.name ?? '(unknown)',
     name: m.name ?? '(no name)',
-    email: m.emailAddress,
+    // Honorary members may have no email (see roster.ts mapSheetRow). Admin UI
+    // still expects a string here; empty string signals "no email" to the UI.
+    email: m.emailAddress ?? '',
     googleEmail: m.googleEmail,
     tier: m.tier,
     current: m.current,

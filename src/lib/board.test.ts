@@ -6,7 +6,8 @@ function rec(p: Partial<MemberRecord>): MemberRecord {
   return {
     emailAddress: 'x@example.com', googleEmail: null, name: 'X', tier: null,
     current: true, isBoard: false, partnerEmail: null, expires: null,
-    joinDate: null, paymentDate: null, referredBy: null, role: null, ...p,
+    joinDate: null, paymentDate: null, referredBy: null, role: null,
+    membershipState: 'active', ...p,
   }
 }
 

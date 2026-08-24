@@ -2,7 +2,7 @@ import { google } from 'googleapis'
 import { prisma } from './db'
 
 export type MemberRecord = {
-  emailAddress: string
+  emailAddress: string | null
   googleEmail: string | null
   name: string | null
   tier: string | null
@@ -14,6 +14,7 @@ export type MemberRecord = {
   joinDate: Date | null
   paymentDate: Date | null
   referredBy: string | null
+  membershipState: string
 }
 
 export type GateResult = { ok: false } | { ok: true; member: MemberRecord }
@@ -64,18 +65,37 @@ function parseDate(v: string): Date | null {
   return isNaN(d.getTime()) ? null : d
 }
 
-export function mapSheetRow(headers: string[], row: string[]): MemberRecord | null {
+export type MapSheetRowOpts = { tab?: 'current' | 'lapsed' }
+
+export function mapSheetRow(headers: string[], row: string[], opts: MapSheetRowOpts = {}): MemberRecord | null {
+  const tab = opts.tab ?? 'current'
   const email = cell(headers, row, 'Email Address')
-  if (!email) return null
+  const name = cell(headers, row, 'Name') || null
+  // Spacer rows (no name AND no email) carry no member data — skip them.
+  // This is distinct from an email-less HONORARY member, who has a name and
+  // must NOT be dropped (see task-2 brief: "stop dropping email-less honorary
+  // members"). Only rows with neither identifier are considered blank spacers.
+  if (!email && !name) return null
+
   const g = cell(headers, row, 'Google Email')
   const p = cell(headers, row, 'Partner Email')
   const exp = cell(headers, row, 'Expires')
+  const tier = cell(headers, row, 'Tier') || null
+
+  const current = tab === 'lapsed' ? false : truthy(cell(headers, row, 'Current'))
+  const membershipState =
+    tab === 'lapsed'
+      ? 'lapsed'
+      : tier?.toLowerCase() === 'honorary'
+        ? 'honorary'
+        : 'active'
+
   return {
-    emailAddress: normalizeEmail(email),
+    emailAddress: email ? normalizeEmail(email) : null,
     googleEmail: g ? normalizeEmail(g) : null,
-    name: cell(headers, row, 'Name') || null,
-    tier: cell(headers, row, 'Tier') || null,
-    current: truthy(cell(headers, row, 'Current')),
+    name,
+    tier,
+    current,
     isBoard: truthy(cell(headers, row, 'Board Member')),
     role: cell(headers, row, 'Role') || null,
     partnerEmail: p ? normalizeEmail(p) : null,
@@ -83,6 +103,7 @@ export function mapSheetRow(headers: string[], row: string[]): MemberRecord | nu
     joinDate: parseDate(cell(headers, row, 'Join Date')),
     paymentDate: parseDate(cell(headers, row, 'Payment Date')),
     referredBy: cell(headers, row, 'Referred By') || null,
+    membershipState,
   }
 }
 
@@ -111,6 +132,78 @@ export async function fetchAllRosterRows(): Promise<MemberRecord[]> {
   return values.slice(1)
     .map((r) => mapSheetRow(headers, r.map((c) => String(c ?? ''))))
     .filter((m): m is MemberRecord => m !== null)
+}
+
+async function realGetTab(tabName: string): Promise<string[][]> {
+  if (!SHEET_ID) throw new Error('MEMBER_ROSTER_SHEET_ID not set')
+  const sheets = sheetsClient()
+  const res = await sheets.spreadsheets.values.get({
+    spreadsheetId: SHEET_ID,
+    range: tabName,
+  })
+  return (res.data.values ?? []).map((r) => r.map((c) => String(c ?? '')))
+}
+
+type FetchAllMembersDeps = {
+  getTab?: (tabName: string) => Promise<string[][]>
+}
+
+const LAPSED_TAB = 'Lapsed Members'
+
+// Reads BOTH the current-members tab (Sheet1) and the Lapsed Members tab and
+// concatenates them, tagging each with the right `tab` so mapSheetRow derives
+// current/membershipState correctly (current -> active/honorary per Tier,
+// lapsed -> current=false/membershipState='lapsed' regardless of the sheet's
+// own 'Current?' column). Unlike fetchAllRosterRows, this is the fn T4's sync
+// should use — fetchAllRosterRows stays current-only for its existing callers.
+export async function fetchAllMembers(deps: FetchAllMembersDeps = {}): Promise<MemberRecord[]> {
+  const getTab = deps.getTab ?? realGetTab
+
+  async function readTab(tabName: string, tab: 'current' | 'lapsed'): Promise<MemberRecord[]> {
+    const values = await getTab(tabName)
+    if (values.length < 2) return []
+    const headers = values[0].map((h) => String(h).trim())
+    return values.slice(1)
+      .map((r) => mapSheetRow(headers, r.map((c) => String(c ?? '')), { tab }))
+      .filter((m): m is MemberRecord => m !== null)
+  }
+
+  const [current, lapsed] = await Promise.all([
+    readTab(TAB, 'current'),
+    readTab(LAPSED_TAB, 'lapsed'),
+  ])
+  return [...current, ...lapsed]
+}
+
+export type PaymentRecord = { date: Date; netDues: number; source: string }
+
+type FetchPaymentsDeps = {
+  getTab?: (tabName: string) => Promise<string[][]>
+}
+
+const PAYMENTS_TAB = 'Payments'
+
+// Reads the Payments tab (headers: Date, Net Dues, Source). Skips the header
+// row plus any row whose date or amount doesn't parse (including fully blank
+// rows, which fail the date parse).
+export async function fetchPayments(deps: FetchPaymentsDeps = {}): Promise<PaymentRecord[]> {
+  const getTab = deps.getTab ?? realGetTab
+  const values = await getTab(PAYMENTS_TAB)
+  if (values.length < 2) return []
+  const headers = values[0].map((h) => String(h).trim())
+  const out: PaymentRecord[] = []
+  for (const raw of values.slice(1)) {
+    const row = raw.map((c) => String(c ?? ''))
+    const dateStr = cell(headers, row, 'Date')
+    const netDuesStr = cell(headers, row, 'Net Dues')
+    const source = cell(headers, row, 'Source')
+    const date = parseDate(dateStr)
+    if (!date) continue
+    const netDues = parseFloat(netDuesStr)
+    if (isNaN(netDues)) continue
+    out.push({ date, netDues, source })
+  }
+  return out
 }
 
 export async function fetchRosterRowByEmail(email: string): Promise<MemberRecord | null> {
@@ -149,8 +242,23 @@ type SyncDeps = {
   db?: typeof prisma
 }
 
+// syncRoster is membership-state-aware: rows come from fetchAllMembers (T3),
+// which concatenates the current-members tab and the Lapsed Members tab, so a
+// lapsed member IS "seen" this run (membershipState 'lapsed', current false)
+// and must not be confused with a member who vanished from BOTH tabs entirely
+// (membershipState 'former' — set by the sweep below).
+//
+// Email-less honorary members (Member.emailAddress nullable, see schema
+// comment) can't be upserted `where: { emailAddress }`. They're matched by
+// NAME against existing null-email rows instead: exactly one match -> update
+// that row by id; no match -> create; multiple matches -> log a warning and
+// update the first (arbitrary-but-deterministic; documented in the T4
+// report — avoids crashing on a same-named-honorary edge case rather than
+// picking a "cleverer" disambiguation that isn't worth the complexity here).
+// They're tracked as seen via a separate `name:<name>` key so the sweep
+// doesn't deactivate them.
 export async function syncRoster(deps: SyncDeps = {}): Promise<{ synced: number; deactivated: number }> {
-  const fetchAll = deps.fetchAll ?? fetchAllRosterRows
+  const fetchAll = deps.fetchAll ?? fetchAllMembers
   const fetchGroupMembers = deps.fetchGroupMembers ?? fetchAccessGroupMembers
   const db = deps.db ?? prisma
   const rows = await fetchAll()
@@ -164,27 +272,121 @@ export async function syncRoster(deps: SyncDeps = {}): Promise<{ synced: number;
   }
 
   let synced = 0
-  const seen = new Set<string>()
+  const seenEmails = new Set<string>()
+  const seenNameKeys = new Set<string>()
+
   for (const m of rows) {
-    const access = groupSet === null
-      ? {}
-      : { resourceAccess: groupSet.has(m.emailAddress) || (m.googleEmail ? groupSet.has(m.googleEmail) : false) }
-    await db.member.upsert({
-      where: { emailAddress: m.emailAddress },
-      update: { googleEmail: m.googleEmail, name: m.name, tier: m.tier, current: m.current, isBoard: m.isBoard, role: m.role, partnerEmail: m.partnerEmail, expires: m.expires, joinDate: m.joinDate, paymentDate: m.paymentDate, referredBy: m.referredBy, ...access },
-      create: { emailAddress: m.emailAddress, googleEmail: m.googleEmail, name: m.name, tier: m.tier, current: m.current, isBoard: m.isBoard, role: m.role, partnerEmail: m.partnerEmail, expires: m.expires, joinDate: m.joinDate, paymentDate: m.paymentDate, referredBy: m.referredBy, ...access },
-    })
-    seen.add(m.emailAddress)
+    // Defensive: fetchAllMembers/mapSheetRow already drop true blank-spacer
+    // rows (no name AND no email), but guard here too rather than trust that
+    // invariant holds forever upstream.
+    if (!m.emailAddress && !m.name) continue
+
+    const commonFields = {
+      googleEmail: m.googleEmail,
+      name: m.name,
+      tier: m.tier,
+      current: m.current,
+      isBoard: m.isBoard,
+      role: m.role,
+      partnerEmail: m.partnerEmail,
+      expires: m.expires,
+      joinDate: m.joinDate,
+      paymentDate: m.paymentDate,
+      referredBy: m.referredBy,
+      membershipState: m.membershipState,
+    }
+
+    if (m.emailAddress) {
+      const email = m.emailAddress
+      const access = groupSet === null
+        ? {}
+        : { resourceAccess: groupSet.has(email) || (m.googleEmail ? groupSet.has(m.googleEmail) : false) }
+      await db.member.upsert({
+        where: { emailAddress: email },
+        update: { ...commonFields, ...access },
+        create: { emailAddress: email, ...commonFields, ...access },
+      })
+      seenEmails.add(email)
+      synced++
+      continue
+    }
+
+    // Email-less (honorary) member: match by name against existing null-email rows.
+    const name = m.name as string
+    const matches = await db.member.findMany({ where: { name, emailAddress: null } })
+    if (matches.length > 1) {
+      console.warn(`syncRoster: multiple null-email members named "${name}" — updating the first, skipping the rest`, matches.map((x: any) => x.id))
+    }
+    if (matches.length >= 1) {
+      await db.member.update({ where: { id: matches[0].id }, data: { ...commonFields } })
+    } else {
+      await db.member.create({ data: { emailAddress: null, ...commonFields } })
+    }
+    seenNameKeys.add(`name:${name}`)
     synced++
   }
-  const existing = await db.member.findMany({ select: { emailAddress: true } })
-  const toDeactivate = existing.map((e) => e.emailAddress).filter((e) => !seen.has(e))
+
+  // Sweep: anything in the DB not seen this run (present in neither tab) is
+  // genuinely gone — distinct from an explicitly-lapsed member, who WAS seen
+  // (via the Lapsed tab) and already carries membershipState 'lapsed'.
   let deactivated = 0
-  if (toDeactivate.length) {
-    const r = await db.member.updateMany({ where: { emailAddress: { in: toDeactivate }, current: true }, data: { current: false } })
-    deactivated = r.count
+
+  const existingByEmail = await db.member.findMany({ where: { emailAddress: { not: null } } })
+  const toDeactivateEmails = existingByEmail
+    .map((e: any) => e.emailAddress as string | null)
+    .filter((e): e is string => e != null && !seenEmails.has(e))
+  if (toDeactivateEmails.length) {
+    const r = await db.member.updateMany({
+      // Only transition members NOT already 'former' — otherwise every run
+      // re-updates every already-retired member (inflating `deactivated` into a
+      // meaningless running total + a no-op write per former member per run).
+      // `deactivated` should count genuine drop-offs THIS run.
+      where: { emailAddress: { in: toDeactivateEmails }, membershipState: { not: 'former' } },
+      data: { current: false, membershipState: 'former' },
+    })
+    deactivated += r.count
   }
+
+  // Null-email (honorary) members: no compound key to updateMany on safely by
+  // name (names aren't unique), so sweep them individually by id instead. Skip
+  // ones already 'former' so we don't re-update + re-count them every run.
+  const existingNullEmail = await db.member.findMany({ where: { emailAddress: null } })
+  for (const e of existingNullEmail as Array<{ id: string; name: string | null; membershipState: string }>) {
+    const key = e.name ? `name:${e.name}` : null
+    if (key && seenNameKeys.has(key)) continue
+    if (e.membershipState === 'former') continue
+    await db.member.update({ where: { id: e.id }, data: { current: false, membershipState: 'former' } })
+    deactivated++
+  }
+
   return { synced, deactivated }
+}
+
+type PaymentSyncDeps = {
+  fetchPayments?: () => Promise<PaymentRecord[]>
+  db?: typeof prisma
+}
+
+// Idempotent sync of the Payments tab into the Payment table. Upserts on the
+// (date, netDues, source) compound unique so re-running the sync (e.g. the
+// daily cron) never duplicates a row already recorded for that exact
+// date+amount+source combination. Kept separate from syncRoster per the
+// phase-1 plan — the cron calls both.
+export async function syncPayments(deps: PaymentSyncDeps = {}): Promise<{ payments: number }> {
+  const fetchPaymentsFn = deps.fetchPayments ?? fetchPayments
+  const db = deps.db ?? prisma
+  const rows = await fetchPaymentsFn()
+
+  let payments = 0
+  for (const p of rows) {
+    await db.payment.upsert({
+      where: { date_netDues_source: { date: p.date, netDues: p.netDues, source: p.source } },
+      create: { date: p.date, netDues: p.netDues, source: p.source },
+      update: {},
+    })
+    payments++
+  }
+  return { payments }
 }
 
 export function validateSecondaryEmail(email: string): { ok: true; value: string } | { ok: false; reason: string } {
@@ -283,7 +485,7 @@ export async function isCurrentMember(email: string, deps: GateDeps = {}): Promi
       ? process.env.DEV_ALLOWED_EMAILS?.split(',').map((x) => x.trim().toLowerCase())
       : undefined
   if (devList?.includes(e)) {
-    return { ok: true, member: { emailAddress: e, googleEmail: null, name: 'DEV', tier: null, current: true, isBoard: false, role: null, partnerEmail: null, expires: null, joinDate: null, paymentDate: null, referredBy: null } }
+    return { ok: true, member: { emailAddress: e, googleEmail: null, name: 'DEV', tier: null, current: true, isBoard: false, role: null, partnerEmail: null, expires: null, joinDate: null, paymentDate: null, referredBy: null, membershipState: 'active' } }
   }
 
   try {
@@ -292,9 +494,12 @@ export async function isCurrentMember(email: string, deps: GateDeps = {}): Promi
     })
     if (hit) return { ok: true, member: hit as MemberRecord }
 
-    // fallback: live Sheet read for a just-added member
+    // fallback: live Sheet read for a just-added member. Looked up BY email,
+    // so a hit always carries that same non-null email back (email-less
+    // honorary members can't reach this path since fetchByEmail matches on
+    // emailAddress/googleEmail).
     const row = await fetchByEmail(e)
-    if (row && row.current) {
+    if (row && row.current && row.emailAddress) {
       await db.member.upsert({
         where: { emailAddress: row.emailAddress },
         update: { ...row },
