@@ -337,18 +337,24 @@ export async function syncRoster(deps: SyncDeps = {}): Promise<{ synced: number;
     .filter((e): e is string => e != null && !seenEmails.has(e))
   if (toDeactivateEmails.length) {
     const r = await db.member.updateMany({
-      where: { emailAddress: { in: toDeactivateEmails } },
+      // Only transition members NOT already 'former' — otherwise every run
+      // re-updates every already-retired member (inflating `deactivated` into a
+      // meaningless running total + a no-op write per former member per run).
+      // `deactivated` should count genuine drop-offs THIS run.
+      where: { emailAddress: { in: toDeactivateEmails }, membershipState: { not: 'former' } },
       data: { current: false, membershipState: 'former' },
     })
     deactivated += r.count
   }
 
   // Null-email (honorary) members: no compound key to updateMany on safely by
-  // name (names aren't unique), so sweep them individually by id instead.
+  // name (names aren't unique), so sweep them individually by id instead. Skip
+  // ones already 'former' so we don't re-update + re-count them every run.
   const existingNullEmail = await db.member.findMany({ where: { emailAddress: null } })
-  for (const e of existingNullEmail as Array<{ id: string; name: string | null }>) {
+  for (const e of existingNullEmail as Array<{ id: string; name: string | null; membershipState: string }>) {
     const key = e.name ? `name:${e.name}` : null
     if (key && seenNameKeys.has(key)) continue
+    if (e.membershipState === 'former') continue
     await db.member.update({ where: { id: e.id }, data: { current: false, membershipState: 'former' } })
     deactivated++
   }

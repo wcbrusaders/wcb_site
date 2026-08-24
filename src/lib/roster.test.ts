@@ -303,6 +303,54 @@ describe('syncRoster (membership-state-aware)', () => {
     expect(res.deactivated).toBe(1)
   })
 
+  it('sweep only transitions members NOT already former (no re-count/re-write on re-run)', async () => {
+    // Regression (T4 review): the sweep updateMany dropped the "not already
+    // former" filter, so it re-updated + re-counted every already-retired member
+    // every run. The where clause must exclude membershipState 'former'.
+    let capturedWhere: any = null
+    const db = {
+      member: {
+        upsert: async () => ({}),
+        findMany: async (args: any) =>
+          args?.where?.emailAddress === null ? [] : [{ emailAddress: 'gone@x.com' }],
+        update: async () => ({}),
+        create: async () => ({}),
+        updateMany: async (args: any) => {
+          if (args?.where?.emailAddress === null) return { count: 0 }
+          capturedWhere = args.where
+          return { count: 1 }
+        },
+      },
+    }
+    await syncRoster({ fetchAll: async () => [], db: db as any, fetchGroupMembers: async () => new Set() })
+    expect(capturedWhere?.emailAddress?.in).toEqual(['gone@x.com'])
+    expect(capturedWhere?.membershipState).toEqual({ not: 'former' })
+  })
+
+  it('null-email member already former is skipped by the per-row sweep', async () => {
+    const updates: any[] = []
+    const db = {
+      member: {
+        upsert: async () => ({}),
+        findMany: async (args: any) =>
+          args?.where?.emailAddress === null
+            ? [
+                { id: 'h1', name: 'Cat Pearce', emailAddress: null, membershipState: 'former' },
+                { id: 'h2', name: 'New Honorary', emailAddress: null, membershipState: 'honorary' },
+              ]
+            : [],
+        update: async (a: any) => { updates.push(a); return {} },
+        create: async () => ({}),
+        updateMany: async () => ({ count: 0 }),
+      },
+    }
+    // neither honorary is in this run's rows -> both are "unseen"
+    const res = await syncRoster({ fetchAll: async () => [], db: db as any, fetchGroupMembers: async () => new Set() })
+    // only the not-yet-former honorary (h2) is transitioned; the already-former h1 skipped
+    expect(updates.map((u) => u.where.id)).toEqual(['h2'])
+    expect(res.deactivated).toBe(1)
+  })
+
   it('explicitly-lapsed member (seen via Lapsed tab) is NOT swept to former', async () => {
     const helper = makeDb({
       existingByEmail: [{ emailAddress: 'old@x.com' }],
