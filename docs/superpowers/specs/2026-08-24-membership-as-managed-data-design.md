@@ -22,6 +22,37 @@ source of truth. Make **membership first-class managed data in the site**, with 
 **month-over-month membership metrics** — migrating OFF the workbook rather than
 syncing from it.
 
+## REVISED SCOPE (2026-08-24, after seeing the real workbook + user corrections)
+
+The workbook is **NOT retired**. Two corrections from Jordan:
+1. **Members + join dates + payments keep coming FROM the sheet in perpetuity** — until
+   a future refactor makes the site ingest Stripe/PayPal directly. The sheet stays the
+   source of truth for WHO is a member and WHAT was paid. We just sync ALL of it, not
+   only `Sheet1`.
+2. **The 9 report tabs are DERIVED (spreadsheet formulas), not source data** — the site
+   COMPUTES them from members + payments rather than copying them.
+
+**The real workbook (11 tabs, "Member Roster"):**
+- SOURCE data (sync into DB):
+  - `Sheet1` — 33 current members. Cols: Name, Tier, Email Address, Payment Date,
+    Expires, Current, Last Reminder Sent, Reminder Count, Partner Email, Linked To,
+    Opt Out, Drive Access Status, Google Email, Partner Google Email, Calendar Access
+    Status, Board Member, Tenure (months), Join Date, Referred By, Role.
+  - `Lapsed Members` — 8 lapsed (same shape + "Tenure at Lapse (mo)"). **The current
+    sync ignores this tab — this is the missing ~8 that made counts wrong.**
+  - `Payments` — 55 dated dues txns: Date, Net Dues (amount), Source (Stripe/PayPal).
+- DERIVED reports (site COMPUTES from Member + Payment; do NOT port formulas):
+  - `Metrics` (KPIs: active count, rolling-12mo turnover %, members expiring next 30d,
+    longest-tenured, avg tenure at lapse), `Trends` (per-quarter New/Churn/Active-EOQ/
+    Turnover%/Retention%/New-YoY%/Net-Growth%), `Renewal Pipeline` (members expiring by
+    month), `Tier Mix` (members per tier), `Seasonality` (joins by month), `Cohort
+    Retention` (by join-quarter: joined/still-active/retention%/tested?), `Revenue`
+    (per-quarter Net Dues/Events Income[all 0 today]/Total/Dues Payments/New/Renewals),
+    `Referrals` (program tally).
+- All 9 reports derive from member rows (joinDate/expires/tier/current/status) + payment
+  rows grouped by quarter/month/tier/cohort. Events Income isn't tracked yet (all 0) —
+  future input, not blocking.
+
 ## Decisions (settled in brainstorming)
 
 1. **Members are keyed by internal ID, not email.** The `Member` table already has a
@@ -116,14 +147,27 @@ produce history — this is why the snapshot table exists.)
   (honorary) members simply have no login path — verify the auth/adapter tolerates a
   null-email Member (they're never a `User` row).
 
-## Phasing (proposed)
+## Phasing (REVISED — sheet stays source; reports computed; end-to-end build)
 
-- **Phase 1 — data model + import:** Member email nullable + membershipState;
-  MembershipSnapshot table; migration; import expired + honorary members; import metrics
-  sheet → historical snapshots. Result: DB has the FULL, correct roster + history.
-- **Phase 2 — admin page:** membership list (filterable) + MoM metrics view.
-- **Phase 3 — monthly job + retire the workbook:** scheduled snapshot; admin CRUD so the
-  sheet is no longer needed.
+- **Phase 1 — expanded sync (source data):** sync `Sheet1` + `Lapsed Members` into
+  `Member` (lapsed → current=false / membershipState='lapsed'); add a `Payment` table and
+  sync the `Payments` tab (date, netDues, source). Member email nullable (honorary by id).
+  Result: DB has the FULL, correct roster (32 active + ~8 lapsed) + payments. The Discord
+  bot's counts immediately become correct (it reads current/membershipState).
+- **Phase 2 — metrics engine:** a module that COMPUTES the reports from Member + Payment:
+  KPIs, Trends (per-quarter), Renewal Pipeline (by month), Tier Mix, Seasonality, Cohort
+  Retention (by join-quarter), Revenue (per-quarter). Pure aggregations; unit-tested
+  against the known sheet values (2026-Q2: 30 active, 6 new, 0 churn, 100% retention;
+  rolling-12mo turnover 11.1%; longest-tenured Jordan LaFontaine; etc.) so our numbers
+  match the workbook.
+- **Phase 3 — admin reports page:** display all computed reports (tables/charts) on the
+  admin site, officer-gated.
+- **Phase 4 — biweekly auto-generate:** a scheduled job (Vercel cron, ~every 2 weeks)
+  that re-runs the sync + recomputes reports + writes a `MembershipSnapshot` row (history
+  going forward). This is the "auto generate every 2 weeks" ask.
+
+Note: the sheet remains the source for members/join-dates/payments until a LATER refactor
+makes the site ingest Stripe/PayPal directly (explicitly out of scope here).
 
 ## Open questions for review
 
@@ -136,5 +180,10 @@ produce history — this is why the snapshot table exists.)
 - Auth: confirm a null-email Member can't break the NextAuth flow.
 
 ## Out of scope
-- Discord bot changes beyond pointing counts at `membershipState` (already privacy-safe).
-- Payment/dues-amount handling (stays out of the bot; admin-only if surfaced at all).
+- Discord bot changes beyond pointing counts at `membershipState`/`current` (already
+  privacy-safe; bot never shows payment amounts or the reports — those are admin-only).
+- Site ingesting Stripe/PayPal transactions DIRECTLY (a future refactor; for now Payments
+  sync from the sheet).
+- Events Income (Revenue tab is all 0 today — no source yet).
+- Retiring the workbook (members/payments keep syncing from it until the Stripe/PayPal
+  refactor).
