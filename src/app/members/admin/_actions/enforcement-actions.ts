@@ -145,6 +145,12 @@ export async function reinstateMemberAction(subjectMemberId: string, subjectLabe
 export async function recordStrikeAction(memberId: string, memberLabel: string, level: string, reason: string) {
   const actor = await requireBoard()
   if (!actor?.memberId) return { ok: false, reason: 'Not authorized.' }
+  // Guard: memberId must be a real Member.id. The admin roster now includes
+  // honorary members who may have no DB row (their UI id falls back to their
+  // NAME, not a cuid). Filing a strike against a non-existent id would silently
+  // create an orphaned enforcement/audit record (Strike.memberId has no FK).
+  const target = await prisma.member.findUnique({ where: { id: memberId }, select: { id: true } })
+  if (!target) return { ok: false, reason: 'That member has no record on the site (e.g. an honorary member); strikes can only be filed against a member with a site account.' }
   const now = new Date()
   const expiresAt = level === 'correction' ? null : new Date(now.getTime() + 365 * 24 * 60 * 60 * 1000)
   await prisma.strike.create({ data: { memberId, memberLabel, level, reason, issuedByEmail: actor.email, expiresAt } })
