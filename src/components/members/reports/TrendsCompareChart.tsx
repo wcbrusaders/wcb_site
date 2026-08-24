@@ -186,7 +186,7 @@ export function TrendsCompareChart({ trends, revenue }: { trends: TrendRow[]; re
             tick={{ fill: '#898781', fontSize: 11 }}
             tickLine={false}
             axisLine={{ stroke: '#383835' }}
-            label={{ value: 'Index (100 = first quarter)', angle: -90, position: 'insideLeft', fill: '#898781', fontSize: 11 }}
+            label={{ value: 'Index (100 = each series’ first non-zero quarter)', angle: -90, position: 'insideLeft', fill: '#898781', fontSize: 11 }}
           />
           <Tooltip
             content={({ active, payload, label }) => {
