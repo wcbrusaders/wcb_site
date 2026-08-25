@@ -1,12 +1,15 @@
 import { redirect } from 'next/navigation'
 import { auth } from '@/lib/auth'
 import { getMembershipReports } from '@/lib/metrics'
+import { fetchLapsedMembers } from '@/lib/metrics/lapsed'
+import { prisma } from '@/lib/db'
 import { PageHeader, SectionLabel, EmptyState } from '@/components/ui'
 import { InfoCard, Row } from '@/components/members/InfoCard'
 import { TrendsCompareChart } from '@/components/members/reports/TrendsCompareChart'
 import { TierDonut } from '@/components/members/reports/TierDonut'
 import { SeasonalityBars } from '@/components/members/reports/SeasonalityBars'
 import { MembershipInsights } from '@/components/members/MembershipInsights'
+import { LapsedMembersEditor } from '@/components/members/LapsedMembersEditor'
 
 export const dynamic = 'force-dynamic'
 
@@ -52,6 +55,7 @@ export default async function MembershipReportsPage() {
   if (!session.user.isBoard) redirect('/members')
 
   const r = await getMembershipReports()
+  const lapsedMembers = await fetchLapsedMembers(prisma)
   const k = r.kpis
   const g = r.growthSummary
 
@@ -240,7 +244,11 @@ export default async function MembershipReportsPage() {
         </InfoCard>
       </div>
 
-      {/* Zone 6: on-demand AI analysis over the metrics above. */}
+      {/* Zone 6: why members left — board-editable reason capture. */}
+      <SectionLabel icon="🔍">Why members left</SectionLabel>
+      <LapsedMembersEditor members={lapsedMembers} />
+
+      {/* Zone 7: on-demand AI analysis over the metrics above. */}
       <SectionLabel icon="✨">AI insights</SectionLabel>
       <MembershipInsights />
 
