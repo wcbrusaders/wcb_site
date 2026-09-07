@@ -6,7 +6,7 @@ export type DeliveryStatus = 'in_transit' | 'delivered' | 'exception'
 const SEVEN_DAYS = 7 * 86400000
 const BANNER_WINDOW_DAYS = 21 // surface items within ~3 weeks
 
-export type CompEntryView = { id: string; memberId: string; memberName: string | null; beerName: string; style: string; channel: EntryChannel; registered: boolean }
+export type CompEntryView = { id: string; memberId: string; memberName: string | null; beerName: string; style: string; channel: EntryChannel; registered: boolean; bottled: boolean }
 export type CompetitionView = {
   id: string; name: string; homepageUrl: string
   registrationDeadline: Date; shippingDeadline: Date; bottlesRequired: number
@@ -24,7 +24,7 @@ export type OfficerCompView = CompetitionView & {
 }
 export type BannerItem = { competitionId: string; competitionName: string; kind: 'register' | 'commit' | 'deliver' | 'ship'; date: Date; daysAway: number; detail: string }
 export type NewCompetitionInput = { name: string; homepageUrl: string; registrationDeadline: Date; shippingDeadline: Date; bottlesRequired: number; shippingAddress: string; dropoffAddress?: string | null }
-export type NewEntryInput = { beerName: string; style: string; channel: EntryChannel; registered: boolean }
+export type NewEntryInput = { beerName: string; style: string; channel: EntryChannel; registered: boolean; bottled?: boolean }
 export type CompResult = { ok: true; id: string } | { ok: false; reason: 'validation' | 'not_found' | 'forbidden' }
 export type MutResult = { ok: true } | { ok: false; reason: 'not_found' | 'forbidden' }
 
@@ -79,11 +79,11 @@ export async function listMemberComps(memberId: string, deps: { db?: typeof pris
   return (comps as any[]).map((c) => ({
     ...toCompView(c, now),
     myEntries: (c.entries ?? []).filter((e: any) => e.memberId === memberId).map((e: any) => ({
-      id: e.id, memberId: e.memberId, memberName: null, beerName: e.beerName, style: e.style, channel: e.channel as EntryChannel, registered: e.registered,
+      id: e.id, memberId: e.memberId, memberName: null, beerName: e.beerName, style: e.style, channel: e.channel as EntryChannel, registered: e.registered, bottled: e.bottled ?? false,
     })),
     // Every entrant, with resolved names — visible to all logged-in members.
     allEntries: (c.entries ?? []).map((e: any) => ({
-      id: e.id, memberId: e.memberId, memberName: names.get(e.memberId) ?? null, beerName: e.beerName, style: e.style, channel: e.channel as EntryChannel, registered: e.registered,
+      id: e.id, memberId: e.memberId, memberName: names.get(e.memberId) ?? null, beerName: e.beerName, style: e.style, channel: e.channel as EntryChannel, registered: e.registered, bottled: e.bottled ?? false,
     })),
   }))
 }
@@ -104,7 +104,7 @@ export async function listOfficerComps(deps: { db?: typeof prisma; now?: Date } 
   return (comps as any[]).map((c) => {
     const entries: CompEntryView[] = (c.entries ?? []).map((e: any) => ({
       id: e.id, memberId: e.memberId, memberName: names.get(e.memberId) ?? null,
-      beerName: e.beerName, style: e.style, channel: e.channel as EntryChannel, registered: e.registered,
+      beerName: e.beerName, style: e.style, channel: e.channel as EntryChannel, registered: e.registered, bottled: e.bottled ?? false,
     }))
     const byMember = new Map<string, { memberId: string; memberName: string | null; entryCount: number; clubShipCount: number; registeredCount: number }>()
     for (const e of entries) {
@@ -223,7 +223,7 @@ export async function addEntry(competitionId: string, input: NewEntryInput, memb
   if (!input.beerName?.trim() || !input.style?.trim()) return { ok: false, reason: 'validation' }
   const comp = await db.competition.findUnique({ where: { id: competitionId } })
   if (!comp) return { ok: false, reason: 'not_found' }
-  const e = await db.compEntry.create({ data: { competitionId, memberId, beerName: input.beerName.trim(), style: input.style.trim(), channel: input.channel, registered: input.registered } })
+  const e = await db.compEntry.create({ data: { competitionId, memberId, beerName: input.beerName.trim(), style: input.style.trim(), channel: input.channel, registered: input.registered, bottled: input.bottled ?? false } })
   return { ok: true, id: e.id }
 }
 

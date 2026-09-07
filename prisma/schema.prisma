@@ -191,6 +191,9 @@ model CompEntry {
   style         String
   channel       String      // 'club_ship' | 'self_ship' | 'dropoff'
   registered    Boolean     @default(false)
+  // Bottling companion: has the member packaged this entry's bottles yet? Ticked
+  // at the bench so they can see what's left to bottle per competition.
+  bottled       Boolean     @default(false)
   createdAt     DateTime    @default(now())
   updatedAt     DateTime    @updatedAt
   @@index([competitionId])

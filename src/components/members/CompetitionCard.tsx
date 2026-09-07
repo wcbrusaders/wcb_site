@@ -13,6 +13,9 @@ const BADGE_CLASS: Record<BadgeVariant, string> = {
   unreg: 'bg-white/[0.04] text-foreground/50 border border-border',
   neutral: 'bg-white/[0.06] text-foreground/60 border border-border',
 }
+// Bottled badge reuses the reg/unreg green-vs-muted styling.
+const BOTTLED_CLASS = 'bg-[#4ade80]/12 text-[#4ade80] border border-[#4ade80]/30'
+const UNBOTTLED_CLASS = 'bg-white/[0.04] text-foreground/50 border border-border'
 const SEG_CHANNELS: { v: EntryChannel; label: string }[] = [
   { v: 'club_ship', label: 'Club ships' }, { v: 'self_ship', label: 'I ship it' }, { v: 'dropoff', label: 'I drop off' },
 ]
@@ -185,7 +188,21 @@ export function CompetitionCard({ comp, viewerIsBoard, viewerId }: { comp: Membe
 
       {/* --- Your entries --- */}
       <div className="mt-4">
-        <p className="text-xs font-semibold uppercase tracking-wide text-foreground/45 mb-2">Your entries · {myCount}</p>
+        <div className="flex items-center gap-2 mb-2 flex-wrap">
+          <p className="text-xs font-semibold uppercase tracking-wide text-foreground/45">Your entries · {myCount}</p>
+          {myCount > 0 && (() => {
+            const bottledCount = comp.myEntries.filter((e) => e.bottled).length
+            const left = comp.myEntries.filter((e) => !e.bottled)
+            const allDone = left.length === 0
+            return (
+              <span className={`text-[11px] rounded-full px-2 py-0.5 ${allDone ? 'text-[#4ade80] bg-[#4ade80]/10' : 'text-foreground/55 bg-white/[0.04] border border-border'}`}>
+                {allDone
+                  ? `🍾 All bottled (${bottledCount}/${myCount})`
+                  : `🍾 Bottled ${bottledCount}/${myCount} · still to bottle: ${left.map((e) => e.beerName).join(', ')}`}
+              </span>
+            )
+          })()}
+        </div>
         <ul className="space-y-2">
           {comp.myEntries.map((e) => {
             const cb = channelBadge(e.channel)
@@ -193,12 +210,14 @@ export function CompetitionCard({ comp, viewerIsBoard, viewerId }: { comp: Membe
               <li key={e.id} className="rounded-xl border border-border/60 bg-background/40 px-4 py-3 flex items-center justify-between gap-3 flex-wrap">
                 <div className="min-w-0">
                   <div className="font-semibold">{e.beerName} <span className="text-foreground/50 font-normal text-sm">· {e.style}</span></div>
-                  <div className="flex gap-1.5 mt-1.5">
+                  <div className="flex gap-1.5 mt-1.5 flex-wrap">
                     <span className={`text-[11px] font-semibold rounded-full px-2 py-0.5 ${BADGE_CLASS[cb.variant]}`}>{cb.label}</span>
                     <span className={`text-[11px] font-semibold rounded-full px-2 py-0.5 ${e.registered ? BADGE_CLASS.reg : BADGE_CLASS.unreg}`}>{e.registered ? 'Registered' : 'Not registered'}</span>
+                    <span className={`text-[11px] font-semibold rounded-full px-2 py-0.5 ${e.bottled ? BOTTLED_CLASS : UNBOTTLED_CLASS}`}>{e.bottled ? '🍾 Bottled' : 'Not bottled'}</span>
                   </div>
                 </div>
                 <span className="flex gap-2 shrink-0">
+                  <button disabled={pending} onClick={() => run(() => editEntryAction(e.id, { bottled: !e.bottled }))} className={`px-2.5 py-0.5 rounded-full text-xs border ${e.bottled ? 'border-border text-foreground/60' : 'border-[#4ade80]/40 text-[#4ade80]'}`}>{e.bottled ? 'Mark unbottled' : 'Mark bottled'}</button>
                   <button disabled={pending} onClick={() => run(() => editEntryAction(e.id, { registered: !e.registered }))} className="border border-border px-2.5 py-0.5 rounded-full text-xs">{e.registered ? 'Unregister' : 'Register'}</button>
                   <button disabled={pending} onClick={() => run(() => deleteEntryAction(e.id))} className="border border-red-500/40 text-red-400 px-2.5 py-0.5 rounded-full text-xs">Remove</button>
                 </span>

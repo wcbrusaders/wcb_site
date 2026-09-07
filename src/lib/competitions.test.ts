@@ -166,6 +166,22 @@ test('entry mutations: owner-only', async () => {
   expect((await deleteEntry('e1', 'm2', { db: store() })).ok).toBe(false) // not owner
 })
 
+test('bottled: addEntry defaults false; editEntry toggles it (owner-gated); surfaced on myEntries', async () => {
+  const store = () => db([comp()], [])
+  // new entry defaults to not-bottled
+  const s1 = store()
+  const added = await addEntry('c1', { beerName: 'B', style: 'S', channel: 'dropoff', registered: false }, 'm1', { db: s1 })
+  expect(added.ok).toBe(true)
+  let res = await listMemberComps('m1', { db: s1, now: NOW })
+  expect(res[0].myEntries[0].bottled).toBe(false)
+  // owner can mark it bottled; non-owner cannot
+  const s2 = db([comp()], [entry({ id: 'e1', memberId: 'm1', bottled: false })])
+  expect((await editEntry('e1', { bottled: true }, 'm2', { db: s2 })).ok).toBe(false) // not owner
+  expect((await editEntry('e1', { bottled: true }, 'm1', { db: s2 })).ok).toBe(true)  // owner
+  res = await listMemberComps('m1', { db: s2, now: NOW })
+  expect(res[0].myEntries[0].bottled).toBe(true)
+})
+
 test('computeBannerItems: a SHIPPED club shipment suppresses both deliver and ship banners', async () => {
   // Same setup as the "member/officer see items" test, but shippedAt is set.
   const shippedComps = [comp({ shippedAt: new Date('2026-09-05T00:00:00Z') })]
