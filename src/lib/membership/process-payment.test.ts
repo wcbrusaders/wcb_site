@@ -82,3 +82,90 @@ describe('processPayment', () => {
     expect(d.appendNew).toHaveBeenCalledTimes(1)
   })
 })
+
+// I1 regression: every mutating path must claim the txn (markProcessed)
+// BEFORE its first roster mutation (writeCells/appendNew/queuePending). If
+// the function crashes/times out after a mutation but before markProcessed,
+// a PayPal retry re-processes (alreadyProcessed=false) and double-renews —
+// Expires jumps another ~year, compounded by day-credit. Claiming first
+// means a retry short-circuits at the alreadyProcessed guard instead.
+describe('processPayment idempotency: markProcessed is called BEFORE the first mutation', () => {
+  function orderedDeps(over: Partial<Parameters<typeof processPayment>[1]> = {}) {
+    const callOrder: string[] = []
+    const d = {
+      readMembers: async () => [{ rowNumber: 11, tab: 'current' as const, name: 'Peter Pray', emails: ['petehpray@yahoo.com'], expires: null }],
+      writeCells: vi.fn(async () => { callOrder.push('writeCells') }),
+      moveRow: vi.fn(async () => { callOrder.push('moveRow'); return 11 }),
+      appendNew: vi.fn(async () => { callOrder.push('appendNew'); return 99 }),
+      sendEmail: vi.fn(async () => { callOrder.push('sendEmail') }),
+      queuePending: vi.fn(async () => { callOrder.push('queuePending') }),
+      alreadyProcessed: async () => false,
+      markProcessed: vi.fn(async () => { callOrder.push('markProcessed') }),
+      now: new Date('2026-09-08T00:00:00Z'),
+      ...over,
+    }
+    return { d, callOrder }
+  }
+
+  function firstMutationIndex(callOrder: string[]): number {
+    const mutations = ['writeCells', 'moveRow', 'appendNew', 'queuePending']
+    return callOrder.findIndex((c) => mutations.includes(c))
+  }
+
+  it('renewal path (exact email match): markProcessed index < first writeCells index', async () => {
+    const { d, callOrder } = orderedDeps()
+    const r = await processPayment(baseIpn, d)
+    expect(r.outcome).toBe('renewed')
+    const markIdx = callOrder.indexOf('markProcessed')
+    expect(markIdx).toBeGreaterThanOrEqual(0)
+    expect(markIdx).toBeLessThan(firstMutationIndex(callOrder))
+  })
+
+  it('reactivation path (lapsed-tab match): markProcessed index < first moveRow/writeCells index', async () => {
+    const { d, callOrder } = orderedDeps({
+      readMembers: async () => [{ rowNumber: 11, tab: 'lapsed' as const, name: 'Peter Pray', emails: ['petehpray@yahoo.com'], expires: null }],
+    })
+    const r = await processPayment(baseIpn, d)
+    expect(r.outcome).toBe('reactivated')
+    const markIdx = callOrder.indexOf('markProcessed')
+    expect(markIdx).toBeGreaterThanOrEqual(0)
+    expect(markIdx).toBeLessThan(firstMutationIndex(callOrder))
+  })
+
+  it('name-review path: markProcessed index < queuePending index', async () => {
+    // baseIpn pays via yahoo but the roster row has a gmail address -> no
+    // exact/normalized/alias match, so matchPayment falls through to
+    // name-review (mirrors the "Peter (yahoo pay, gmail row)" fixture above).
+    const { d, callOrder } = orderedDeps({
+      readMembers: async () => [{ rowNumber: 11, tab: 'current' as const, name: 'Peter Pray', emails: ['petehpray@gmail.com'], expires: null }],
+    })
+    const r = await processPayment(baseIpn, d)
+    expect(r.outcome).toBe('review')
+    const markIdx = callOrder.indexOf('markProcessed')
+    expect(markIdx).toBeGreaterThanOrEqual(0)
+    expect(markIdx).toBeLessThan(firstMutationIndex(callOrder))
+  })
+
+  it('new-member path: markProcessed index < first appendNew index', async () => {
+    const { d, callOrder } = orderedDeps({ readMembers: async () => [] })
+    const r = await processPayment(baseIpn, d)
+    expect(r.outcome).toBe('new')
+    const markIdx = callOrder.indexOf('markProcessed')
+    expect(markIdx).toBeGreaterThanOrEqual(0)
+    expect(markIdx).toBeLessThan(firstMutationIndex(callOrder))
+  })
+
+  it('duplicate txn -> markProcessed never called again, no mutation happens', async () => {
+    const { d, callOrder } = orderedDeps({ alreadyProcessed: async () => true })
+    const r = await processPayment(baseIpn, d)
+    expect(r.outcome).toBe('duplicate')
+    expect(callOrder).toEqual([]) // neither markProcessed nor any mutation ran
+  })
+
+  it('skipped-tier -> markProcessed not called (not committed to mutating)', async () => {
+    const { d, callOrder } = orderedDeps()
+    const r = await processPayment({ ...baseIpn, amount: 12 }, d)
+    expect(r.outcome).toBe('skipped-tier')
+    expect(callOrder).toEqual([])
+  })
+})

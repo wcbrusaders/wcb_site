@@ -50,6 +50,13 @@ export async function processPayment(ipn: Ipn, deps: ProcessDeps): Promise<{ out
     const { expires, daysCredited } = computeExpiration(member.expires, deps.now)
     const paymentDate = fmtDate(deps.now)
 
+    // Claim the txn BEFORE the first mutation: from here on we're committed
+    // to mutating the roster, so a crash/timeout after this point but before
+    // completion must make a PayPal retry short-circuit at the
+    // `alreadyProcessed` guard above rather than double-renew (which would
+    // jump Expires by another ~year, compounded by day-credit).
+    await deps.markProcessed(ipn.txnId)
+
     if (member.tab === 'lapsed') {
       const newRow = await deps.moveRow('lapsed', member.rowNumber, 'current')
       await deps.writeCells('current', newRow, {
@@ -62,7 +69,6 @@ export async function processPayment(ipn: Ipn, deps: ProcessDeps): Promise<{ out
       })
       const { subject, html } = renderRenewal({ firstName: ipn.firstName, tier, expiration: expires, daysCredited })
       await deps.sendEmail(ipn.email, subject, html)
-      await deps.markProcessed(ipn.txnId)
       return { outcome: 'reactivated' }
     }
 
@@ -76,22 +82,24 @@ export async function processPayment(ipn: Ipn, deps: ProcessDeps): Promise<{ out
     })
     const { subject, html } = renderRenewal({ firstName: ipn.firstName, tier, expiration: expires, daysCredited })
     await deps.sendEmail(ipn.email, subject, html)
-    await deps.markProcessed(ipn.txnId)
     return { outcome: 'renewed' }
   }
 
   if (result.kind === 'name-review') {
     const candidates = result.candidates.map((c) => ({ rowNumber: c.rowNumber, tab: c.tab }))
+    // Claim before the first mutation (queuePending), same reasoning as above.
+    await deps.markProcessed(ipn.txnId)
     await deps.queuePending(ipn, candidates)
     const softAckHtml = `<p>Hi ${ipn.firstName},</p><p>We received your payment and are finalizing your membership. You'll get a confirmation email shortly.</p>`
     await deps.sendEmail(ipn.email, 'Payment received — finalizing your membership', softAckHtml)
-    await deps.markProcessed(ipn.txnId)
     return { outcome: 'review' }
   }
 
   // none: brand-new member
   const { expires } = computeExpiration(null, deps.now)
   const paymentDate = fmtDate(deps.now)
+  // Claim before the first mutation (appendNew), same reasoning as above.
+  await deps.markProcessed(ipn.txnId)
   await deps.appendNew({
     Name: `${ipn.firstName} ${ipn.lastName}`.trim(),
     Tier: tier,
@@ -120,6 +128,5 @@ export async function processPayment(ipn: Ipn, deps: ProcessDeps): Promise<{ out
   }
   const { subject, html } = renderWelcome({ firstName: ipn.firstName, tier, expiration: expires })
   await deps.sendEmail(ipn.email, subject, html)
-  await deps.markProcessed(ipn.txnId)
   return { outcome: 'new' }
 }

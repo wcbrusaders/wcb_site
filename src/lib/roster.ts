@@ -487,6 +487,13 @@ export async function readReminderRows(deps: ReadReminderRowsDeps = {}): Promise
     const name = cell(headers, row, 'Name')
     const email = cell(headers, row, 'Email Address')
     if (!name && !email) continue
+    // Couple/Dual partner-placeholder row (see findPartnerPlaceholders):
+    // 'Email Address' === 'NEEDS UPDATE' is the sentinel for "no real member
+    // here yet". It has Current: Yes + a real Expires, so without this skip
+    // it enters dueReminders/dueLapses — Resend rejects the send (caught
+    // fail-soft) but it's noisy, and it's an extra row for the lapse loop's
+    // descending-rowNumber ordering to walk for no reason.
+    if (email.toUpperCase() === 'NEEDS UPDATE') continue
 
     const reminderCountStr = cell(headers, row, 'Reminder Count')
     const reminderCount = parseInt(reminderCountStr, 10)

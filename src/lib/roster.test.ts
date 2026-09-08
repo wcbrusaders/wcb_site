@@ -1,5 +1,5 @@
 import { test, describe, it, expect, vi, afterEach } from 'vitest'
-import { normalizeEmail, mapSheetRow, isCurrentMember, syncRoster, syncPayments, validateSecondaryEmail, isAccessBlocked, isAccessBlockedNow, fetchAllRosterRows, fetchAllMembers, fetchPayments } from './roster'
+import { normalizeEmail, mapSheetRow, isCurrentMember, syncRoster, syncPayments, validateSecondaryEmail, isAccessBlocked, isAccessBlockedNow, fetchAllRosterRows, fetchAllMembers, fetchPayments, readReminderRows } from './roster'
 
 afterEach(() => {
   vi.unstubAllEnvs()
@@ -797,5 +797,55 @@ describe('fetchPayments', () => {
     const getTab = async () => [['Date', 'Net Dues', 'Source']]
     const payments = await fetchPayments({ getTab })
     expect(payments).toEqual([])
+  })
+})
+
+// readReminderRows: M1 — a Couple/Dual partner-placeholder row (Email
+// Address === 'NEEDS UPDATE', per findPartnerPlaceholders' same sentinel)
+// has no real member behind it. It carries Current: Yes + a real Expires,
+// so without an explicit skip it would enter dueReminders/dueLapses:
+// Resend rejects the send (caught fail-soft) but it's noisy, and it's an
+// extra row the C1 lapse-loop fix has to walk for no reason.
+
+describe('readReminderRows', () => {
+  const REMINDER_HEADERS = ['Name', 'Email Address', 'Expires', 'Last Reminder Sent', 'Reminder Count', 'Opt Out']
+
+  it('excludes a NEEDS UPDATE placeholder row from the returned rows', async () => {
+    const rows = [
+      REMINDER_HEADERS,
+      ['Jane Doe', 'jane@x.com', '9/15/2026', '', '0', ''],
+      ['[Partner of Peter Pray - UPDATE]', 'NEEDS UPDATE', '9/15/2026', '', '0', ''],
+      ['Bob Smith', 'bob@x.com', '9/20/2026', '', '0', ''],
+    ]
+    const getTab = async (tabName: string) => {
+      expect(tabName).toBe('Sheet1')
+      return rows
+    }
+    const out = await readReminderRows({ getTab })
+    expect(out.map((r) => r.name)).toEqual(['Jane Doe', 'Bob Smith'])
+    expect(out.some((r) => r.email.toUpperCase() === 'NEEDS UPDATE')).toBe(false)
+  })
+
+  it('matches the sentinel case-insensitively', async () => {
+    const rows = [
+      REMINDER_HEADERS,
+      ['[Partner of X - UPDATE]', 'needs update', '9/15/2026', '', '0', ''],
+    ]
+    const getTab = async () => rows
+    const out = await readReminderRows({ getTab })
+    expect(out).toHaveLength(0)
+  })
+
+  it('still includes a normal row with a real email and skips true blank spacer rows', async () => {
+    const rows = [
+      REMINDER_HEADERS,
+      ['', '', '', '', '', ''], // blank spacer
+      ['Jane Doe', 'jane@x.com', '9/15/2026', '', '0', ''],
+    ]
+    const getTab = async () => rows
+    const out = await readReminderRows({ getTab })
+    expect(out).toHaveLength(1)
+    expect(out[0].name).toBe('Jane Doe')
+    expect(out[0].rowNumber).toBe(3) // physical row number preserved (uncompacted)
   })
 })

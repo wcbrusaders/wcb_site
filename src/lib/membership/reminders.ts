@@ -101,3 +101,20 @@ export function dueLapses(rows: ReminderRow[], now: Date): ReminderRow[] {
   }
   return out
 }
+
+// Same rows as dueLapses, but sorted DESCENDING by physical rowNumber.
+//
+// The cron's lapse loop moves each due row from 'current' to 'lapsed' via
+// moveRowToTab, which physically deletes the row on the sheet (deleteDimension)
+// and shifts every LOWER row up by one. dueLapses returns rows in ASCENDING
+// rowNumber (whatever order they appear in the sheet), so processing them
+// in that order means the 1st delete invalidates every not-yet-processed
+// row below it — the 2nd+ iteration's pre-read rowNumber now points at a
+// DIFFERENT (unrelated, still-active) member, corrupting the roster and
+// spamming a re-engagement email to the wrong person.
+//
+// Processing highest-rowNumber-first eliminates the hazard entirely: deleting
+// a higher row never shifts a lower, not-yet-processed row's index.
+export function lapsesInSafeDeleteOrder(rows: ReminderRow[], now: Date): ReminderRow[] {
+  return [...dueLapses(rows, now)].sort((a, b) => b.rowNumber - a.rowNumber)
+}

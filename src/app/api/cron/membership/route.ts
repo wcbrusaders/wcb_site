@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { readReminderRows, writeRosterCells, moveRowToTab } from '@/lib/roster'
-import { dueReminders, dueLapses } from '@/lib/membership/reminders'
+import { dueReminders, lapsesInSafeDeleteOrder } from '@/lib/membership/reminders'
 import { renderReminder, renderReengagement, sendMembershipEmail } from '@/lib/membership/emails'
 
 export const dynamic = 'force-dynamic'
@@ -64,7 +64,13 @@ export async function GET(req: Request) {
       }
     }
 
-    for (const row of dueLapses(rows, now)) {
+    // Process highest rowNumber first: each moveRowToTab physically deletes
+    // the row (deleteDimension), which shifts every LOWER row up by one. If
+    // we walked ascending, deleting the 1st due row would invalidate every
+    // not-yet-processed lower row's pre-read rowNumber -> the wrong member
+    // gets moved/deleted/emailed. Descending order means a delete never
+    // shifts a not-yet-processed row. See lapsesInSafeDeleteOrder (reminders.ts).
+    for (const row of lapsesInSafeDeleteOrder(rows, now)) {
       try {
         await moveRowToTab('current', row.rowNumber, 'lapsed')
         const { subject, html } = renderReengagement({

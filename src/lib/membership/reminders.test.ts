@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { dueReminders, dueLapses, type ReminderRow } from './reminders'
+import { dueReminders, dueLapses, lapsesInSafeDeleteOrder, type ReminderRow } from './reminders'
 const NOW = new Date('2026-09-08T00:00:00Z')
 const row = (o: Partial<ReminderRow>): ReminderRow => ({ rowNumber: 2, name: 'A', email: 'a@x.com', expires: '', lastReminder: '', reminderCount: 0, optOut: '', ...o })
 
@@ -21,6 +21,47 @@ describe('dueLapses', () => {
   it('lapses >7 days past expiry', () => {
     expect(dueLapses([row({ expires: '8/31/2026' })], NOW).map(r => r.rowNumber)).toEqual([2])
     expect(dueLapses([row({ expires: '9/3/2026' })], NOW)).toHaveLength(0) // 5 days, not yet
+  })
+})
+
+// C1 regression: moveRowToTab physically deletes the source row
+// (deleteDimension), which shifts every LOWER row up by one. Processing
+// dueLapses' natural (ascending) order means the 1st delete invalidates
+// every not-yet-processed lower row's pre-read rowNumber, so the 2nd+
+// iteration silently moves/deletes an unrelated member. Descending order
+// eliminates the hazard: deleting a higher row never shifts a lower,
+// not-yet-processed row.
+describe('lapsesInSafeDeleteOrder', () => {
+  it('returns rows at 12 and 30 in DESCENDING rowNumber order (30 before 12)', () => {
+    const rows = [
+      row({ rowNumber: 12, expires: '8/31/2026' }), // 8 days past, due
+      row({ rowNumber: 30, expires: '8/20/2026' }), // 19 days past, due
+    ]
+    const out = lapsesInSafeDeleteOrder(rows, NOW)
+    expect(out.map((r) => r.rowNumber)).toEqual([30, 12])
+  })
+
+  it('matches dueLapses membership exactly, just reordered', () => {
+    const rows = [
+      row({ rowNumber: 5, expires: '8/31/2026' }),  // due
+      row({ rowNumber: 8, expires: '9/3/2026' }),   // not yet (5 days)
+      row({ rowNumber: 20, expires: '8/1/2026' }),  // due
+    ]
+    const unordered = dueLapses(rows, NOW).map((r) => r.rowNumber)
+    const ordered = lapsesInSafeDeleteOrder(rows, NOW).map((r) => r.rowNumber)
+    expect(new Set(ordered)).toEqual(new Set(unordered))
+    expect(ordered).toEqual([20, 5]) // descending
+  })
+
+  it('does not mutate the array dueLapses would have returned (sorts a copy)', () => {
+    const rows = [
+      row({ rowNumber: 3, expires: '8/1/2026' }),
+      row({ rowNumber: 40, expires: '8/1/2026' }),
+    ]
+    const a = dueLapses(rows, NOW)
+    lapsesInSafeDeleteOrder(rows, NOW)
+    // dueLapses called fresh again still yields ascending source order
+    expect(a.map((r) => r.rowNumber)).toEqual([3, 40])
   })
 })
 
