@@ -267,11 +267,25 @@ Today access management is the weakest link, and does NOT work reliably:
    membership revokes/grants **Drive access AND Calendar write** together. The site does this
    with its OWN Google OAuth creds (the roster sync's known-working creds, not the flaky
    Apps Script `AdminDirectory`).
-3. **Discord role** — the site can't touch Discord. Reuse the **bot's existing enforcement
-   loop**: the site flips a DB field on lapse/rejoin, and the bot's 10-min `reconcile()`
-   loop (already does Discord role add/remove + group ops) acts on it. Extend
-   `enforcement_decision.decide()` to also consider membership lapse, not just ban/suspend.
-   No new endpoint/channel — least new infra.
+3. **Discord role — STRIP the member (Brusader) role on lapse, leave them in the server**
+   (not kick/ban — forgetting to renew ≠ discipline; role-strip is graceful + keeps them in
+   reach of re-engagement, and renewing re-adds it). The site can't touch Discord: reuse the
+   **bot's existing enforcement loop** — the site flips a DB field on lapse/rejoin, and the
+   bot's 10-min `reconcile()` loop (already does role add/remove via `suspend`/`restore`,
+   snapshotting roles for exact restore) acts on it. Extend `enforcement_decision.decide()`
+   to also consider membership lapse, not just ban/suspend.
+   - ⚠️ **MUST VERIFY BEFORE BUILDING PHASE 2:** role-strip only removes access IF the
+     members-only channels (Brusader/coordinator/officer) are permission-gated so a
+     NO-ROLE member can't view them (`@everyone` denied View Channel + the Brusader role
+     allowed). If instead those channels are visible to `@everyone`-in-server, then the real
+     gate is *server membership* (Jordan confirmed the invite itself is members-only), and
+     role-strip does nothing visible — in that case lapse would need a KICK, not a strip.
+     30-second check: Discord → members-only channel → Edit Channel → Permissions → is
+     `@everyone`'s "View Channel" denied? Confirm before speccing the Phase-2 lapse action.
+   - Discord ENTRY is itself a members-only perk (invite not shared publicly). Accepted
+     leak (Jordan): the welcome email carries the invite for zero-friction onboarding even
+     though a forwarded email could let a non-member JOIN role-less — they'd see nothing
+     gated (given role-gating holds) and can be kicked; invite is rotatable if it leaks.
 
 Not an access surface at all: **Facebook group** — it's FREE-FOR-ALL (open to anyone, not
 membership-gated), so there's nothing to revoke on lapse or grant on rejoin. The emails may
