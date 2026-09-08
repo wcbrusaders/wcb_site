@@ -342,8 +342,14 @@ Hence Phase 2 is strictly after Phase 1.
    ENTRY (the invite). Role-strip only works once channels are actually Brusader-gated.
 
 ### PREREQUISITE for Phase 2, step 8 — Discord permission cleanup (SEPARATE PROJECT)
-A decoupled project, done between Phase 1 and Phase 2 (Jordan, 2026-09-08). Target server
-model: **role-gated content + a lapsed lobby.** Being in the server = a lobby (welcome +
+A decoupled project worth doing REGARDLESS for server hygiene (Jordan, 2026-09-08), which
+ALSO happens to be the prerequisite that makes Phase-2 role-strip actually work. Done
+between Phase 1 and Phase 2. Confirmed direction: **role-strip + lapsed lobby** — a lapsed
+member stays IN the server (not kicked) minus the Brusader role, landing in a "renew to
+unlock" limbo. Rationale (Jordan): even though losing access is expected and re-engagement
+is email-driven, keeping lapsed folks in-server behind a soft wall (community still visible,
+"renew!" prompts) is a warmer, stickier win-back than email alone. Target server model:
+**role-gated content + a lapsed lobby.** Being in the server = a lobby (welcome +
 maybe public announcements); the **Brusader role unlocks the real member channels**
 (brewing, events, social, equipment, etc. — currently ~25 channels sitting INHERIT/OPEN).
 Lapse then strips the Brusader role → member lands in a "renew to unlock" limbo, still in the
