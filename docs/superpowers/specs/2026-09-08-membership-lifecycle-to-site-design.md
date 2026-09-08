@@ -65,8 +65,12 @@ systems that don't share a key:
 
 - Moving source-of-truth to the DB / retiring the sheet.
 - The bot's brewing-knowledge brain (untouched; not membership).
-- Full Facebook-group automation (no practical API; membership FB stays manual).
-  NOTE: Google Group / Drive / Calendar / Discord access de-provision+re-provision is NO
+- Facebook group — it is FREE-FOR-ALL (open to anyone, not gated on membership), so it is
+  NOT an access surface: nothing to grant or revoke. Not part of provisioning at all.
+- A Facebook recruitment POST (a "benefits of paid membership → join" post to drive
+  signups) — desired by Jordan but a separate content/marketing task, explicitly AFTER this
+  project. Not scoped here.
+- NOTE: Google Group / Drive / Calendar / Discord access de-provision+re-provision is NO
   LONGER out of scope — it moved IN as Phase 2 (§9).
 - Changing how members pay (the hosted PayPal button/link stays:
   `https://www.paypal.com/ncp/payment/UQ6VG5K69FC92`). Members still can't be forced to
@@ -259,8 +263,9 @@ Today access management is the weakest link, and does NOT work reliably:
    `enforcement_decision.decide()` to also consider membership lapse, not just ban/suspend.
    No new endpoint/channel — least new infra.
 
-Not automated (named so they're not forgotten): **Facebook group** (no practical API;
-stays manual — the emails already say members remain in FB unless they leave). 
+Not an access surface at all: **Facebook group** — it's FREE-FOR-ALL (open to anyone, not
+membership-gated), so there's nothing to revoke on lapse or grant on rejoin. The emails may
+still mention FB as a community perk, but it is NOT part of provisioning. 
 
 **De-provision trigger:** the Phase-1 cron that moves a member to Lapsed also (Phase 2)
 removes the Google Group membership + flips the DB field the bot reads for Discord.
