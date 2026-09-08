@@ -454,6 +454,56 @@ export async function readMembersForMatching(deps: ReadForMatchingDeps = {}): Pr
   return [...current, ...lapsed]
 }
 
+export type ReminderRow = {
+  rowNumber: number
+  name: string
+  email: string
+  expires: string
+  lastReminder: string
+  reminderCount: number
+  optOut: string
+}
+
+type ReadReminderRowsDeps = {
+  getTab?: (tabName: string) => Promise<string[][]>
+}
+
+// Reads Sheet1 (current-members tab only — the reminder/lapse cron only ever
+// acts on rows still in "current"; once moved to Lapsed a row is out of the
+// reminder pipeline) and projects the columns the reminders.ts pure logic
+// needs: Name/Email Address/Expires/Last Reminder Sent/Reminder Count/Opt
+// Out. Mirrors readMembersForMatching's header-driven cell() lookups and
+// physical (1-based, uncompacted) rowNumber so writeRosterCells/moveRowToTab
+// can address the same row back on Sheet1 directly. Skips blank spacer rows
+// (no name and no email), same as mapSheetRow/readMembersForMatching.
+export async function readReminderRows(deps: ReadReminderRowsDeps = {}): Promise<ReminderRow[]> {
+  const getTab = deps.getTab ?? realGetTab
+  const values = await getTab(TAB)
+  if (values.length < 2) return []
+  const headers = values[0].map((h) => String(h).trim())
+  const out: ReminderRow[] = []
+  for (let i = 1; i < values.length; i++) {
+    const row = values[i].map((c) => String(c ?? ''))
+    const name = cell(headers, row, 'Name')
+    const email = cell(headers, row, 'Email Address')
+    if (!name && !email) continue
+
+    const reminderCountStr = cell(headers, row, 'Reminder Count')
+    const reminderCount = parseInt(reminderCountStr, 10)
+
+    out.push({
+      rowNumber: i + 1,
+      name,
+      email,
+      expires: cell(headers, row, 'Expires'),
+      lastReminder: cell(headers, row, 'Last Reminder Sent'),
+      reminderCount: isNaN(reminderCount) ? 0 : reminderCount,
+      optOut: cell(headers, row, 'Opt Out'),
+    })
+  }
+  return out
+}
+
 function tabName(tab: 'current' | 'lapsed'): string {
   return tab === 'current' ? TAB : LAPSED_TAB
 }
