@@ -3,6 +3,7 @@ import { auth } from '@/lib/auth'
 import { getMembershipReports } from '@/lib/metrics'
 import { fetchLapsedMembers } from '@/lib/metrics/lapsed'
 import { prisma } from '@/lib/db'
+import { findPartnerPlaceholders, readMembersForMatching } from '@/lib/roster'
 import { PageHeader, SectionLabel, EmptyState } from '@/components/ui'
 import { InfoCard, Row } from '@/components/members/InfoCard'
 import { TrendsCompareChart } from '@/components/members/reports/TrendsCompareChart'
@@ -10,6 +11,38 @@ import { TierDonut } from '@/components/members/reports/TierDonut'
 import { SeasonalityBars } from '@/components/members/reports/SeasonalityBars'
 import { MembershipInsights } from '@/components/members/MembershipInsights'
 import { LapsedMembersEditor } from '@/components/members/LapsedMembersEditor'
+import { PendingMatchQueue, type PendingMatchRow } from '@/components/members/PendingMatchQueue'
+import { PartnerComplete } from '@/components/members/PartnerComplete'
+
+type PendingPayload = { email: string; amount: number; firstName?: string; lastName?: string }
+
+// Loads unresolved PendingMatch rows + resolves each candidate rowNumber to a
+// display name off the live roster, for the board-review queue UI. Board-
+// gated by the page itself (this file only renders after the isBoard check
+// below), so no separate auth check needed here.
+async function loadPendingMatches(): Promise<PendingMatchRow[]> {
+  const rows = await prisma.pendingMatch.findMany({
+    where: { resolvedAt: null },
+    orderBy: { createdAt: 'asc' },
+  })
+  if (rows.length === 0) return []
+
+  const members = await readMembersForMatching()
+  const nameByRow = new Map(members.map((m) => [m.rowNumber, m.name]))
+
+  return rows.map((r) => {
+    const payload = JSON.parse(r.payloadJson) as PendingPayload
+    const candidateRows = r.candidateRows.split(',').map((n) => parseInt(n, 10)).filter((n) => !isNaN(n))
+    return {
+      id: r.id,
+      amount: payload.amount,
+      email: payload.email,
+      name: `${payload.firstName ?? ''} ${payload.lastName ?? ''}`.trim(),
+      candidates: candidateRows.map((rowNumber) => ({ rowNumber, name: nameByRow.get(rowNumber) ?? null })),
+      createdAt: r.createdAt.toISOString(),
+    }
+  })
+}
 
 export const dynamic = 'force-dynamic'
 
@@ -56,6 +89,8 @@ export default async function MembershipReportsPage() {
 
   const r = await getMembershipReports()
   const lapsedMembers = await fetchLapsedMembers(prisma)
+  const pendingMatches = await loadPendingMatches()
+  const partnerPlaceholders = await findPartnerPlaceholders()
   const k = r.kpis
   const g = r.growthSummary
 
@@ -119,6 +154,16 @@ export default async function MembershipReportsPage() {
         <SecondaryTile label="Lapsed (12 mo)" value={String(k.lapsedLast12mo)} />
         <SecondaryTile label="Expiring (60d)" value={String(r.expiringSoon.length)} />
       </div>
+
+      {/* Zone 1.5: actionable board queues — payments needing review + couple
+          placeholders needing a partner name. Surfaced high because these are
+          the "the Peter case" fixes: an unresolved queue leaves someone's
+          payment/membership in limbo. */}
+      <SectionLabel icon="🔎">Payments needing review</SectionLabel>
+      <PendingMatchQueue items={pendingMatches} />
+
+      <SectionLabel icon="💑">Couple/partner completion</SectionLabel>
+      <PartnerComplete placeholders={partnerPlaceholders} />
 
       {/* Zone 2: comparison chart — the centerpiece. */}
       <SectionLabel icon="📊">Trends comparison (quarterly)</SectionLabel>

@@ -458,6 +458,59 @@ function tabName(tab: 'current' | 'lapsed'): string {
   return tab === 'current' ? TAB : LAPSED_TAB
 }
 
+type ReadCellDeps = {
+  getTab?: (tabName: string) => Promise<string[][]>
+}
+
+// Reads a single named-column cell for one physical row. Used by the board
+// pending-match resolver (T8) to read the current 'Payment Emails' alias
+// value before appending to it — readMembersForMatching folds that column
+// into its combined `emails` array (indistinguishable from Email
+// Address/Google Email/Partner Email there), so a distinct read needs its
+// own header-driven lookup rather than reusing that projection.
+export async function readRosterCell(
+  tab: 'current' | 'lapsed',
+  rowNumber: number,
+  column: string,
+  deps: ReadCellDeps = {},
+): Promise<string> {
+  const getTab = deps.getTab ?? realGetTab
+  const name = tabName(tab)
+  const values = await getTab(name)
+  const headers = (values[0] ?? []).map((h) => String(h).trim())
+  const colIdx = headers.indexOf(column)
+  if (colIdx === -1) return ''
+  const row = values[rowNumber - 1]
+  return row ? (row[colIdx] ?? '').toString().trim() : ''
+}
+
+export type PartnerPlaceholder = { rowNumber: number; tier: string | null }
+
+type FindPlaceholdersDeps = {
+  getTab?: (tabName: string) => Promise<string[][]>
+}
+
+// Finds Couple/Dual membership rows still awaiting the second person's name +
+// email — the sentinel per the design doc is 'Email Address' === 'NEEDS
+// UPDATE' (the row exists so the paying member's Couple tier is on record,
+// but who the partner actually is hasn't been filled in yet). Only scans the
+// current-members tab; a lapsed placeholder isn't actionable here. Board
+// completes these via completePartnerAction (writes Name + Email Address).
+export async function findPartnerPlaceholders(deps: FindPlaceholdersDeps = {}): Promise<PartnerPlaceholder[]> {
+  const getTab = deps.getTab ?? realGetTab
+  const values = await getTab(TAB)
+  if (values.length < 2) return []
+  const headers = values[0].map((h) => String(h).trim())
+  const out: PartnerPlaceholder[] = []
+  for (let i = 1; i < values.length; i++) {
+    const row = values[i].map((c) => String(c ?? ''))
+    const email = cell(headers, row, 'Email Address')
+    if (email.toUpperCase() !== 'NEEDS UPDATE') continue
+    out.push({ rowNumber: i + 1, tier: cell(headers, row, 'Tier') || null })
+  }
+  return out
+}
+
 type WriteCellsDeps = {
   getTab?: (tabName: string) => Promise<string[][]>
   batchWrite?: (writes: Array<{ tabName: string; rowNumber: number; column: string; value: string }>) => Promise<void>

@@ -31,11 +31,21 @@ async function markProcessed(txnId: string): Promise<void> {
   })
 }
 
-// TODO(Task 8): PendingMatch Prisma model doesn't exist yet. Until Task 8
-// wires the real queue table (+ board-review UI), this just logs loudly so
-// the payment isn't silently dropped — a human must grep logs for now.
+// Persists a name-review payment to the PendingMatch table so a board member
+// can resolve it via the admin queue (Task 8) instead of it only living in
+// application logs. Idempotent on txnId — a re-delivered IPN for the same
+// transaction (PayPal retries on anything but a prompt 200) must not create
+// a second queue entry for the same payment.
 async function queuePending(payload: Ipn, candidateRows: number[]): Promise<void> {
-  console.warn(`pending match needs board review: txn ${payload.txnId}, candidates [${candidateRows.join(', ')}]`)
+  const existing = await prisma.pendingMatch.findUnique({ where: { txnId: payload.txnId } })
+  if (existing) return
+  await prisma.pendingMatch.create({
+    data: {
+      txnId: payload.txnId,
+      payloadJson: JSON.stringify(payload),
+      candidateRows: candidateRows.join(','),
+    },
+  })
 }
 
 function buildDeps(): ProcessDeps {
