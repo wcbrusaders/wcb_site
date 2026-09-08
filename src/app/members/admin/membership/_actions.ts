@@ -6,9 +6,10 @@ import { prisma } from '@/lib/db'
 import { getMembershipReports } from '@/lib/metrics'
 import { generateInsights } from '@/lib/metrics/insights'
 import { LAPSE_REASONS } from '@/lib/metrics/lapsed'
-import { writeRosterCells, appendMemberRow, normalizeEmail, readMembersForMatching, readRosterCell, moveRowToTab } from '@/lib/roster'
+import { writeRosterCells, appendMemberRow, normalizeEmail, readMembersForMatching, readRosterCell, moveRowToTab, readReminderRows, readDiscordLinkedEmailsResult, type ReminderRow } from '@/lib/roster'
 import { computeExpiration, tierFromAmount } from '@/lib/membership/tiers'
 import { renderWelcome, renderRenewal, sendMembershipEmail } from '@/lib/membership/emails'
+import { selectNudgeRecipients, renderDiscordNudge } from '@/lib/membership/discord-nudge'
 import { recordAudit } from '@/lib/audit'
 
 type Actor = { memberId?: string; email: string }
@@ -322,4 +323,97 @@ export async function setLapseReason(
 
   revalidatePath('/members/admin/membership')
   return { ok: true }
+}
+
+/**
+ * Board-triggered, on-demand Discord join/link nudge blast.
+ *
+ * Recipients = current members with a real email, not already Discord-
+ * linked, not opted out — see selectNudgeRecipients for the exact filter.
+ * readReminderRows is the recipient source (not readMembersForMatching):
+ * it's already current-tab-only, already excludes the NEEDS UPDATE
+ * partner-placeholder sentinel, AND carries `optOut`, which
+ * readMembersForMatching's MatchMember projection lacks entirely.
+ */
+
+export type SendNudgeResult =
+  | { ok: false; reason: 'forbidden' }
+  | {
+      ok: true
+      sent: number
+      skippedOptOut: number
+      skippedLinked: number
+      linkTableRead: 'ok' | 'failed'
+    }
+
+export type SendNudgeDeps = {
+  readRows: () => Promise<ReminderRow[]>
+  // Wraps readDiscordLinkedEmails: `ok` reports whether that (already
+  // fail-soft) read actually succeeded, so the blast's return value can
+  // surface "link table read failed, treating all as unlinked" to the board
+  // rather than silently presenting a real-looking number.
+  readLinked: () => Promise<{ linked: Set<string>; ok: boolean }>
+  sendEmail: (to: string, subject: string, html: string) => Promise<void>
+}
+
+export async function sendDiscordNudgeCore(
+  actor: Actor | null,
+  deps: SendNudgeDeps,
+): Promise<SendNudgeResult> {
+  if (!actor) return { ok: false, reason: 'forbidden' }
+
+  const [rows, linkResult] = await Promise.all([deps.readRows(), deps.readLinked()])
+
+  const skippedOptOut = rows.filter((r) => r.optOut === 'STOP' || r.optOut === 'Yes').length
+  const skippedLinked = rows.filter((r) => {
+    if (r.optOut === 'STOP' || r.optOut === 'Yes') return false
+    const email = r.email.trim()
+    if (!email || email.toUpperCase() === 'NEEDS UPDATE') return false
+    return linkResult.linked.has(normalizeEmail(email))
+  }).length
+
+  const recipients = selectNudgeRecipients(
+    rows.map((r) => ({ name: r.name, email: r.email, current: true, optOut: r.optOut })),
+    linkResult.linked,
+  )
+
+  let sent = 0
+  for (const recipient of recipients) {
+    try {
+      const firstName = recipient.name.split(' ')[0] || recipient.name
+      const { subject, html } = renderDiscordNudge({ firstName })
+      await deps.sendEmail(recipient.email, subject, html)
+      sent++
+    } catch (e) {
+      // Fail-soft: one bad send must not abort the rest of the blast.
+      console.error(`Discord nudge send failed for ${recipient.email}:`, e)
+    }
+  }
+
+  return {
+    ok: true,
+    sent,
+    skippedOptOut,
+    skippedLinked,
+    linkTableRead: linkResult.ok ? 'ok' : 'failed',
+  }
+}
+
+const realNudgeDeps: SendNudgeDeps = {
+  readRows: () => readReminderRows(),
+  readLinked: () => readDiscordLinkedEmailsResult(),
+  sendEmail: (to, subject, html) => sendMembershipEmail(to, subject, html),
+}
+
+export async function sendDiscordNudgeAction(): Promise<SendNudgeResult> {
+  const actor = await requireBoard()
+  const r = await sendDiscordNudgeCore(actor, realNudgeDeps)
+  if (actor && r.ok) {
+    await recordAudit({
+      actorMemberId: actor.memberId, actorEmail: actor.email,
+      action: 'send-discord-nudge',
+      detail: `sent ${r.sent}, skipped ${r.skippedOptOut} opted-out, ${r.skippedLinked} already-linked, linkTableRead=${r.linkTableRead}`,
+    })
+  }
+  return r
 }

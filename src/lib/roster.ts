@@ -840,6 +840,78 @@ async function realWriteCell(rowNumber: number, column: string, value: string): 
   })
 }
 
+const DISCORD_LINK_TAB = 'Discord_Member_Link'
+
+type DiscordLinkRow = { email?: string; discord_id?: string }
+
+// Reads the Discord_Member_Link tab OFF THE SEPARATE "bot data" workbook
+// (WCB_BOT_DATA_SHEET_ID) — NOT the roster workbook (MEMBER_ROSTER_SHEET_ID).
+// Uses the SAME OAuth client (sheetsClient()) the roster reads already build.
+// Row shape mirrors gspread's get_all_records() lowercased headers: `email` /
+// `discord_id`.
+async function realGetLinkRows(sheetId: string): Promise<DiscordLinkRow[]> {
+  const sheets = sheetsClient()
+  const res = await sheets.spreadsheets.values.get({
+    spreadsheetId: sheetId,
+    range: DISCORD_LINK_TAB,
+  })
+  const values = (res.data.values ?? []).map((r) => r.map((c) => String(c ?? '')))
+  if (values.length < 2) return []
+  const headers = values[0].map((h) => String(h).trim().toLowerCase())
+  const emailIdx = headers.indexOf('email')
+  const discordIdIdx = headers.indexOf('discord_id')
+  return values.slice(1).map((row) => ({
+    email: emailIdx >= 0 ? row[emailIdx] : undefined,
+    discord_id: discordIdIdx >= 0 ? row[discordIdIdx] : undefined,
+  }))
+}
+
+type ReadDiscordLinkedEmailsDeps = {
+  getLinkRows?: (sheetId: string) => Promise<DiscordLinkRow[]>
+}
+
+export type DiscordLinkedEmailsResult = { linked: Set<string>; ok: boolean }
+
+// Returns the set of normalized emails already linked to a Discord account,
+// per the bot's Discord_Member_Link tab, PLUS whether the read actually
+// succeeded (`ok`). FAIL-SOFT by design: this feeds the Discord-nudge
+// blast's recipient filter, and it is far better to over-nudge an
+// already-linked member (harmless — the email just says "here's how to
+// link" to someone who already has) than to let a sheet-access hiccup crash
+// the whole blast. Any failure — the env var unset, the read throwing, the
+// service account lacking access to the bot-data workbook — logs a warning
+// and resolves `linked` to an EMPTY set (i.e. "treat everyone as
+// unlinked") with `ok: false`, so a caller (the nudge action) can still
+// report an honest "link table read failed" status rather than a real-
+// looking zero.
+export async function readDiscordLinkedEmailsResult(deps: ReadDiscordLinkedEmailsDeps = {}): Promise<DiscordLinkedEmailsResult> {
+  const getLinkRows = deps.getLinkRows ?? realGetLinkRows
+  const sheetId = process.env.WCB_BOT_DATA_SHEET_ID
+  if (!sheetId) {
+    console.warn('readDiscordLinkedEmails: WCB_BOT_DATA_SHEET_ID not set — treating all members as unlinked')
+    return { linked: new Set(), ok: false }
+  }
+  try {
+    const rows = await getLinkRows(sheetId)
+    const out = new Set<string>()
+    for (const row of rows) {
+      const email = row.email ? normalizeEmail(row.email) : ''
+      if (email) out.add(email)
+    }
+    return { linked: out, ok: true }
+  } catch (e) {
+    console.warn('readDiscordLinkedEmails: read failed (treating all members as unlinked):', e)
+    return { linked: new Set(), ok: false }
+  }
+}
+
+// Thin Set-only wrapper over readDiscordLinkedEmailsResult, for callers that
+// only need the linked-email set itself (not the ok/failed status).
+export async function readDiscordLinkedEmails(deps: ReadDiscordLinkedEmailsDeps = {}): Promise<Set<string>> {
+  const { linked } = await readDiscordLinkedEmailsResult(deps)
+  return linked
+}
+
 type GateDeps = {
   db?: typeof prisma
   fetchByEmail?: (email: string) => Promise<MemberRecord | null>

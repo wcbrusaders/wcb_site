@@ -1,5 +1,5 @@
 import { test, describe, it, expect, vi, afterEach } from 'vitest'
-import { normalizeEmail, mapSheetRow, isCurrentMember, syncRoster, syncPayments, validateSecondaryEmail, isAccessBlocked, isAccessBlockedNow, fetchAllRosterRows, fetchAllMembers, fetchPayments, readReminderRows } from './roster'
+import { normalizeEmail, mapSheetRow, isCurrentMember, syncRoster, syncPayments, validateSecondaryEmail, isAccessBlocked, isAccessBlockedNow, fetchAllRosterRows, fetchAllMembers, fetchPayments, readReminderRows, readDiscordLinkedEmails, readDiscordLinkedEmailsResult } from './roster'
 
 afterEach(() => {
   vi.unstubAllEnvs()
@@ -847,5 +847,85 @@ describe('readReminderRows', () => {
     expect(out).toHaveLength(1)
     expect(out[0].name).toBe('Jane Doe')
     expect(out[0].rowNumber).toBe(3) // physical row number preserved (uncompacted)
+  })
+})
+
+// readDiscordLinkedEmails: reads the Discord_Member_Link tab from the SEPARATE
+// "bot data" workbook (WCB_BOT_DATA_SHEET_ID, NOT MEMBER_ROSTER_SHEET_ID) and
+// returns a normalized Set of already-linked emails. Must be fail-soft: any
+// error, or the env var simply being unset, yields an EMPTY set (never throws)
+// so the nudge blast can't be taken down by this read — worst case it over-
+// nudges an already-linked member, which is harmless.
+
+describe('readDiscordLinkedEmails', () => {
+  it('reads the Discord_Member_Link tab and returns normalized emails', async () => {
+    vi.stubEnv('WCB_BOT_DATA_SHEET_ID', 'bot-sheet-id')
+    const rows = [
+      { email: 'Jane@Example.com', discord_id: '111' },
+      { email: '  bob@x.com ', discord_id: '222' },
+    ]
+    const getLinkRows = vi.fn(async (sheetId: string) => {
+      expect(sheetId).toBe('bot-sheet-id')
+      return rows
+    })
+    const set = await readDiscordLinkedEmails({ getLinkRows })
+    expect(set).toEqual(new Set(['jane@example.com', 'bob@x.com']))
+  })
+
+  it('skips rows with a blank/missing email', async () => {
+    vi.stubEnv('WCB_BOT_DATA_SHEET_ID', 'bot-sheet-id')
+    const getLinkRows = vi.fn(async () => [{ email: '', discord_id: '1' }, { email: 'a@x.com', discord_id: '2' }])
+    const set = await readDiscordLinkedEmails({ getLinkRows })
+    expect(set).toEqual(new Set(['a@x.com']))
+  })
+
+  it('fails soft to an empty set when WCB_BOT_DATA_SHEET_ID is unset (never crashes, never calls the reader)', async () => {
+    vi.stubEnv('WCB_BOT_DATA_SHEET_ID', '')
+    const getLinkRows = vi.fn(async () => { throw new Error('should not be called') })
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const set = await readDiscordLinkedEmails({ getLinkRows })
+    expect(set).toEqual(new Set())
+    expect(getLinkRows).not.toHaveBeenCalled()
+    expect(warnSpy).toHaveBeenCalled()
+    warnSpy.mockRestore()
+  })
+
+  it('fails soft to an empty set when the read throws (e.g. no sheet access)', async () => {
+    vi.stubEnv('WCB_BOT_DATA_SHEET_ID', 'bot-sheet-id')
+    const getLinkRows = vi.fn(async () => { throw new Error('403 no access') })
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const set = await readDiscordLinkedEmails({ getLinkRows })
+    expect(set).toEqual(new Set())
+    expect(warnSpy).toHaveBeenCalled()
+    warnSpy.mockRestore()
+  })
+})
+
+describe('readDiscordLinkedEmailsResult', () => {
+  it('reports ok:true alongside the linked set on a successful read', async () => {
+    vi.stubEnv('WCB_BOT_DATA_SHEET_ID', 'bot-sheet-id')
+    const getLinkRows = vi.fn(async () => [{ email: 'a@x.com', discord_id: '1' }])
+    const r = await readDiscordLinkedEmailsResult({ getLinkRows })
+    expect(r.ok).toBe(true)
+    expect(r.linked).toEqual(new Set(['a@x.com']))
+  })
+
+  it('reports ok:false when WCB_BOT_DATA_SHEET_ID is unset', async () => {
+    vi.stubEnv('WCB_BOT_DATA_SHEET_ID', '')
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const r = await readDiscordLinkedEmailsResult({ getLinkRows: vi.fn() })
+    expect(r.ok).toBe(false)
+    expect(r.linked).toEqual(new Set())
+    warnSpy.mockRestore()
+  })
+
+  it('reports ok:false when the read throws', async () => {
+    vi.stubEnv('WCB_BOT_DATA_SHEET_ID', 'bot-sheet-id')
+    const getLinkRows = vi.fn(async () => { throw new Error('403') })
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const r = await readDiscordLinkedEmailsResult({ getLinkRows })
+    expect(r.ok).toBe(false)
+    expect(r.linked).toEqual(new Set())
+    warnSpy.mockRestore()
   })
 })
