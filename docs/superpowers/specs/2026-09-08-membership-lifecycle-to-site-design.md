@@ -144,12 +144,25 @@ PayPal payment ──IPN──▶ [SITE] /api/webhooks/paypal (Node runtime, ver
 
 ### 6. Emails — `src/lib/email.ts` (extend) + templates
 
-**SCOPE — the site sends emails for exactly THREE purposes (Jordan, 2026-09-08):**
-**(1) Welcome (new members), (2) Expiration reminders (pre/post), (3) Re-engagement
-(lapsed "we miss you").** All branded HTML matching the existing welcome look (amber
-`#d97706` header + details box + CTA buttons). Renewal-confirmation is NOT a priority
-(optional nice-to-have; can reuse the existing renewal template if trivially free, but it
-is not in the core scope).
+**SCOPE — the site sends emails for these purposes (Jordan, 2026-09-08):**
+**(1) Welcome (new members), (2) Renewal confirmation, (3) Expiration reminders (pre/post),
+(4) Re-engagement (lapsed "we miss you").** All branded HTML matching the existing welcome
+look (amber `#d97706` header + details box + CTA buttons).
+
+**Renewal confirmation is CORE (elevated from optional 2026-09-08):** when a renewal
+processes successfully, the member immediately gets a "✅ payment processed successfully —
+your membership is active through {expiration}" email. This is the reassurance that would
+have defused the Peter incident (pay → confirmed active), so it is first-class, not a
+nice-to-have. Fires in REAL TIME at renewal (inside the IPN handler, not the cron), same as
+welcome. Uses the existing branded `renewal_single/couple` template (`first_name, tier,
+expiration, days_credited`), subject fixed to something like "Membership Renewed — active
+through {expiration}".
+  - **Only on SUCCESS:** send after the roster write succeeds, so "payment processed
+    successfully" is truthful. PayPal already filters to `payment_status=completed`.
+  - **Ambiguous match (name-review → board queue):** do NOT send a false "you're all set."
+    Either send a softer "we received your payment and are finalizing your membership —
+    we'll confirm shortly" note, or hold the confirmation until a board member resolves the
+    match. (Implementer: prefer the softer-ack so the payer isn't left silent.)
 
 - Add a small template layer (the current `email.ts` is one hardcoded-subject function).
   All via Resend (`RESEND_API_KEY`/`RESEND_FROM`, already configured).
@@ -231,17 +244,38 @@ is not in the core scope).
   silent merges of two different people who share a name.
 - Idempotency on payments (don't double-renew / double-email on IPN retries).
 
-## Open questions for review
-- **Alias storage:** new Sheet1 column vs DB-only. (Leaning: sheet column, so payment-time
-  matching reads current truth without waiting on the daily sync.)
-- **Reminder from-address:** keep `club@wcbrusaders.com` (Gmail, Apps-Script parity + reply
-  handling) or move to Resend `noreply@`? The Apps Script also parses STOP replies in Gmail
-  — if reminders move to Resend/noreply, the opt-out reply handling needs a new home.
-- **PayPal IPN vs the hosted-button return:** confirm the hosted `ncp/payment` button can
-  still fire IPN to an arbitrary URL (IPN is account-level in PayPal settings, not per
-  button — verify the IPN notification URL is repointable).
-- **Cron time:** 9:00 AM parity vs the site's existing 04:00 sync slot.
-- **Opt-out (STOP) handling:** the Apps Script reads Gmail for "STOP" replies to unsubscribe.
-  If the site sends reminders, does it also take over STOP handling, or does that stay in
-  the Apps Script (which would then still need to run)? This affects how cleanly the Apps
-  Script can be retired.
+## Resolved decisions (were open questions — settled 2026-09-08)
+
+- **Alias storage → new Sheet1 column** ("Payment Emails", comma-joined). Written when a
+  board confirm ties a payment email to a member. Payment-time matching reads the LIVE sheet
+  so a just-added alias is correct immediately (no waiting on the daily sync). Roster sync
+  maps it into a nullable `Member` field for DB-side use. Consistent with sheet = source of
+  truth.
+
+- **PayPal IPN → site receives it directly.** Jordan has PayPal account access and will
+  repoint the IPN notification URL (account-level, not per-button) from the bot's endpoint
+  to the new site endpoint at cutover. No bot-forwarding hop. The site verifies IPN
+  authenticity (the `_notify-validate` handshake the bot skips).
+
+- **Sender → `noreply@wcbrusaders.com` via Resend** (`RESEND_FROM`, what the site already
+  uses for login codes), BUT with **`replyTo: club@wcbrusaders.com`** on every membership
+  email AND a visible **"Questions about your membership? Email club@wcbrusaders.com"** line
+  in every footer. Rationale (Jordan): a member with a problem — e.g. "I already renewed!" —
+  must be able to reach a human; noreply@ alone dead-ends them and re-creates the Peter
+  frustration. replyTo routes a hit-reply into the club inbox; the visible line covers
+  clients that hide reply-to. This is a HUMAN reply path, distinct from the retired
+  automated STOP-parser (replaced by the unsubscribe link). Applies to all email purposes.
+
+- **Opt-out → one-click unsubscribe LINK, not STOP-reply.** Reminder/re-engagement emails
+  include an "unsubscribe from reminders" link → a site route that sets the member's Opt Out
+  on their sheet row. This REPLACES the Apps Script's fragile Gmail "STOP" reply parsing,
+  which is retired along with its reminder+lapse logic. (noreply@ can't receive replies, so
+  a link is the correct mechanism regardless.) The site must honor an existing `Opt Out`
+  value of `STOP`/`Yes` already in the sheet from the old system.
+
+- **Timing → two distinct triggers (NOT one batch):**
+  - **Welcome emails fire in REAL TIME at signup** — they run inside the PayPal IPN handler
+    the moment a payment processes, so a new member is welcomed immediately (never waits for
+    a daily job). Same for the renewal path and partner-completion welcome.
+  - **Reminder + re-engagement cron runs daily at ~9:00 AM ET** (parity with the members'
+    current reminder timing), as a separate Vercel cron from the real-time intake.
