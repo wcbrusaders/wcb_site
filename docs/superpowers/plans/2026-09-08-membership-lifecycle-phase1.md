@@ -804,7 +804,7 @@ Expected: FAIL.
 
 Implement `dueReminders`/`dueLapses` (UTC date math; mirror the Apps Script rules exactly: preExpirationDays [14,7,2], postExpirationDays [2,4], daysBeforeMovingToLapsed 7, ≥2-day spacing, Opt Out STOP/Yes). Then the cron route (`src/app/api/cron/membership/route.ts`, `dynamic='force-dynamic'`, `maxDuration=60`, `CRON_SECRET` bearer check exactly like `track-shipments`): read reminder rows via Task-4, `dueReminders` → send (Task 5) + write Last Reminder Sent/Reminder Count; `dueLapses` → `moveRow(current→lapsed)` + send re-engagement. Add to `vercel.json` crons: `{ "path": "/api/cron/membership", "schedule": "0 13 * * *" }` (9am ET). 
 
-**Cutover (do in the deploy, Task 10):** disable the Apps Script's `processReminder` + `processLapsedMembers` (comment out their calls in `checkMemberships`) IN THE SAME WINDOW the cron goes live. Documented here so the executor does not skip it — running both = double-dunning.
+**Cutover (do in the deploy, Task 10) — SURGICAL, not a kill switch:** inside the Apps Script's `checkMemberships()`, comment out ONLY the `processReminder` loop + the `processLapsedMembers()` call, IN THE SAME WINDOW the site cron goes live (running both = double-dunning). **DO NOT disable the whole script.** Explicitly KEEP RUNNING: `syncGroupMembership()` (Google Group add/remove → Drive/Calendar access — NOT replaced in Phase 1, that's Phase 2) and the separate `processStopReplies` trigger (Gmail "STOP" opt-out parsing — also not replaced). Only the two reminder/lapse functions move to the site.
 
 - [ ] **Step 4: Run test to verify it passes**
 
@@ -829,7 +829,7 @@ git commit -m "feat(membership): reminder+lapse cron (9am) mirroring Apps Script
 - [ ] **Step 3:** Set env on Vercel: `PAYPAL_IPN_URL` (`https://ipnpb.paypal.com/cgi-bin/webscr`), confirm `CRON_SECRET` + `RESEND_*` present.
 - [ ] **Step 4:** Merge → main → Vercel deploy. Verify route `/api/webhooks/paypal` responds; `/api/cron/membership` 401s without the bearer.
 - [ ] **Step 5:** **Repoint PayPal IPN** (PayPal account → Notifications → IPN URL) to `https://www.wcbrusaders.com/api/webhooks/paypal`. Send a PayPal IPN test / a live $40 to confirm end-to-end (a real member renews the right row + gets the email).
-- [ ] **Step 6:** **CUTOVER:** in the Google Apps Script, comment out `processReminder` + `processLapsedMembers` in `checkMemberships` (leave `syncGroupMembership` — that's Phase 2 territory). This stops double-dunning. Retire the bot's `paypal_handler` route (stop it receiving IPN) since PayPal now points at the site.
+- [ ] **Step 6:** **CUTOVER (surgical — the Apps Script keeps running):** in `checkMemberships()`, comment out ONLY the `processReminder` loop + the `processLapsedMembers()` call. **KEEP `syncGroupMembership()`** (Drive/Calendar group access — Phase 2, NOT replaced) **and the `processStopReplies` trigger** (Gmail STOP opt-outs — NOT replaced). Do this in the SAME window the site cron goes live (both running = double-dunning). Then retire the bot's `paypal_handler` route (stop it receiving IPN) since PayPal now points at the site.
 
 ---
 
