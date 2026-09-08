@@ -5,7 +5,7 @@ import type { Ipn } from './paypal-ipn'
 const baseIpn: Ipn = { txnId: 'T1', email: 'petehpray@yahoo.com', firstName: 'Peter', lastName: 'Pray', amount: 40, status: 'completed', txnType: 'web_accept', noteEmails: [] }
 function deps(over: Partial<Parameters<typeof processPayment>[1]> = {}) {
   return {
-    readMembers: async () => [{ rowNumber: 11, tab: 'current' as const, name: 'Peter Pray', emails: ['petehpray@gmail.com'] }],
+    readMembers: async () => [{ rowNumber: 11, tab: 'current' as const, name: 'Peter Pray', emails: ['petehpray@gmail.com'], expires: null }],
     writeCells: vi.fn(async () => {}), moveRow: vi.fn(async () => 11), appendNew: vi.fn(async () => 99),
     sendEmail: vi.fn(async () => {}), queuePending: vi.fn(async () => {}),
     alreadyProcessed: async () => false, markProcessed: vi.fn(async () => {}), now: new Date('2026-09-08T00:00:00Z'),
@@ -22,10 +22,30 @@ describe('processPayment', () => {
     expect(d.sendEmail).toHaveBeenCalled()         // soft finalizing ack
   })
   it('exact email match -> renewal writes the existing row, resets reminders', async () => {
-    const d = deps({ readMembers: async () => [{ rowNumber: 11, tab: 'current', name: 'Peter Pray', emails: ['petehpray@yahoo.com'] }] })
+    const d = deps({ readMembers: async () => [{ rowNumber: 11, tab: 'current', name: 'Peter Pray', emails: ['petehpray@yahoo.com'], expires: null }] })
     const r = await processPayment(baseIpn, d)
     expect(r.outcome).toBe('renewed')
     expect(d.writeCells).toHaveBeenCalledWith('current', 11, expect.objectContaining({ 'Current': 'Yes', 'Last Reminder Sent': '', 'Reminder Count': '0' }))
+  })
+  it('early renewal (30 days still remaining) -> credits the remaining days onto the new Expires, and the email reflects the credit', async () => {
+    const now = new Date('2026-09-08T00:00:00Z')
+    const futureExpires = new Date(now.getTime() + 30 * 86400000) // 30 days out
+    const expiresStr = `${futureExpires.getUTCMonth() + 1}/${futureExpires.getUTCDate()}/${futureExpires.getUTCFullYear()}`
+    const d = deps({
+      readMembers: async () => [{ rowNumber: 11, tab: 'current', name: 'Peter Pray', emails: ['petehpray@yahoo.com'], expires: expiresStr }],
+      now,
+    })
+    const r = await processPayment(baseIpn, d)
+    expect(r.outcome).toBe('renewed')
+
+    const expectedNewExpires = new Date(now.getTime() + (365 + 30) * 86400000)
+    const expectedStr = `${expectedNewExpires.getUTCMonth() + 1}/${expectedNewExpires.getUTCDate()}/${expectedNewExpires.getUTCFullYear()}`
+    expect(d.writeCells).toHaveBeenCalledWith('current', 11, expect.objectContaining({ Expires: expectedStr }))
+
+    // Renewal email must reflect the credited days (renderRenewal's daysCredited line).
+    expect(d.sendEmail).toHaveBeenCalled()
+    const [, , html] = (d.sendEmail as ReturnType<typeof vi.fn>).mock.calls[0]
+    expect(html).toContain('Days credited for renewing early: 30')
   })
   it('duplicate txn -> skipped, no writes/emails', async () => {
     const d = deps({ alreadyProcessed: async () => true })

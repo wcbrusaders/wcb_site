@@ -5,6 +5,12 @@ export interface MatchMember {
   tab: 'current' | 'lapsed'
   name: string | null
   emails: string[]
+  // Raw sheet 'Expires' cell value (whatever format the roster stores, e.g.
+  // M/D/YYYY), or null if blank/absent. Matching logic doesn't read this —
+  // it's carried through so the orchestrator (T7) can credit remaining days
+  // on renewal via computeExpiration(member.expires, now) instead of losing
+  // them.
+  expires: string | null
 }
 export interface PaymentIdentity { email: string; firstName: string; lastName: string }
 export type MatchResult =

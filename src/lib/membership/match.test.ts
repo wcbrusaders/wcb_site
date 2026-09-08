@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { matchPayment, type MatchMember } from './match'
 
 const m = (over: Partial<MatchMember>): MatchMember =>
-  ({ rowNumber: 1, tab: 'current', name: 'X', emails: [], ...over })
+  ({ rowNumber: 1, tab: 'current', name: 'X', emails: [], expires: null, ...over })
 
 describe('matchPayment', () => {
   const members: MatchMember[] = [

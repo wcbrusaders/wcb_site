@@ -437,7 +437,12 @@ export async function readMembersForMatching(deps: ReadForMatchingDeps = {}): Pr
       // Google Email).
       const uniqueEmails = [...new Set(emails)]
 
-      out.push({ rowNumber: i + 1, tab, name, emails: uniqueEmails })
+      // Raw 'Expires' cell, carried through uninterpreted so the orchestrator
+      // (T7) can credit remaining days on renewal via computeExpiration
+      // rather than resetting to a flat 365 days from today.
+      const expires = cell(headers, row, 'Expires') || null
+
+      out.push({ rowNumber: i + 1, tab, name, emails: uniqueEmails, expires })
     }
     return out
   }

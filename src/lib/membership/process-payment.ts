@@ -21,12 +21,6 @@ function fmtDate(d: Date): string {
   return `${d.getUTCMonth() + 1}/${d.getUTCDate()}/${d.getUTCFullYear()}`
 }
 
-// Existing-row current->Lapsed date column is unavailable to us here beyond
-// what MatchMember carries (rowNumber/tab/name/emails — no Expires), so the
-// renewal/reactivation credit calc reads the row's Expires via writeCells'
-// caller... actually MatchMember has no Expires field, so proration uses
-// null (no prior expiry known at match time) unless a future task widens
-// MatchMember. Documented in the report.
 export async function processPayment(ipn: Ipn, deps: ProcessDeps): Promise<{ outcome: Outcome }> {
   if (await deps.alreadyProcessed(ipn.txnId)) {
     return { outcome: 'duplicate' }
@@ -42,7 +36,10 @@ export async function processPayment(ipn: Ipn, deps: ProcessDeps): Promise<{ out
 
   if (result.kind === 'exact' || result.kind === 'normalized' || result.kind === 'alias') {
     const member = result.member
-    const { expires, daysCredited } = computeExpiration(null, deps.now)
+    // Credit remaining days on the member's CURRENT expiry (renewal or
+    // reactivation) rather than resetting to a flat 365 days — an early
+    // renewer keeps the time they already paid for.
+    const { expires, daysCredited } = computeExpiration(member.expires, deps.now)
     const paymentDate = fmtDate(deps.now)
 
     if (member.tab === 'lapsed') {
