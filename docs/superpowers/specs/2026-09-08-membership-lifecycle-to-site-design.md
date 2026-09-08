@@ -1,8 +1,15 @@
-# Membership Lifecycle → Site (PayPal intake, smart matching, reminders) — Design
+# Membership Lifecycle → Site (PayPal intake, smart matching, emails, access) — Design
 
 **Date:** 2026-09-08
 **Status:** Design (brainstormed) → review
-**Repos:** wcb_site (gains the lifecycle), wcb_bot (loses PayPal intake), Google Apps Script (loses reminders/lapsing)
+**Repos:** wcb_site (gains the lifecycle), wcb_bot (loses PayPal intake; enforcement loop
+gains membership lapse/rejoin), Google Apps Script (loses reminders/lapsing + group sync)
+
+**Two phases:** Phase 1 = smart matching + emails (welcome/renewal/reminder/re-engagement) +
+reminder/lapse cron — fixes the Peter duplicate-and-mis-dun bug, the missing partner welcome,
+and the rejoin-duplicate. Phase 2 = access de-provision on lapse / re-provision on rejoin
+across the site flag, Google Group (→ Drive + Calendar), and Discord (via the bot's
+enforcement loop). Phase 2 depends on Phase 1 and ships after it.
 
 ## Problem / motivation
 
@@ -46,17 +53,21 @@ systems that don't share a key:
 5. **Alias memory.** When a board confirm (or a future form field) ties a new payment email
    to an existing member, store it so it never mis-matches again. Aliases accumulate; the
    member's login email is never overwritten.
-6. **Google Group management stays where it is for now** (Apps Script `syncGroupMembership`
-   + bot enforcement loop, both via the shared OAuth token with `admin.directory.group`).
-   It is the piece with the real Google-Admin dependency; migrating it is out of scope here
-   and can come later — the site already holds the same OAuth creds, so it CAN move.
+6. **Access provisioning is PHASE 2** (§9): on lapse the site removes Google Group
+   `members@`/`board@` (→ revokes Drive + Calendar) using its OWN OAuth creds (the roster
+   sync's known-working creds, NOT the flaky Apps Script `AdminDirectory`), flips the site
+   `current` flag (auto via sync), and signals the bot's enforcement loop to pull the
+   Discord role; on rejoin it reverses all three. Retires the Apps Script's group sync.
+   Phase 2 depends on Phase 1's correct lapse-writing + rejoin-matching.
 7. **PayPal IPN authenticity WILL be verified** on the site (the bot currently skips it).
 
 ## Out of scope (explicit)
 
 - Moving source-of-truth to the DB / retiring the sheet.
-- Migrating Google Group / Drive / Calendar access management off the Apps Script + bot.
 - The bot's brewing-knowledge brain (untouched; not membership).
+- Full Facebook-group automation (no practical API; membership FB stays manual).
+  NOTE: Google Group / Drive / Calendar / Discord access de-provision+re-provision is NO
+  LONGER out of scope — it moved IN as Phase 2 (§9).
 - Changing how members pay (the hosted PayPal button/link stays:
   `https://www.paypal.com/ncp/payment/UQ6VG5K69FC92`). Members still can't be forced to
   supply a clean key — hence the matching ladder + optional note parsing.
@@ -218,23 +229,84 @@ through {expiration}".
   the partner their welcome via Resend.
 - Reuse `requireBoard()` + `recordAudit` patterns.
 
+### 9. Access de-provision / re-provision — PHASE 2 (Jordan, 2026-09-08)
+
+Today access management is the weakest link, and does NOT work reliably:
+- **On lapse:** the bot's enforcement loop does NOTHING (it keys on `status` =
+  ban/suspend, never on membership expiry). The **only** lapse-driven removal is the Apps
+  Script `processLapsedMembers` → `removeFromGroup(members@/board@)` at >7 days expired —
+  and that likely **fails silently** (Apps Script `AdminDirectory` advanced service must be
+  explicitly enabled; if not, every call throws-and-is-caught). Discord is NEVER pulled on
+  lapse (the script just emails the board "revoke Discord manually"). Net: **lapsed members
+  effectively keep their access.**
+- **On rejoin:** a returning lapsed member (moved to the Lapsed tab) is not found by the
+  current-tab-only match → gets a **duplicate** new row; Discord is never restored. Group
+  access does eventually come back via the daily group-sync (Current=Yes → add), but through
+  the duplicate.
+
+**Target — the site owns provisioning across all surfaces.** The access set is 3 mechanisms
+(NOT 4–5 separate ones — Drive + Calendar both flow FROM the Google Group):
+1. **Site members-area access** — gated on the `current` flag. Correct lapse-writing (Phase
+   1) → daily sync flips `current=false` → site access drops **automatically** (up to ~1-day
+   sync lag). Mostly free once lapse is written right; no API call needed.
+2. **Google Group `members@` (+ `board@` if a board member)** — removing/adding this ONE
+   membership revokes/grants **Drive access AND Calendar write** together. The site does this
+   with its OWN Google OAuth creds (the roster sync's known-working creds, not the flaky
+   Apps Script `AdminDirectory`).
+3. **Discord role** — the site can't touch Discord. Reuse the **bot's existing enforcement
+   loop**: the site flips a DB field on lapse/rejoin, and the bot's 10-min `reconcile()`
+   loop (already does Discord role add/remove + group ops) acts on it. Extend
+   `enforcement_decision.decide()` to also consider membership lapse, not just ban/suspend.
+   No new endpoint/channel — least new infra.
+
+Not automated (named so they're not forgotten): **Facebook group** (no practical API;
+stays manual — the emails already say members remain in FB unless they leave). 
+
+**De-provision trigger:** the Phase-1 cron that moves a member to Lapsed also (Phase 2)
+removes the Google Group membership + flips the DB field the bot reads for Discord.
+**Re-provision trigger:** the Phase-1 rejoin match (extended to search the Lapsed tab —
+reactivates the ORIGINAL record, no duplicate) re-adds the Google Group + flips the DB field
+back so the bot restores Discord. Both fail-soft + audited.
+
+**Dependency:** Phase 2 CANNOT be correct until Phase 1's matching + lapse-writing are
+correct (you can't revoke "lapsed" access until "lapsed" is determined reliably, and you
+can't re-provision a rejoin until rejoin matches the original record instead of duplicating).
+Hence Phase 2 is strictly after Phase 1.
+
 ## Data model touch (minimal)
 - If aliases go in the sheet: one new Sheet1 column + a `Member` field via roster sync (no
   destructive DB change; nullable string). If a `PendingMatch` queue needs persistence: a
   small new Prisma model (id, paymentPayload JSON, candidateMemberIds, createdAt, resolved).
   Prod `prisma db push` (coordinated) only if we add the model.
 
-## Migration order (each step shippable + reversible)
-1. **Matching service + tests** (pure, no side effects). No behavior change yet.
-2. **Sheet write-path extension** (`setRosterField` columns + row-number locate) + tests.
-3. **Email template layer + subject fix** on the site (Resend). No trigger yet.
-4. **PayPal IPN receiver on the site** (verified) → lifecycle service → writes sheet, sends
-   welcome/renewal, group add. **Repoint PayPal IPN from the bot to the site.** Retire the
-   bot's `paypal_handler` + `membership_automation` intake (leave the code, stop the route).
-5. **Reminder/lapse cron on the site** + **disable Apps Script reminder/lapse in the same
-   deploy** (the double-dunning-critical step).
-6. **Admin pending-match queue + couple completion.**
-7. (Later / separate) Google Group management migration; not in this project.
+## Migration order — TWO PHASES (each step shippable + reversible)
+
+### PHASE 1 — matching, emails, reminders (fixes Peter, dunning, rejoin-duplicate)
+1. **Matching service + tests** (pure, no side effects). Searches Sheet1 AND the **Lapsed
+   Members tab** (so a rejoin reactivates the original record, not a duplicate). No behavior
+   change yet.
+2. **Sheet write-path extension** (`setRosterField` columns + row-number locate; can write
+   Expires/PaymentDate/Current/etc., and move a row between Sheet1 ↔ Lapsed for rejoin) + tests.
+3. **Email template layer + subject fix** (Resend): welcome, renewal-confirmation, reminder,
+   re-engagement — branded HTML, "Dual" not "Couple", members-area-first, replyTo club@ +
+   contact line, unsubscribe link. No trigger yet.
+4. **PayPal IPN receiver on the site** (verified) → lifecycle service → matches (incl. Lapsed
+   tab) → writes sheet (renewal on existing row / reactivate lapsed / new) → sends
+   welcome|renewal → Google Group add. **Repoint PayPal IPN from the bot to the site.**
+   Retire the bot's `paypal_handler` + `membership_automation` intake (leave code, stop route).
+5. **Reminder/lapse cron on the site** (9am) + re-engagement on lapse + **disable the Apps
+   Script's `processReminder` + `processLapsedMembers` in the SAME deploy** (double-dunning
+   is the critical risk). Unsubscribe route + honor existing Opt Out.
+6. **Admin pending-match queue + couple/partner completion.**
+
+### PHASE 2 — access de-provision / re-provision (§9); strictly AFTER Phase 1
+7. **Site removes Google Group `members@`/`board@` on lapse** (via the site's own OAuth
+   creds) — replacing the flaky/likely-broken Apps Script `AdminDirectory` removal. Drive +
+   Calendar revoke with it. Re-add on rejoin. Retire the Apps Script `syncGroupMembership`.
+8. **Discord via the bot's enforcement loop:** extend `enforcement_decision.decide()` +
+   `enforcement_sync` to also act on membership lapse/rejoin (a DB field the site flips), so
+   Discord role is pulled on lapse and restored on rejoin. (Site members-area access already
+   drops/returns automatically via the `current` flag from Phase-1 lapse-writing.)
 
 ## Privacy / safety
 - IPN payloads contain PII (names, emails, amounts) — never log raw payloads; log matched
