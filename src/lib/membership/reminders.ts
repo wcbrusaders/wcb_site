@@ -15,6 +15,17 @@ function daysBetweenUTC(a: Date, b: Date): number {
   return Math.round((b.getTime() - a.getTime()) / DAY)
 }
 
+// Floors an arbitrary wall-clock `now` down to UTC midnight of the same
+// calendar day. Required because the cron runs at 13:00 UTC, not midnight:
+// comparing that raw timestamp against an `expires`/`lastReminder` value
+// (which always parses to exact UTC midnight, per `parse()` above) would
+// compute a fractional day count that `Math.round` can snap to the WRONG
+// integer (e.g. a 7-calendar-day gap at a 13:00 offset rounds to 6). Flooring
+// both sides to midnight makes every day-diff a whole-calendar-day count.
+function todayUTC(now: Date): Date {
+  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()))
+}
+
 export type ReminderRow = {
   rowNumber: number
   name: string
@@ -49,15 +60,16 @@ function isRecentlyReminded(lastReminder: string, now: Date): boolean {
 }
 
 export function dueReminders(rows: ReminderRow[], now: Date): DueReminder[] {
+  const today = todayUTC(now)
   const out: DueReminder[] = []
   for (const row of rows) {
     const expires = parse(row.expires)
     if (!expires) continue
     if (isOptedOut(row.optOut)) continue
-    if (isRecentlyReminded(row.lastReminder, now)) continue
+    if (isRecentlyReminded(row.lastReminder, today)) continue
 
     // Positive = days until expiry (pre), negative = days since expiry (post).
-    const daysUntil = daysBetweenUTC(now, expires)
+    const daysUntil = daysBetweenUTC(today, expires)
 
     if (daysUntil > 0 && PRE_DAYS.includes(daysUntil)) {
       out.push({ row, phase: 'pre', daysLeft: daysUntil })
@@ -79,11 +91,12 @@ export function dueReminders(rows: ReminderRow[], now: Date): DueReminder[] {
 const DAYS_BEFORE_LAPSED = 7
 
 export function dueLapses(rows: ReminderRow[], now: Date): ReminderRow[] {
+  const today = todayUTC(now)
   const out: ReminderRow[] = []
   for (const row of rows) {
     const expires = parse(row.expires)
     if (!expires) continue
-    const daysSince = daysBetweenUTC(expires, now)
+    const daysSince = daysBetweenUTC(expires, today)
     if (daysSince > DAYS_BEFORE_LAPSED) out.push(row)
   }
   return out
