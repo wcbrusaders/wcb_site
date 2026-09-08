@@ -3,6 +3,7 @@ import { auth } from '@/lib/auth'
 import { getMembershipReports } from '@/lib/metrics'
 import { fetchLapsedMembers } from '@/lib/metrics/lapsed'
 import { prisma } from '@/lib/db'
+import { findPartnerPlaceholders, readMembersForMatching } from '@/lib/roster'
 import { PageHeader, SectionLabel, EmptyState } from '@/components/ui'
 import { InfoCard, Row } from '@/components/members/InfoCard'
 import { TrendsCompareChart } from '@/components/members/reports/TrendsCompareChart'
@@ -10,6 +11,55 @@ import { TierDonut } from '@/components/members/reports/TierDonut'
 import { SeasonalityBars } from '@/components/members/reports/SeasonalityBars'
 import { MembershipInsights } from '@/components/members/MembershipInsights'
 import { LapsedMembersEditor } from '@/components/members/LapsedMembersEditor'
+import { PendingMatchQueue, type PendingMatchRow } from '@/components/members/PendingMatchQueue'
+import { PartnerComplete } from '@/components/members/PartnerComplete'
+
+type PendingPayload = { email: string; amount: number; firstName?: string; lastName?: string }
+
+// Loads unresolved PendingMatch rows + resolves each candidate rowNumber to a
+// display name off the live roster, for the board-review queue UI. Board-
+// gated by the page itself (this file only renders after the isBoard check
+// below), so no separate auth check needed here.
+// candidateRows encoding: "tab:rowNumber" per candidate, comma-joined (e.g.
+// "current:11,lapsed:40") — written by the IPN route's queuePending. Row
+// numbers are only unique WITHIN a tab, so the tab must travel with each one
+// end-to-end; parsing back into bare numbers here would silently reintroduce
+// the cross-tab row-collision bug this fix round closed.
+function parseCandidateRows(raw: string): { rowNumber: number; tab: 'current' | 'lapsed' }[] {
+  return raw
+    .split(',')
+    .map((entry) => {
+      const [tab, rowStr] = entry.split(':')
+      const rowNumber = parseInt(rowStr, 10)
+      if ((tab !== 'current' && tab !== 'lapsed') || isNaN(rowNumber)) return null
+      return { tab, rowNumber }
+    })
+    .filter((c): c is { rowNumber: number; tab: 'current' | 'lapsed' } => c !== null)
+}
+
+async function loadPendingMatches(): Promise<PendingMatchRow[]> {
+  const rows = await prisma.pendingMatch.findMany({
+    where: { resolvedAt: null },
+    orderBy: { createdAt: 'asc' },
+  })
+  if (rows.length === 0) return []
+
+  const members = await readMembersForMatching()
+  const nameByKey = new Map(members.map((m) => [`${m.tab}:${m.rowNumber}`, m.name]))
+
+  return rows.map((r) => {
+    const payload = JSON.parse(r.payloadJson) as PendingPayload
+    const candidates = parseCandidateRows(r.candidateRows)
+    return {
+      id: r.id,
+      amount: payload.amount,
+      email: payload.email,
+      name: `${payload.firstName ?? ''} ${payload.lastName ?? ''}`.trim(),
+      candidates: candidates.map((c) => ({ ...c, name: nameByKey.get(`${c.tab}:${c.rowNumber}`) ?? null })),
+      createdAt: r.createdAt.toISOString(),
+    }
+  })
+}
 
 export const dynamic = 'force-dynamic'
 
@@ -56,6 +106,8 @@ export default async function MembershipReportsPage() {
 
   const r = await getMembershipReports()
   const lapsedMembers = await fetchLapsedMembers(prisma)
+  const pendingMatches = await loadPendingMatches()
+  const partnerPlaceholders = await findPartnerPlaceholders()
   const k = r.kpis
   const g = r.growthSummary
 
@@ -119,6 +171,16 @@ export default async function MembershipReportsPage() {
         <SecondaryTile label="Lapsed (12 mo)" value={String(k.lapsedLast12mo)} />
         <SecondaryTile label="Expiring (60d)" value={String(r.expiringSoon.length)} />
       </div>
+
+      {/* Zone 1.5: actionable board queues — payments needing review + couple
+          placeholders needing a partner name. Surfaced high because these are
+          the "the Peter case" fixes: an unresolved queue leaves someone's
+          payment/membership in limbo. */}
+      <SectionLabel icon="🔎">Payments needing review</SectionLabel>
+      <PendingMatchQueue items={pendingMatches} />
+
+      <SectionLabel icon="💑">Couple/partner completion</SectionLabel>
+      <PartnerComplete placeholders={partnerPlaceholders} />
 
       {/* Zone 2: comparison chart — the centerpiece. */}
       <SectionLabel icon="📊">Trends comparison (quarterly)</SectionLabel>

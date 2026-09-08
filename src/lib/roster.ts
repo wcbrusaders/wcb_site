@@ -1,5 +1,6 @@
 import { google } from 'googleapis'
 import { prisma } from './db'
+import type { MatchMember } from './membership/match'
 
 export type MemberRecord = {
   emailAddress: string | null
@@ -389,6 +390,352 @@ export async function syncPayments(deps: PaymentSyncDeps = {}): Promise<{ paymen
   return { payments }
 }
 
+function splitEmails(v: string): string[] {
+  return v
+    .split(',')
+    .map((e) => normalizeEmail(e))
+    .filter((e) => e.length > 0)
+}
+
+type ReadForMatchingDeps = {
+  getTab?: (tabName: string) => Promise<string[][]>
+}
+
+// Reads BOTH tabs (mirrors fetchAllMembers's readTab shape) but returns the
+// lighter MatchMember projection used by the membership-lifecycle matcher
+// (T2): physical rowNumber (1-based, uncompacted — no filtering of blank rows,
+// unlike fetchAllRosterRows/fetchAllMembers) + every email column folded into
+// one lowercased, blank-dropped array so matchPayment can scan them all
+// without knowing the sheet's column layout.
+export async function readMembersForMatching(deps: ReadForMatchingDeps = {}): Promise<MatchMember[]> {
+  const getTab = deps.getTab ?? realGetTab
+
+  async function readTab(tabName: string, tab: 'current' | 'lapsed'): Promise<MatchMember[]> {
+    const values = await getTab(tabName)
+    if (values.length < 2) return []
+    const headers = values[0].map((h) => String(h).trim())
+    const out: MatchMember[] = []
+    for (let i = 1; i < values.length; i++) {
+      const row = values[i].map((c) => String(c ?? ''))
+      const name = cell(headers, row, 'Name') || null
+      const email = cell(headers, row, 'Email Address')
+      const google = cell(headers, row, 'Google Email')
+      const partner = cell(headers, row, 'Partner Email')
+      const paymentEmails = cell(headers, row, 'Payment Emails')
+      // Skip blank spacer rows (no name and no identifying emails at all) —
+      // mirrors mapSheetRow's spacer-row skip so matching never sees them.
+      if (!name && !email && !google && !partner && !paymentEmails) continue
+
+      const emails = [
+        ...splitEmails(email),
+        ...splitEmails(google),
+        ...splitEmails(partner),
+        ...splitEmails(paymentEmails),
+      ]
+      // De-dupe while preserving first-seen order (a member can legitimately
+      // repeat the same address across columns, e.g. Email Address ==
+      // Google Email).
+      const uniqueEmails = [...new Set(emails)]
+
+      // Raw 'Expires' cell, carried through uninterpreted so the orchestrator
+      // (T7) can credit remaining days on renewal via computeExpiration
+      // rather than resetting to a flat 365 days from today.
+      const expires = cell(headers, row, 'Expires') || null
+
+      out.push({ rowNumber: i + 1, tab, name, emails: uniqueEmails, expires })
+    }
+    return out
+  }
+
+  const [current, lapsed] = await Promise.all([
+    readTab(TAB, 'current'),
+    readTab(LAPSED_TAB, 'lapsed'),
+  ])
+  return [...current, ...lapsed]
+}
+
+export type ReminderRow = {
+  rowNumber: number
+  name: string
+  email: string
+  expires: string
+  lastReminder: string
+  reminderCount: number
+  optOut: string
+}
+
+type ReadReminderRowsDeps = {
+  getTab?: (tabName: string) => Promise<string[][]>
+}
+
+// Reads Sheet1 (current-members tab only — the reminder/lapse cron only ever
+// acts on rows still in "current"; once moved to Lapsed a row is out of the
+// reminder pipeline) and projects the columns the reminders.ts pure logic
+// needs: Name/Email Address/Expires/Last Reminder Sent/Reminder Count/Opt
+// Out. Mirrors readMembersForMatching's header-driven cell() lookups and
+// physical (1-based, uncompacted) rowNumber so writeRosterCells/moveRowToTab
+// can address the same row back on Sheet1 directly. Skips blank spacer rows
+// (no name and no email), same as mapSheetRow/readMembersForMatching.
+export async function readReminderRows(deps: ReadReminderRowsDeps = {}): Promise<ReminderRow[]> {
+  const getTab = deps.getTab ?? realGetTab
+  const values = await getTab(TAB)
+  if (values.length < 2) return []
+  const headers = values[0].map((h) => String(h).trim())
+  const out: ReminderRow[] = []
+  for (let i = 1; i < values.length; i++) {
+    const row = values[i].map((c) => String(c ?? ''))
+    const name = cell(headers, row, 'Name')
+    const email = cell(headers, row, 'Email Address')
+    if (!name && !email) continue
+    // Couple/Dual partner-placeholder row (see findPartnerPlaceholders):
+    // 'Email Address' === 'NEEDS UPDATE' is the sentinel for "no real member
+    // here yet". It has Current: Yes + a real Expires, so without this skip
+    // it enters dueReminders/dueLapses — Resend rejects the send (caught
+    // fail-soft) but it's noisy, and it's an extra row for the lapse loop's
+    // descending-rowNumber ordering to walk for no reason.
+    if (email.toUpperCase() === 'NEEDS UPDATE') continue
+
+    const reminderCountStr = cell(headers, row, 'Reminder Count')
+    const reminderCount = parseInt(reminderCountStr, 10)
+
+    out.push({
+      rowNumber: i + 1,
+      name,
+      email,
+      expires: cell(headers, row, 'Expires'),
+      lastReminder: cell(headers, row, 'Last Reminder Sent'),
+      reminderCount: isNaN(reminderCount) ? 0 : reminderCount,
+      optOut: cell(headers, row, 'Opt Out'),
+    })
+  }
+  return out
+}
+
+function tabName(tab: 'current' | 'lapsed'): string {
+  return tab === 'current' ? TAB : LAPSED_TAB
+}
+
+type ReadCellDeps = {
+  getTab?: (tabName: string) => Promise<string[][]>
+}
+
+// Reads a single named-column cell for one physical row. Used by the board
+// pending-match resolver (T8) to read the current 'Payment Emails' alias
+// value before appending to it — readMembersForMatching folds that column
+// into its combined `emails` array (indistinguishable from Email
+// Address/Google Email/Partner Email there), so a distinct read needs its
+// own header-driven lookup rather than reusing that projection.
+export async function readRosterCell(
+  tab: 'current' | 'lapsed',
+  rowNumber: number,
+  column: string,
+  deps: ReadCellDeps = {},
+): Promise<string> {
+  const getTab = deps.getTab ?? realGetTab
+  const name = tabName(tab)
+  const values = await getTab(name)
+  const headers = (values[0] ?? []).map((h) => String(h).trim())
+  const colIdx = headers.indexOf(column)
+  if (colIdx === -1) return ''
+  const row = values[rowNumber - 1]
+  return row ? (row[colIdx] ?? '').toString().trim() : ''
+}
+
+export type PartnerPlaceholder = { rowNumber: number; tier: string | null }
+
+type FindPlaceholdersDeps = {
+  getTab?: (tabName: string) => Promise<string[][]>
+}
+
+// Finds Couple/Dual membership rows still awaiting the second person's name +
+// email — the sentinel per the design doc is 'Email Address' === 'NEEDS
+// UPDATE' (the row exists so the paying member's Couple tier is on record,
+// but who the partner actually is hasn't been filled in yet). Only scans the
+// current-members tab; a lapsed placeholder isn't actionable here. Board
+// completes these via completePartnerAction (writes Name + Email Address).
+export async function findPartnerPlaceholders(deps: FindPlaceholdersDeps = {}): Promise<PartnerPlaceholder[]> {
+  const getTab = deps.getTab ?? realGetTab
+  const values = await getTab(TAB)
+  if (values.length < 2) return []
+  const headers = values[0].map((h) => String(h).trim())
+  const out: PartnerPlaceholder[] = []
+  for (let i = 1; i < values.length; i++) {
+    const row = values[i].map((c) => String(c ?? ''))
+    const email = cell(headers, row, 'Email Address')
+    if (email.toUpperCase() !== 'NEEDS UPDATE') continue
+    out.push({ rowNumber: i + 1, tier: cell(headers, row, 'Tier') || null })
+  }
+  return out
+}
+
+type WriteCellsDeps = {
+  getTab?: (tabName: string) => Promise<string[][]>
+  batchWrite?: (writes: Array<{ tabName: string; rowNumber: number; column: string; value: string }>) => Promise<void>
+}
+
+async function realBatchWrite(writes: Array<{ tabName: string; rowNumber: number; column: string; value: string }>): Promise<void> {
+  if (!SHEET_ID) throw new Error('MEMBER_ROSTER_SHEET_ID not set')
+  if (writes.length === 0) return
+  const sheets = sheetsClient()
+  // Resolve each write's column letter against its own tab's header row
+  // (writes may span both Sheet1 and Lapsed Members, whose columns differ).
+  const headerCache = new Map<string, string[]>()
+  const data: Array<{ range: string; values: string[][] }> = []
+  for (const w of writes) {
+    let headers = headerCache.get(w.tabName)
+    if (!headers) {
+      const headerRes = await sheets.spreadsheets.values.get({ spreadsheetId: SHEET_ID, range: `${w.tabName}!1:1` })
+      headers = (headerRes.data.values?.[0] ?? []).map((h) => String(h).trim())
+      headerCache.set(w.tabName, headers)
+    }
+    const colIdx = headers.indexOf(w.column)
+    if (colIdx === -1) throw new Error(`Column "${w.column}" not found in tab "${w.tabName}"`)
+    data.push({ range: `${w.tabName}!${columnLetter(colIdx)}${w.rowNumber}`, values: [[w.value]] })
+  }
+  await sheets.spreadsheets.values.batchUpdate({
+    spreadsheetId: SHEET_ID,
+    requestBody: { valueInputOption: 'RAW', data },
+  })
+}
+
+// Batch-writes multiple named columns to a single physical row on one tab in
+// one Sheets API call (spreadsheets.values.batchUpdate), mirroring
+// setRosterField/realWriteCell's header-driven column resolution but for
+// several cells at once (renewals/reactivations touch many columns per row).
+export async function writeRosterCells(
+  tab: 'current' | 'lapsed',
+  rowNumber: number,
+  updates: Record<string, string>,
+  deps: WriteCellsDeps = {},
+): Promise<void> {
+  const getTab = deps.getTab ?? realGetTab
+  const batchWrite = deps.batchWrite ?? realBatchWrite
+  const name = tabName(tab)
+
+  const values = await getTab(name)
+  const headers = (values[0] ?? []).map((h) => String(h).trim())
+  const columns = Object.keys(updates)
+  for (const column of columns) {
+    if (headers.indexOf(column) === -1) {
+      throw new Error(`Column "${column}" not found in tab "${name}"`)
+    }
+  }
+
+  const writes = columns.map((column) => ({ tabName: name, rowNumber, column, value: updates[column] }))
+  await batchWrite(writes)
+}
+
+type MoveRowDeps = {
+  getTab?: (tabName: string) => Promise<string[][]>
+  appendRow?: (tabName: string, values: string[]) => Promise<number>
+  deleteRow?: (tabName: string, rowNumber: number) => Promise<void>
+}
+
+async function realGetSheetId(sheets: ReturnType<typeof sheetsClient>, tabTitle: string): Promise<number> {
+  if (!SHEET_ID) throw new Error('MEMBER_ROSTER_SHEET_ID not set')
+  const meta = await sheets.spreadsheets.get({ spreadsheetId: SHEET_ID })
+  const found = meta.data.sheets?.find((s) => s.properties?.title === tabTitle)
+  const id = found?.properties?.sheetId
+  if (id == null) throw new Error(`Tab "${tabTitle}" not found in spreadsheet`)
+  return id
+}
+
+async function realAppendRow(tabName: string, values: string[]): Promise<number> {
+  if (!SHEET_ID) throw new Error('MEMBER_ROSTER_SHEET_ID not set')
+  const sheets = sheetsClient()
+  const res = await sheets.spreadsheets.values.append({
+    spreadsheetId: SHEET_ID,
+    range: tabName,
+    valueInputOption: 'RAW',
+    insertDataOption: 'INSERT_ROWS',
+    requestBody: { values: [values] },
+  })
+  // updatedRange looks like "'Lapsed Members'!A5:H5" — pull the trailing row number.
+  const updatedRange = res.data.updates?.updatedRange ?? ''
+  const match = updatedRange.match(/(\d+)(?::[A-Z]+\d+)?$/)
+  if (!match) throw new Error(`Could not determine appended row number from range "${updatedRange}"`)
+  return parseInt(match[1], 10)
+}
+
+async function realDeleteRow(tabName: string, rowNumber: number): Promise<void> {
+  if (!SHEET_ID) throw new Error('MEMBER_ROSTER_SHEET_ID not set')
+  const sheets = sheetsClient()
+  const sheetId = await realGetSheetId(sheets, tabName)
+  await sheets.spreadsheets.batchUpdate({
+    spreadsheetId: SHEET_ID,
+    requestBody: {
+      requests: [
+        {
+          deleteDimension: {
+            range: {
+              sheetId,
+              dimension: 'ROWS',
+              startIndex: rowNumber - 1, // 0-based, inclusive
+              endIndex: rowNumber, // 0-based, exclusive
+            },
+          },
+        },
+      ],
+    },
+  })
+}
+
+// Moves a physical row from one tab to the other: reads the row's raw values
+// off fromTab, appends them verbatim to toTab, then deletes the row from
+// fromTab. Used both directions — current->Lapsed on lapse, Lapsed->current
+// on rejoin — so callers pass 'current'|'lapsed' rather than raw tab names.
+//
+// Order matters: append THEN delete, so a mid-operation failure leaves the
+// row duplicated (recoverable by inspection) rather than lost entirely.
+export async function moveRowToTab(
+  fromTab: 'current' | 'lapsed',
+  rowNumber: number,
+  toTab: 'current' | 'lapsed',
+  deps: MoveRowDeps = {},
+): Promise<number> {
+  const getTab = deps.getTab ?? realGetTab
+  const appendRow = deps.appendRow ?? realAppendRow
+  const deleteRow = deps.deleteRow ?? realDeleteRow
+
+  const fromName = tabName(fromTab)
+  const toName = tabName(toTab)
+
+  const values = await getTab(fromName)
+  const row = values[rowNumber - 1]
+  if (!row) throw new Error(`Row ${rowNumber} not found in tab "${fromName}"`)
+
+  const newRowNumber = await appendRow(toName, row)
+  await deleteRow(fromName, rowNumber)
+  return newRowNumber
+}
+
+type AppendMemberRowDeps = {
+  getTab?: (tabName: string) => Promise<string[][]>
+  appendRow?: (tabName: string, values: string[]) => Promise<number>
+}
+
+// Appends a NEW member row to a tab (current or lapsed), addressed by column
+// NAME (mirrors writeRosterCells's header-driven approach) rather than
+// positional order — callers (T7 orchestrator's appendNew) don't need to
+// know the sheet's physical column layout. Columns present in `row` but
+// missing from the tab's header are silently dropped (best-effort — the
+// header row is the source of truth for what the sheet actually has);
+// columns in the header but absent from `row` are written blank.
+export async function appendMemberRow(
+  row: Record<string, string>,
+  tab: 'current' | 'lapsed' = 'current',
+  deps: AppendMemberRowDeps = {},
+): Promise<number> {
+  const getTab = deps.getTab ?? realGetTab
+  const appendRow = deps.appendRow ?? realAppendRow
+  const name = tabName(tab)
+
+  const values = await getTab(name)
+  const headers = (values[0] ?? []).map((h) => String(h).trim())
+  const values_out = headers.map((h) => row[h] ?? '')
+  return appendRow(name, values_out)
+}
+
 export function validateSecondaryEmail(email: string): { ok: true; value: string } | { ok: false; reason: string } {
   const v = normalizeEmail(email)
   if (!v) return { ok: false, reason: 'Email is required.' }
@@ -419,7 +766,18 @@ async function realFetchRawRows(): Promise<string[][]> {
 // land on the WRONG member's cell. Scanning raw rows avoids that entirely.
 export async function setRosterField(
   memberEmail: string,
-  column: 'Google Email' | 'Partner Email',
+  column:
+    | 'Google Email'
+    | 'Partner Email'
+    | 'Expires'
+    | 'Payment Date'
+    | 'Current'
+    | 'Tier'
+    | 'Name'
+    | 'Email Address'
+    | 'Last Reminder Sent'
+    | 'Reminder Count'
+    | 'Payment Emails',
   value: string,
   deps: WriteDeps = {},
 ): Promise<{ ok: boolean; reason?: string }> {
@@ -452,6 +810,19 @@ export async function setRosterField(
   return { ok: true }
 }
 
+// 0-based column index -> spreadsheet column letter(s): A, B, ... Z, AA, AB, ...
+// (the roster runs A..T today, but this must not silently corrupt writes if
+// it grows past Z — the previous inline String.fromCharCode(65 + colIdx) did).
+export function columnLetter(index: number): string {
+  let n = index
+  let s = ''
+  do {
+    s = String.fromCharCode(65 + (n % 26)) + s
+    n = Math.floor(n / 26) - 1
+  } while (n >= 0)
+  return s
+}
+
 async function realWriteCell(rowNumber: number, column: string, value: string): Promise<void> {
   if (!SHEET_ID) throw new Error('MEMBER_ROSTER_SHEET_ID not set')
   const sheets = sheetsClient()
@@ -460,7 +831,7 @@ async function realWriteCell(rowNumber: number, column: string, value: string): 
   const headers = (headerRes.data.values?.[0] ?? []).map((h) => String(h).trim())
   const colIdx = headers.indexOf(column)
   if (colIdx === -1) throw new Error(`Column "${column}" not found in roster`)
-  const colLetter = String.fromCharCode(65 + colIdx) // A, B, C... (assumes < 26 cols)
+  const colLetter = columnLetter(colIdx)
   await sheets.spreadsheets.values.update({
     spreadsheetId: SHEET_ID,
     range: `${TAB}!${colLetter}${rowNumber}`,

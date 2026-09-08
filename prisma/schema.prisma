@@ -330,6 +330,26 @@ model Artifact {
   @@index([audience])
 }
 
+// A payment the matcher (T2) couldn't auto-resolve (name matched but no email
+// overlap — the "Peter case": pays from a different email than the one on
+// file, but the full name matches an existing row). Queued by the PayPal IPN
+// route (T7) instead of silently applying anything; a board member resolves
+// it via the admin queue (T8) — either confirming it's an existing member
+// (renews that row + records the payer email as a new alias) or marking it
+// as a genuinely new member (appended as a fresh row). `payloadJson` carries
+// the original Ipn payload (JSON-stringified) so the resolver has everything
+// (email/amount/name) without re-deriving it; `candidateRows` is a
+// comma-joined list of the sheet row numbers the matcher flagged as possible
+// matches. `resolvedAt` null = still awaiting board action.
+model PendingMatch {
+  id            String    @id @default(cuid())
+  txnId         String    @unique
+  payloadJson   String
+  candidateRows String
+  createdAt     DateTime  @default(now())
+  resolvedAt    DateTime?
+}
+
 model ArtifactDraft {
   id               String   @id @default(cuid())
   sourceDriveId    String   @unique
