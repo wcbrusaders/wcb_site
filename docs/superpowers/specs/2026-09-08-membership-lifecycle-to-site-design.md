@@ -143,15 +143,46 @@ PayPal payment ──IPN──▶ [SITE] /api/webhooks/paypal (Node runtime, ver
   to call Admin Directory `members.insert` — same as the bot. Fail-soft.
 
 ### 6. Emails — `src/lib/email.ts` (extend) + templates
-- Add a small template layer (the current file is one hardcoded-subject function). Port the
-  4 live templates (welcome_single/couple, renewal_single/couple) AND wire the 7 currently-
-  **orphaned** expiration/reminder/lapsed templates that only ever existed as dead assets.
-- **Fix the subject bug:** the bot sends welcome/renewal with the default subject "Message
-  from Wake County Brusaders" (no subject passed). Give each its real subject.
-- All via Resend (`RESEND_API_KEY`/`RESEND_FROM`, already configured). From
-  `WCB <noreply@wcbrusaders.com>` — NOTE the current club emails come from
-  `club@wcbrusaders.com` (Gmail); decide whether reminders should keep that from-address
-  for reply-to continuity (Apps Script uses `replyTo: club@`).
+
+**SCOPE — the site sends emails for exactly THREE purposes (Jordan, 2026-09-08):**
+**(1) Welcome (new members), (2) Expiration reminders (pre/post), (3) Re-engagement
+(lapsed "we miss you").** All branded HTML matching the existing welcome look (amber
+`#d97706` header + details box + CTA buttons). Renewal-confirmation is NOT a priority
+(optional nice-to-have; can reuse the existing renewal template if trivially free, but it
+is not in the core scope).
+
+- Add a small template layer (the current `email.ts` is one hardcoded-subject function).
+  All via Resend (`RESEND_API_KEY`/`RESEND_FROM`, already configured).
+
+- **Welcome** — port the existing branded HTML `welcome_single` / `welcome_couple` (they
+  DO send today and look good). Variables: `first_name, tier, expiration`. Drop
+  `transaction_id` from the body unless wanted. **Also send the PARTNER their own welcome**
+  when a couple's partner is completed (the gap raised earlier — partners currently never
+  get welcomed). **Fix the subject bug:** the bot sends welcome with the default subject
+  "Message from Wake County Brusaders" (no subject passed) — give it a real subject
+  ("Welcome to Wake County Brusaders!").
+
+- **Expiration reminders** — pre (14/7/2) + post (2/4). Members currently receive the Apps
+  Script's PLAIN-TEXT pre/post copy; the site will send **branded HTML** versions (Jordan's
+  call — upgrade the look). Author two new HTML templates using the welcome email's visual
+  shell; the message copy is the Apps Script's real wording (expires-in-N-days / expired-on
+  + renew CTA), NOT the dead bot drafts. Variables: `first_name, expiration_date,
+  renewal_cost, renewal_link`.
+
+- **Re-engagement** — for LAPSED members (moved to the Lapsed tab). A "we miss you / come
+  back" branded HTML email. This is a NEW thing the site sends that nothing sends today
+  (the Apps Script only moves people to Lapsed silently). Decide the trigger: on-lapse
+  (once, when the cron moves them) and/or a follow-up. Keep it to 1–2 sends, not the dead
+  drafts' 30/60-day arc unless wanted.
+
+- **The 7 orphaned `templates/emails/expiration/*.html` bot drafts are IGNORED** — never
+  wired, never sent, contain unfinished `[Year]`/`[competition]` copy. Salvage their VISUAL
+  shell only (or just reuse the welcome shell); use NONE of their copy.
+
+- From-address: `RESEND_FROM` (`WCB <noreply@wcbrusaders.com>`). NOTE the Apps Script sends
+  reminders from `club@wcbrusaders.com` with `replyTo: club@` and parses "STOP" replies in
+  that Gmail inbox for opt-out. If reminders move to Resend/noreply, STOP-reply opt-out
+  handling needs a new home (see Open Questions).
 
 ### 7. Reminder + lapse cron — `src/app/api/cron/membership/route.ts` + `vercel.json`
 - Daily (align with Apps Script's 9:00 AM, or the existing 04:00 sync window — decide).
@@ -160,6 +191,8 @@ PayPal payment ──IPN──▶ [SITE] /api/webhooks/paypal (Node runtime, ver
   ≥2-day spacing (mirror the Apps Script rules exactly so behavior doesn't change), and
   moves >7-days-expired members to the Lapsed tab. Writes Last Reminder Sent / Reminder
   Count back to the sheet.
+- **Re-engagement:** when the cron moves a member to the Lapsed tab, send the re-engagement
+  ("we miss you") email once (§6). This is net-new — nothing sends it today.
 - **Cutover:** in the SAME change, disable the Apps Script's `processReminder` +
   `processLapsedMembers` (leave its group-sync alone). Bearer `CRON_SECRET` like existing crons.
 
