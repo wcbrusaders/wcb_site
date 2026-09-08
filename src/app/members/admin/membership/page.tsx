@@ -20,6 +20,23 @@ type PendingPayload = { email: string; amount: number; firstName?: string; lastN
 // display name off the live roster, for the board-review queue UI. Board-
 // gated by the page itself (this file only renders after the isBoard check
 // below), so no separate auth check needed here.
+// candidateRows encoding: "tab:rowNumber" per candidate, comma-joined (e.g.
+// "current:11,lapsed:40") — written by the IPN route's queuePending. Row
+// numbers are only unique WITHIN a tab, so the tab must travel with each one
+// end-to-end; parsing back into bare numbers here would silently reintroduce
+// the cross-tab row-collision bug this fix round closed.
+function parseCandidateRows(raw: string): { rowNumber: number; tab: 'current' | 'lapsed' }[] {
+  return raw
+    .split(',')
+    .map((entry) => {
+      const [tab, rowStr] = entry.split(':')
+      const rowNumber = parseInt(rowStr, 10)
+      if ((tab !== 'current' && tab !== 'lapsed') || isNaN(rowNumber)) return null
+      return { tab, rowNumber }
+    })
+    .filter((c): c is { rowNumber: number; tab: 'current' | 'lapsed' } => c !== null)
+}
+
 async function loadPendingMatches(): Promise<PendingMatchRow[]> {
   const rows = await prisma.pendingMatch.findMany({
     where: { resolvedAt: null },
@@ -28,17 +45,17 @@ async function loadPendingMatches(): Promise<PendingMatchRow[]> {
   if (rows.length === 0) return []
 
   const members = await readMembersForMatching()
-  const nameByRow = new Map(members.map((m) => [m.rowNumber, m.name]))
+  const nameByKey = new Map(members.map((m) => [`${m.tab}:${m.rowNumber}`, m.name]))
 
   return rows.map((r) => {
     const payload = JSON.parse(r.payloadJson) as PendingPayload
-    const candidateRows = r.candidateRows.split(',').map((n) => parseInt(n, 10)).filter((n) => !isNaN(n))
+    const candidates = parseCandidateRows(r.candidateRows)
     return {
       id: r.id,
       amount: payload.amount,
       email: payload.email,
       name: `${payload.firstName ?? ''} ${payload.lastName ?? ''}`.trim(),
-      candidates: candidateRows.map((rowNumber) => ({ rowNumber, name: nameByRow.get(rowNumber) ?? null })),
+      candidates: candidates.map((c) => ({ ...c, name: nameByKey.get(`${c.tab}:${c.rowNumber}`) ?? null })),
       createdAt: r.createdAt.toISOString(),
     }
   })

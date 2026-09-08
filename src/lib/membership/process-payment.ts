@@ -3,13 +3,21 @@ import { tierFromAmount, computeExpiration } from './tiers'
 import { renderWelcome, renderRenewal } from './emails'
 import type { Ipn } from './paypal-ipn'
 
+export type PendingCandidate = { rowNumber: number; tab: 'current' | 'lapsed' }
+
 export interface ProcessDeps {
   readMembers: () => Promise<MatchMember[]>
   writeCells: (tab: 'current' | 'lapsed', row: number, updates: Record<string, string>) => Promise<void>
   moveRow: (from: 'current' | 'lapsed', row: number, to: 'current' | 'lapsed') => Promise<number>
   appendNew: (row: Record<string, string>) => Promise<number>
   sendEmail: (to: string, subject: string, html: string) => Promise<void>
-  queuePending: (payload: Ipn, candidateRows: number[]) => Promise<void>
+  // Carries each candidate's TAB alongside its rowNumber — a name-review
+  // candidate can live on EITHER tab (matchPayment scans both), and row
+  // numbers are only unique WITHIN a tab. Losing the tab here was the root
+  // of a data-corruption bug: a board confirm on a lapsed-tab candidate
+  // would silently read/write an unrelated current-tab row sharing that
+  // same physical row number.
+  queuePending: (payload: Ipn, candidates: PendingCandidate[]) => Promise<void>
   alreadyProcessed: (txnId: string) => Promise<boolean>
   markProcessed: (txnId: string) => Promise<void>
   now: Date
@@ -73,8 +81,8 @@ export async function processPayment(ipn: Ipn, deps: ProcessDeps): Promise<{ out
   }
 
   if (result.kind === 'name-review') {
-    const candidateRows = result.candidates.map((c) => c.rowNumber)
-    await deps.queuePending(ipn, candidateRows)
+    const candidates = result.candidates.map((c) => ({ rowNumber: c.rowNumber, tab: c.tab }))
+    await deps.queuePending(ipn, candidates)
     const softAckHtml = `<p>Hi ${ipn.firstName},</p><p>We received your payment and are finalizing your membership. You'll get a confirmation email shortly.</p>`
     await deps.sendEmail(ipn.email, 'Payment received — finalizing your membership', softAckHtml)
     await deps.markProcessed(ipn.txnId)
@@ -93,6 +101,23 @@ export async function processPayment(ipn: Ipn, deps: ProcessDeps): Promise<{ out
     Current: 'Yes',
     'Join Date': paymentDate,
   })
+  // A Couple/Dual signup is really two people, but PayPal only tells us
+  // about the one who paid. Append a placeholder row for the unnamed
+  // partner (unchanged behavior from the old bot, per the design doc §5) so
+  // the board can complete it with the partner's real name/email later
+  // (Task 8's completePartnerAction) — findPartnerPlaceholders (roster.ts)
+  // is the consumer this must agree with: it keys ONLY on 'Email Address'
+  // === 'NEEDS UPDATE', so that sentinel is load-bearing here.
+  if (tier === 'Couple') {
+    await deps.appendNew({
+      Name: `[Partner of ${ipn.firstName} ${ipn.lastName} - UPDATE]`.trim(),
+      Tier: tier,
+      'Email Address': 'NEEDS UPDATE',
+      'Payment Date': paymentDate,
+      Expires: expires,
+      Current: 'Yes',
+    })
+  }
   const { subject, html } = renderWelcome({ firstName: ipn.firstName, tier, expiration: expires })
   await deps.sendEmail(ipn.email, subject, html)
   await deps.markProcessed(ipn.txnId)

@@ -6,7 +6,7 @@ import { prisma } from '@/lib/db'
 import { getMembershipReports } from '@/lib/metrics'
 import { generateInsights } from '@/lib/metrics/insights'
 import { LAPSE_REASONS } from '@/lib/metrics/lapsed'
-import { writeRosterCells, appendMemberRow, normalizeEmail, readMembersForMatching, readRosterCell } from '@/lib/roster'
+import { writeRosterCells, appendMemberRow, normalizeEmail, readMembersForMatching, readRosterCell, moveRowToTab } from '@/lib/roster'
 import { computeExpiration, tierFromAmount } from '@/lib/membership/tiers'
 import { renderWelcome, renderRenewal, sendMembershipEmail } from '@/lib/membership/emails'
 import { recordAudit } from '@/lib/audit'
@@ -30,17 +30,29 @@ async function requireBoard(): Promise<Actor | null> {
 type PendingPayload = { email: string; amount: number; firstName?: string; lastName?: string }
 
 export type ResolveChoice =
-  | { kind: 'confirm'; rowNumber: number; addAlias: string }
+  | { kind: 'confirm'; rowNumber: number; tab: 'current' | 'lapsed'; addAlias: string }
   | { kind: 'new' }
 
 export type ResolvePendingDeps = {
-  getPending: (id: string) => Promise<{ payload: PendingPayload; candidateRows: number[] } | null>
+  // candidateRows isn't read by the core today (the choice already carries
+  // the specific row+tab the officer picked) — kept in the return shape
+  // only because getPending mirrors the stored PendingMatch row 1:1.
+  getPending: (id: string) => Promise<{ payload: PendingPayload; candidateRows: string } | null>
   writeCells: (tab: 'current' | 'lapsed', row: number, updates: Record<string, string>) => Promise<void>
   appendNew: (row: Record<string, string>) => Promise<number>
   sendEmail: (to: string, subject: string, html: string) => Promise<void>
   markResolved: (id: string) => Promise<void>
   now: Date
-  readRow: (rowNumber: number) => Promise<{ expires: string | null; paymentEmails: string }>
+  // rowNumber's TAB must be threaded through explicitly — row numbers are
+  // only unique WITHIN a tab, and a name-review candidate can live on
+  // EITHER tab (matchPayment scans both). Reading/writing by rowNumber alone
+  // risks silently touching an unrelated row on the other tab.
+  readRow: (tab: 'current' | 'lapsed', rowNumber: number) => Promise<{ expires: string | null; paymentEmails: string }>
+  moveRow: (from: 'current' | 'lapsed', row: number, to: 'current' | 'lapsed') => Promise<number>
+}
+
+function fmtDate(d: Date): string {
+  return `${d.getUTCMonth() + 1}/${d.getUTCDate()}/${d.getUTCFullYear()}`
 }
 
 // Pure, testable core for resolving a board-review queue entry (the Peter
@@ -48,11 +60,16 @@ export type ResolvePendingDeps = {
 // than auto-applying anything). actor === null means "not board" → reject.
 //
 // 'confirm': the officer is saying "yes, this payer IS the candidate row" —
-// renew that row (Current/Expires/reset reminder tracking, same fields T7's
-// processPayment writes on a normal renewal) AND append the payer's email to
-// the row's 'Payment Emails' alias column (comma-joined with whatever's
-// already there) so the SAME email auto-matches next time instead of
-// queueing again.
+// renews that row AND appends the payer's email to the row's 'Payment
+// Emails' alias column (comma-joined with whatever's already there) so the
+// SAME email auto-matches next time instead of queueing again. The
+// candidate's `tab` decides HOW that renewal happens:
+//   - 'current': renew in place (mirrors T7's normal-renewal write).
+//   - 'lapsed': REACTIVATE — moveRow('lapsed', rowNumber, 'current') first
+//     (mirrors T7's reactivation path), then write the fields on the row's
+//     NEW current-tab row number (moveRowToTab's return value), crediting
+//     any remaining days off the row's PRE-move `expires` so day-credit
+//     still applies.
 //
 // 'new': the officer is saying "no, this is a genuinely new member" —
 // append a fresh row (mirrors T7's brand-new-member append), no alias
@@ -74,8 +91,7 @@ export async function resolvePendingCore(
   if (choice.kind === 'new') {
     const tier = tierFromAmount(payload.amount)
     const { expires } = computeExpiration(null, deps.now)
-    const fmt = (d: Date) => `${d.getUTCMonth() + 1}/${d.getUTCDate()}/${d.getUTCFullYear()}`
-    const paymentDate = fmt(deps.now)
+    const paymentDate = fmtDate(deps.now)
     const name = `${payload.firstName ?? ''} ${payload.lastName ?? ''}`.trim()
     await deps.appendNew({
       Name: name,
@@ -94,11 +110,11 @@ export async function resolvePendingCore(
     return { ok: true }
   }
 
-  // 'confirm': renew the chosen row + record the payer email as a new alias.
-  const row = await deps.readRow(choice.rowNumber)
+  // 'confirm': renew (or reactivate) the chosen row + record the payer email as a new alias.
+  const row = await deps.readRow(choice.tab, choice.rowNumber)
   const { expires, daysCredited } = computeExpiration(row.expires, deps.now)
   const tier = tierFromAmount(payload.amount)
-  const paymentDate = `${deps.now.getUTCMonth() + 1}/${deps.now.getUTCDate()}/${deps.now.getUTCFullYear()}`
+  const paymentDate = fmtDate(deps.now)
 
   const existingAliases = (row.paymentEmails ?? '')
     .split(',')
@@ -109,7 +125,14 @@ export async function resolvePendingCore(
     ? existingAliases
     : [...existingAliases, aliasToAdd]
 
-  await deps.writeCells('current', choice.rowNumber, {
+  // If the candidate lives on the lapsed tab, move it to current FIRST —
+  // the row's physical number changes, and every subsequent write/alias
+  // update must target the NEW (current-tab) row, not the old lapsed one.
+  const targetRow = choice.tab === 'lapsed'
+    ? await deps.moveRow('lapsed', choice.rowNumber, 'current')
+    : choice.rowNumber
+
+  await deps.writeCells('current', targetRow, {
     Current: 'Yes',
     Expires: expires,
     'Payment Date': paymentDate,
@@ -128,12 +151,12 @@ export async function resolvePendingCore(
   return { ok: true }
 }
 
-async function realGetPending(id: string): Promise<{ payload: PendingPayload; candidateRows: number[] } | null> {
+async function realGetPending(id: string): Promise<{ payload: PendingPayload; candidateRows: string } | null> {
   const row = await prisma.pendingMatch.findUnique({ where: { id } })
   if (!row || row.resolvedAt) return null
   return {
     payload: JSON.parse(row.payloadJson) as PendingPayload,
-    candidateRows: row.candidateRows.split(',').map((n) => parseInt(n, 10)).filter((n) => !isNaN(n)),
+    candidateRows: row.candidateRows,
   }
 }
 
@@ -141,13 +164,13 @@ async function realMarkResolved(id: string): Promise<void> {
   await prisma.pendingMatch.update({ where: { id }, data: { resolvedAt: new Date() } })
 }
 
-async function realReadRow(rowNumber: number): Promise<{ expires: string | null; paymentEmails: string }> {
+async function realReadRow(tab: 'current' | 'lapsed', rowNumber: number): Promise<{ expires: string | null; paymentEmails: string }> {
   const members = await readMembersForMatching()
-  const match = members.find((m) => m.rowNumber === rowNumber && m.tab === 'current')
+  const match = members.find((m) => m.rowNumber === rowNumber && m.tab === tab)
   // 'Payment Emails' is folded into MatchMember.emails alongside every other
   // email column there, so it can't be recovered distinctly from that
   // projection — read the raw cell directly instead.
-  const paymentEmails = await readRosterCell('current', rowNumber, 'Payment Emails')
+  const paymentEmails = await readRosterCell(tab, rowNumber, 'Payment Emails')
   return { expires: match?.expires ?? null, paymentEmails }
 }
 
@@ -159,6 +182,7 @@ const realResolveDeps: ResolvePendingDeps = {
   markResolved: realMarkResolved,
   now: new Date(),
   readRow: realReadRow,
+  moveRow: (from, row, to) => moveRowToTab(from, row, to),
 }
 
 export async function resolvePendingMatchAction(id: string, choice: ResolveChoice) {
@@ -168,7 +192,7 @@ export async function resolvePendingMatchAction(id: string, choice: ResolveChoic
     await recordAudit({
       actorMemberId: actor.memberId, actorEmail: actor.email,
       action: 'resolve-pending-match',
-      detail: choice.kind === 'confirm' ? `confirmed renewal on row ${choice.rowNumber}` : 'marked as new member',
+      detail: choice.kind === 'confirm' ? `confirmed renewal on ${choice.tab} row ${choice.rowNumber}` : 'marked as new member',
     })
   }
   revalidatePath('/members/admin/membership')

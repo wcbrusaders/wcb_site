@@ -9,7 +9,11 @@ export type PendingMatchRow = {
   amount: number
   email: string
   name: string
-  candidates: { rowNumber: number; name: string | null }[]
+  // tab matters: a candidate can live on either the current or lapsed tab
+  // (the matcher scans both), and row numbers are only unique WITHIN a tab —
+  // confirming must know which tab to read/write so it never touches an
+  // unrelated row that happens to share the same physical row number.
+  candidates: { rowNumber: number; tab: 'current' | 'lapsed'; name: string | null }[]
   createdAt: string // ISO date string (RSC boundary — see wcb-rsc-date-boundary-trap)
 }
 
@@ -38,10 +42,10 @@ function PendingMatchCard({ item }: { item: PendingMatchRow }) {
 
   const candidate = item.candidates[0]
 
-  function confirm(rowNumber: number) {
+  function confirm(rowNumber: number, tab: 'current' | 'lapsed') {
     setMsg(null)
     start(async () => {
-      const r = await resolvePendingMatchAction(item.id, { kind: 'confirm', rowNumber, addAlias: item.email })
+      const r = await resolvePendingMatchAction(item.id, { kind: 'confirm', rowNumber, tab, addAlias: item.email })
       if (r.ok) {
         setDone(true)
       } else {
@@ -86,10 +90,10 @@ function PendingMatchCard({ item }: { item: PendingMatchRow }) {
       <div className="mt-3 flex flex-wrap gap-2">
         {item.candidates.map((c) => (
           <button
-            key={c.rowNumber}
+            key={`${c.tab}:${c.rowNumber}`}
             type="button"
             disabled={pending}
-            onClick={() => confirm(c.rowNumber)}
+            onClick={() => confirm(c.rowNumber, c.tab)}
             className="rounded-lg border px-3 py-1.5 text-sm font-medium disabled:opacity-40"
             style={{ borderColor: '#3a3a3a', color: '#0ca30c' }}
           >

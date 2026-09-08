@@ -3,7 +3,7 @@ import { prisma } from '@/lib/db'
 import { readMembersForMatching, writeRosterCells, moveRowToTab, appendMemberRow } from '@/lib/roster'
 import { sendMembershipEmail } from '@/lib/membership/emails'
 import { verifyIpn, parseIpn, isProcessablePayment, type Ipn } from '@/lib/membership/paypal-ipn'
-import { processPayment, type ProcessDeps } from '@/lib/membership/process-payment'
+import { processPayment, type ProcessDeps, type PendingCandidate } from '@/lib/membership/process-payment'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -36,14 +36,22 @@ async function markProcessed(txnId: string): Promise<void> {
 // application logs. Idempotent on txnId — a re-delivered IPN for the same
 // transaction (PayPal retries on anything but a prompt 200) must not create
 // a second queue entry for the same payment.
-async function queuePending(payload: Ipn, candidateRows: number[]): Promise<void> {
+//
+// candidateRows encoding: each candidate is "tab:rowNumber" (e.g.
+// "current:11,lapsed:40"), comma-joined. A name-review candidate can live on
+// EITHER tab (matchPayment scans both), and row numbers are only unique
+// WITHIN a tab — encoding just the bare number here caused a data-corruption
+// bug where confirming a lapsed-tab candidate silently read/wrote an
+// unrelated current-tab row sharing that row number. Parsed back by
+// _actions.ts's realGetPending.
+async function queuePending(payload: Ipn, candidates: PendingCandidate[]): Promise<void> {
   const existing = await prisma.pendingMatch.findUnique({ where: { txnId: payload.txnId } })
   if (existing) return
   await prisma.pendingMatch.create({
     data: {
       txnId: payload.txnId,
       payloadJson: JSON.stringify(payload),
-      candidateRows: candidateRows.join(','),
+      candidateRows: candidates.map((c) => `${c.tab}:${c.rowNumber}`).join(','),
     },
   })
 }
