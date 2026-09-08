@@ -334,8 +334,23 @@ Hence Phase 2 is strictly after Phase 1.
    Calendar revoke with it. Re-add on rejoin. Retire the Apps Script `syncGroupMembership`.
 8. **Discord via the bot's enforcement loop:** extend `enforcement_decision.decide()` +
    `enforcement_sync` to also act on membership lapse/rejoin (a DB field the site flips), so
-   Discord role is pulled on lapse and restored on rejoin. (Site members-area access already
-   drops/returns automatically via the `current` flag from Phase-1 lapse-writing.)
+   the Brusader role is pulled on lapse and restored on rejoin. (Site members-area access
+   already drops/returns automatically via the `current` flag from Phase-1 lapse-writing.)
+   **BLOCKED ON the Discord permission cleanup below** — the `/admin channel_gating` audit
+   (2026-09-08) proved role-strip currently removes NOTHING: member channels are `@everyone`-
+   visible (INHERIT/OPEN), so the Brusader role gates almost nothing; the real gate is server
+   ENTRY (the invite). Role-strip only works once channels are actually Brusader-gated.
+
+### PREREQUISITE for Phase 2, step 8 — Discord permission cleanup (SEPARATE PROJECT)
+A decoupled project, done between Phase 1 and Phase 2 (Jordan, 2026-09-08). Target server
+model: **role-gated content + a lapsed lobby.** Being in the server = a lobby (welcome +
+maybe public announcements); the **Brusader role unlocks the real member channels**
+(brewing, events, social, equipment, etc. — currently ~25 channels sitting INHERIT/OPEN).
+Lapse then strips the Brusader role → member lands in a "renew to unlock" limbo, still in the
+server (reachable by in-server re-engagement, not just email). Also fixes audit findings:
+`#welcome` is currently gated so a brand-new role-less joiner may NOT see it (backwards);
+scattered redundant `view+: Brusader` grants on already-open channels; pervasive INHERIT
+making perms un-reasonable-about. Its own design + build; not scoped in this doc.
 
 ## Privacy / safety
 - IPN payloads contain PII (names, emails, amounts) — never log raw payloads; log matched
