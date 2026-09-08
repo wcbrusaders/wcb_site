@@ -164,6 +164,16 @@ PayPal payment ──IPN──▶ [SITE] /api/webhooks/paypal (Node runtime, ver
 (4) Re-engagement (lapsed "we miss you").** All branded HTML matching the existing welcome
 look (amber `#d97706` header + details box + CTA buttons).
 
+**Discord invite — in BOTH the email AND the members site (Jordan, 2026-09-08, revised):**
+The welcome email includes the actual Discord invite LINK directly (a new member is most
+engaged right when they get the email; forcing a site login first adds friction at the worst
+moment — many won't visit the members area initially). The members area ALSO hosts the
+invite (durable home, rotatable, for returning members / those who lost the email). Both
+point at the same invite. KNOWN TRADEOFF (accepted): an in-email invite can be forwarded to
+a non-member, slightly weakening the paid-only gate — accepted because invites get shared
+regardless, the invite is rotatable if it leaks, and the friction cost of hiding it outweighs
+the leak risk for a homebrew club. The site's invite section is still behind the member gate.
+
 **Renewal confirmation is CORE (elevated from optional 2026-09-08):** when a renewal
 processes successfully, the member immediately gets a "✅ payment processed successfully —
 your membership is active through {expiration}" email. This is the reassurance that would
