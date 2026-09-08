@@ -594,6 +594,33 @@ export async function moveRowToTab(
   return newRowNumber
 }
 
+type AppendMemberRowDeps = {
+  getTab?: (tabName: string) => Promise<string[][]>
+  appendRow?: (tabName: string, values: string[]) => Promise<number>
+}
+
+// Appends a NEW member row to a tab (current or lapsed), addressed by column
+// NAME (mirrors writeRosterCells's header-driven approach) rather than
+// positional order — callers (T7 orchestrator's appendNew) don't need to
+// know the sheet's physical column layout. Columns present in `row` but
+// missing from the tab's header are silently dropped (best-effort — the
+// header row is the source of truth for what the sheet actually has);
+// columns in the header but absent from `row` are written blank.
+export async function appendMemberRow(
+  row: Record<string, string>,
+  tab: 'current' | 'lapsed' = 'current',
+  deps: AppendMemberRowDeps = {},
+): Promise<number> {
+  const getTab = deps.getTab ?? realGetTab
+  const appendRow = deps.appendRow ?? realAppendRow
+  const name = tabName(tab)
+
+  const values = await getTab(name)
+  const headers = (values[0] ?? []).map((h) => String(h).trim())
+  const values_out = headers.map((h) => row[h] ?? '')
+  return appendRow(name, values_out)
+}
+
 export function validateSecondaryEmail(email: string): { ok: true; value: string } | { ok: false; reason: string } {
   const v = normalizeEmail(email)
   if (!v) return { ok: false, reason: 'Email is required.' }
