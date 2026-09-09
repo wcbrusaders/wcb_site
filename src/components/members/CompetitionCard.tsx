@@ -257,23 +257,29 @@ export function CompetitionCard({ comp, viewerIsBoard, viewerId, donateUrl }: { 
         )}
       </div>
 
-      {/* --- Your entries --- */}
+      {/* --- Your entries (collapsed by default; summary line stays visible) --- */}
       <div className="mt-4">
-        <div className="flex items-center gap-2 mb-2 flex-wrap">
-          <p className="text-xs font-semibold uppercase tracking-wide text-foreground/45">Your entries · {myCount}</p>
-          {myCount > 0 && (() => {
-            const bottledCount = comp.myEntries.filter((e) => e.bottled).length
-            const left = comp.myEntries.filter((e) => !e.bottled)
-            const allDone = left.length === 0
-            return (
-              <span className={`text-[11px] rounded-full px-2 py-0.5 ${allDone ? 'text-[#4ade80] bg-[#4ade80]/10' : 'text-foreground/55 bg-white/[0.04] border border-border'}`}>
-                {allDone
-                  ? `🍾 All bottled (${bottledCount}/${myCount})`
-                  : `🍾 Bottled ${bottledCount}/${myCount} · still to bottle: ${left.map((e) => e.beerName).join(', ')}`}
-              </span>
-            )
-          })()}
-        </div>
+        {(() => {
+          const bottledCount = comp.myEntries.filter((e) => e.bottled).length
+          const left = comp.myEntries.filter((e) => !e.bottled)
+          const allDone = left.length === 0
+          // Summary badge shown on the always-visible <summary> row so the
+          // at-a-glance bottled status survives collapsing. Only when there
+          // are entries.
+          const badge = myCount > 0 ? (
+            <span className={`text-[11px] rounded-full px-2 py-0.5 ${allDone ? 'text-[#4ade80] bg-[#4ade80]/10' : 'text-foreground/55 bg-white/[0.04] border border-border'}`}>
+              {allDone
+                ? `🍾 All bottled (${bottledCount}/${myCount})`
+                : `🍾 Bottled ${bottledCount}/${myCount} · still to bottle: ${left.map((e) => e.beerName).join(', ')}`}
+            </span>
+          ) : null
+          return (
+        <details className="group">
+          <summary className="flex items-center gap-2 mb-2 flex-wrap cursor-pointer list-none">
+            <span className="text-foreground/40 text-xs transition-transform group-open:rotate-90">▶</span>
+            <p className="text-xs font-semibold uppercase tracking-wide text-foreground/45">Your entries · {myCount}</p>
+            {badge}
+          </summary>
         <ul className="space-y-2">
           {comp.myEntries.map((e) => {
             const cb = channelBadge(e.channel)
@@ -296,6 +302,9 @@ export function CompetitionCard({ comp, viewerIsBoard, viewerId, donateUrl }: { 
             )
           })}
         </ul>
+        </details>
+          )
+        })()}
 
         {comp.allEntries.length > 0 && (
           <details className="mt-3">
