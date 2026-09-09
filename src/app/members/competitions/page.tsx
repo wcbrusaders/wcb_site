@@ -21,7 +21,9 @@ export default async function CompetitionsPage() {
   const memberId = session.user.memberId
   const isBoard = !!session.user.isBoard
 
-  const comps = await listMemberComps(memberId)
+  // Pass isBoard so the contributor list (payer names) is only included for
+  // board viewers — non-board members get the public total but not the names.
+  const comps = await listMemberComps(memberId, { isBoard })
   const past = await listPastComps()
 
   return (

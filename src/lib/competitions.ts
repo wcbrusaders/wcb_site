@@ -119,15 +119,24 @@ async function memberNames(db: typeof prisma, ids: string[]): Promise<Map<string
   return new Map((rows as any[]).map((m) => [m.id, m.name ?? null]))
 }
 
-export async function listMemberComps(memberId: string, deps: { db?: typeof prisma; now?: Date } = {}): Promise<MemberCompView[]> {
+export async function listMemberComps(memberId: string, deps: { db?: typeof prisma; now?: Date; isBoard?: boolean } = {}): Promise<MemberCompView[]> {
   const db = deps.db ?? prisma
   const now = deps.now ?? new Date()
+  const isBoard = deps.isBoard ?? false
   const comps = await db.competition.findMany({ where: { shippingDeadline: { gte: now } }, include: { entries: true, shipments: true, contributions: true }, orderBy: { shippingDeadline: 'asc' } })
   // Resolve entrant names once across all comps for the shared "who entered" list.
   const allIds = (comps as any[]).flatMap((c) => (c.entries ?? []).map((e: any) => e.memberId))
   const names = await memberNames(db, allIds)
-  return (comps as any[]).map((c) => ({
-    ...toCompView(c, now),
+  return (comps as any[]).map((c) => {
+   const base = toCompView(c, now)
+   return {
+    ...base,
+    // The per-comp contribution TOTAL is public (base.contributionTotal), but
+    // the contributor LIST (payer names) is board-only. Withhold it for
+    // non-board viewers HERE in the data layer — hiding it only in the UI
+    // would still ship the names into every member's client bundle (RSC props
+    // are serialized to the browser).
+    contributions: isBoard ? base.contributions : [],
     myEntries: (c.entries ?? []).filter((e: any) => e.memberId === memberId).map((e: any) => ({
       id: e.id, memberId: e.memberId, memberName: null, beerName: e.beerName, style: e.style, channel: e.channel as EntryChannel, registered: e.registered, bottled: e.bottled ?? false,
     })),
@@ -135,7 +144,8 @@ export async function listMemberComps(memberId: string, deps: { db?: typeof pris
     allEntries: (c.entries ?? []).map((e: any) => ({
       id: e.id, memberId: e.memberId, memberName: names.get(e.memberId) ?? null, beerName: e.beerName, style: e.style, channel: e.channel as EntryChannel, registered: e.registered, bottled: e.bottled ?? false,
     })),
-  }))
+   }
+  })
 }
 
 export async function listPastComps(deps: { db?: typeof prisma; now?: Date } = {}): Promise<CompetitionView[]> {

@@ -302,13 +302,13 @@ test('toCompView exposes per-package shipments[] with trackingUrl, sorted by shi
 })
 
 describe('contribution rollup (toCompView)', () => {
-  test('contribution: comp with contributions -> total is the sum, list is newest-first', async () => {
+  test('contribution: board viewer -> total is the sum, list is newest-first', async () => {
     const comps = [comp()]
     const contributions = [
       { id: 'x1', competitionId: 'c1', txnId: 't1', amount: 15, payerName: 'Amy', payerEmail: 'amy@x.com', createdAt: new Date('2026-08-01T00:00:00Z') },
       { id: 'x2', competitionId: 'c1', txnId: 't2', amount: 20, payerName: 'Ben', payerEmail: 'ben@x.com', createdAt: new Date('2026-08-15T00:00:00Z') },
     ]
-    const res = await listMemberComps('m1', { db: db(comps, [entry()], [], [], contributions), now: NOW })
+    const res = await listMemberComps('m1', { db: db(comps, [entry()], [], [], contributions), now: NOW, isBoard: true })
     expect(res[0].contributionTotal).toBe(35)
     expect(res[0].contributions.length).toBe(2)
     // newest-first by createdAt
@@ -317,9 +317,24 @@ describe('contribution rollup (toCompView)', () => {
     expect(res[0].contributions[0].createdAt).toEqual(new Date('2026-08-15T00:00:00Z'))
   })
 
+  // The per-comp TOTAL is public (any member may see it), but the contributor
+  // LIST (payer names) is board-only — and it must not merely be hidden in the
+  // UI: a non-board viewer's data must not CARRY the names at all, or they leak
+  // into the client bundle. So listMemberComps strips the list for non-board.
+  test('contribution: non-board viewer -> total present but contributor list withheld', async () => {
+    const comps = [comp()]
+    const contributions = [
+      { id: 'x1', competitionId: 'c1', txnId: 't1', amount: 15, payerName: 'Amy', payerEmail: 'amy@x.com', createdAt: new Date('2026-08-01T00:00:00Z') },
+      { id: 'x2', competitionId: 'c1', txnId: 't2', amount: 20, payerName: 'Ben', payerEmail: 'ben@x.com', createdAt: new Date('2026-08-15T00:00:00Z') },
+    ]
+    const res = await listMemberComps('m1', { db: db(comps, [entry()], [], [], contributions), now: NOW }) // isBoard omitted -> false
+    expect(res[0].contributionTotal).toBe(35) // total still visible
+    expect(res[0].contributions).toEqual([]) // names NOT shipped to a non-board member
+  })
+
   test('contribution: comp with no contributions -> total 0, empty list', async () => {
     const comps = [comp()]
-    const res = await listMemberComps('m1', { db: db(comps, [entry()], [], [], []), now: NOW })
+    const res = await listMemberComps('m1', { db: db(comps, [entry()], [], [], []), now: NOW, isBoard: true })
     expect(res[0].contributionTotal).toBe(0)
     expect(res[0].contributions).toEqual([])
   })
