@@ -167,19 +167,31 @@ model Competition {
   shippingAddress      String
   dropoffAddress       String?
   addedById            String
-  // Club shipment tracking (one package per competition; officer-set, member-visible)
-  shipmentCarrier      String?
-  shipmentTracking     String?
-  shippedAt            DateTime?
-  // Delivery auto-detect via 17track (daily cron). deliveryStatus is normalized:
-  // 'in_transit' | 'delivered' | 'exception' | null (not yet polled / no tracking).
-  deliveryStatus       String?
-  deliveredAt          DateTime?
-  lastTrackedAt        DateTime?
+  // Club shipment tracking: one row per package. See the Shipment model —
+  // shippedAt/deliveryStatus/deliveredAt are now DERIVED (rolled up) from it.
+  shipments            Shipment[]
   entries              CompEntry[]
   createdAt            DateTime    @default(now())
   updatedAt            DateTime    @updatedAt
   @@index([shippingDeadline])
+}
+
+// One row per club-shipped package for a Competition. Officer-set,
+// member-visible. Delivery auto-detect via 17track (daily cron);
+// deliveryStatus is normalized: 'in_transit' | 'delivered' | 'exception' |
+// null (not yet polled / no tracking).
+model Shipment {
+  id             String      @id @default(cuid())
+  competitionId  String
+  competition    Competition @relation(fields: [competitionId], references: [id], onDelete: Cascade)
+  carrier        String
+  tracking       String
+  shippedAt      DateTime    @default(now())
+  deliveryStatus String?     // 'in_transit' | 'delivered' | 'exception' | null
+  deliveredAt    DateTime?
+  lastTrackedAt  DateTime?
+  createdAt      DateTime    @default(now())
+  @@index([competitionId])
 }
 
 model CompEntry {
