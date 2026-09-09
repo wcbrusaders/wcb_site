@@ -45,11 +45,15 @@ Last updated: 2026-09-09.
 3. **Event → signup attribution** (original membership design future-work). Correlate
    calendar events / meeting topics with joins in the following days (the Brulosophy /
    Martin Keene "~4 signups" case). Needs a calendar-events feed into the site. Not scoped.
-3b. **Per-comp PayPal contribution on opt-in** (Jordan, 2026-09-09). When a member opts
-   into a competition, let them chip in ~$10–20 toward that comp via PayPal. Separate
-   feature from the multi-tracking work; deferred. Design TBD (per-comp amount config,
-   IPN/txn matching to the comp + member, receipt/confirmation, board visibility of who
-   paid). Ties into the existing PayPal IPN plumbing on the site.
+3b. **Per-comp PayPal contribution ("Chip in")** — ✅ SHIPPED 2026-09-09. Site-built
+   classic PayPal `_donations` link per comp ($15 suggested, editable, `custom=comp:<id>`);
+   IPN webhook routes `comp:` payments to a `Contribution` table (never to dues),
+   receiver-verified + amount-validated + idempotent; per-comp total public, contributor
+   list board-only. Deferred sub-items: (a) **unknown-comp money has no board queue** —
+   a contribution for a deleted/stale comp id is verified + logged but NOT recorded and
+   has no PendingMatch-style admin visibility (spec-deferred; only happens if a comp is
+   deleted after its chip-in link was shared). (b) thank-you email on contribution.
+   (c) refund handling (a refunded contribution stays counted). (d) goal/target + progress bar.
 4. **Biweekly MembershipSnapshot cron** (reports design Phase 4). Month-over-month history
    table so trends survive beyond what's recomputable from the live roster. Not built.
 
