@@ -7,6 +7,27 @@ describe('parseIpn', () => {
     const p = parseIpn(f)
     expect(p).toMatchObject({ txnId: 'T1', email: 'a@b.com', firstName: 'Peter', lastName: 'Pray', amount: 65, status: 'completed', txnType: 'web_accept' })
   })
+  it('parses custom field (comp:abc123)', () => {
+    const f = new URLSearchParams({ txn_id: 'T1', payer_email: 'A@B.com', first_name: 'Peter', last_name: 'Pray', mc_gross: '65.00', payment_status: 'Completed', txn_type: 'web_accept', custom: 'comp:abc123' })
+    const p = parseIpn(f)
+    expect(p.custom).toBe('comp:abc123')
+  })
+  it('lowercases receiver_email', () => {
+    const f = new URLSearchParams({ txn_id: 'T1', payer_email: 'A@B.com', first_name: 'Peter', last_name: 'Pray', mc_gross: '65.00', payment_status: 'Completed', txn_type: 'web_accept', receiver_email: 'Club@WCB.com' })
+    const p = parseIpn(f)
+    expect(p.receiverEmail).toBe('club@wcb.com')
+  })
+  it('returns empty string for missing custom and receiver_email', () => {
+    const f = new URLSearchParams({ txn_id: 'T1', payer_email: 'A@B.com', first_name: 'Peter', last_name: 'Pray', mc_gross: '65.00', payment_status: 'Completed', txn_type: 'web_accept' })
+    const p = parseIpn(f)
+    expect(p.custom).toBe('')
+    expect(p.receiverEmail).toBe('')
+  })
+  it('excludes receiver_email from noteEmails', () => {
+    const f = new URLSearchParams({ txn_id: 'T1', payer_email: 'A@B.com', first_name: 'Peter', last_name: 'Pray', mc_gross: '65.00', payment_status: 'Completed', txn_type: 'web_accept', receiver_email: 'club@wcb.com' })
+    const p = parseIpn(f)
+    expect(p.noteEmails).not.toContain('club@wcb.com')
+  })
 })
 describe('isProcessablePayment', () => {
   it('true only for completed web_accept/cart/express_checkout', () => {

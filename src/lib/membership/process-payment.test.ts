@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from 'vitest'
 import { processPayment } from './process-payment'
 import type { Ipn } from './paypal-ipn'
 
-const baseIpn: Ipn = { txnId: 'T1', email: 'petehpray@yahoo.com', firstName: 'Peter', lastName: 'Pray', amount: 40, status: 'completed', txnType: 'web_accept', noteEmails: [] }
+const baseIpn: Ipn = { txnId: 'T1', email: 'petehpray@yahoo.com', firstName: 'Peter', lastName: 'Pray', amount: 40, status: 'completed', txnType: 'web_accept', noteEmails: [], custom: '', receiverEmail: '' }
 function deps(over: Partial<Parameters<typeof processPayment>[1]> = {}) {
   return {
     readMembers: async () => [{ rowNumber: 11, tab: 'current' as const, name: 'Peter Pray', emails: ['petehpray@gmail.com'], expires: null }],

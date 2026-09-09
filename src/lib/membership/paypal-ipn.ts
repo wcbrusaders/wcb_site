@@ -1,4 +1,4 @@
-export interface Ipn { txnId: string; email: string; firstName: string; lastName: string; amount: number; status: string; txnType: string; noteEmails: string[] }
+export interface Ipn { txnId: string; email: string; firstName: string; lastName: string; amount: number; status: string; txnType: string; noteEmails: string[]; custom: string; receiverEmail: string }
 const EMAIL_RE = /[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}/gi
 
 export function parseIpn(form: URLSearchParams): Ipn {
@@ -16,6 +16,7 @@ export function parseIpn(form: URLSearchParams): Ipn {
     txnId: g('txn_id'), email: payer, firstName: g('first_name'), lastName: g('last_name'),
     amount: parseFloat(g('mc_gross') || '0'), status: g('payment_status').toLowerCase(),
     txnType: g('txn_type').toLowerCase(), noteEmails,
+    custom: g('custom'), receiverEmail: g('receiver_email').toLowerCase(),
   }
 }
 export function isProcessablePayment(p: Pick<Ipn, 'status' | 'txnType'>): boolean {
