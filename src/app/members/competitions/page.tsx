@@ -1,10 +1,19 @@
 import { redirect } from 'next/navigation'
 import { auth } from '@/lib/auth'
 import { listMemberComps, listPastComps, listOfficerComps } from '@/lib/competitions'
+import { buildDonateUrl } from '@/lib/paypal-donate-url'
 import { AddCompetitionForm } from '@/components/members/AddCompetitionForm'
 import { CompetitionCard } from '@/components/members/CompetitionCard'
 import { OfficerCompetitions } from '@/components/members/OfficerCompetitions'
 import { PageHeader, EmptyState } from '@/components/ui'
+
+// The club PayPal merchant id is a public payment identifier but is kept a
+// SERVER env var (not NEXT_PUBLIC_*) — this page is a server component, so we
+// build the donate URL here (where process.env is available) and pass only
+// the resulting string down to the client CompetitionCard. If the env var is
+// unset, buildDonateUrl still returns a URL (with an empty `business`) rather
+// than throwing — a missing env var shouldn't crash the page.
+const CHIP_IN_AMOUNT = 15
 
 export default async function CompetitionsPage() {
   const session = await auth()
@@ -25,7 +34,15 @@ export default async function CompetitionsPage() {
         <EmptyState icon="🏆">No active competitions. Add one above.</EmptyState>
       ) : (
         <div className="space-y-4">
-          {comps.map((c) => <CompetitionCard key={c.id} comp={c} viewerIsBoard={isBoard} viewerId={memberId} />)}
+          {comps.map((c) => {
+            const donateUrl = buildDonateUrl({
+              merchantId: process.env.CLUB_PAYPAL_MERCHANT_ID ?? '',
+              compId: c.id,
+              compName: c.name,
+              amount: CHIP_IN_AMOUNT,
+            })
+            return <CompetitionCard key={c.id} comp={c} viewerIsBoard={isBoard} viewerId={memberId} donateUrl={donateUrl} />
+          })}
         </div>
       )}
 
