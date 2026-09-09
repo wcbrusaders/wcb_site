@@ -7,13 +7,18 @@ const SEVEN_DAYS = 7 * 86400000
 const BANNER_WINDOW_DAYS = 21 // surface items within ~3 weeks
 
 export type CompEntryView = { id: string; memberId: string; memberName: string | null; beerName: string; style: string; channel: EntryChannel; registered: boolean; bottled: boolean }
+export type ShipmentView = {
+  id: string; carrier: string; tracking: string; shippedAt: Date
+  deliveryStatus: DeliveryStatus | null; deliveredAt: Date | null; trackingUrl: string | null
+}
 export type CompetitionView = {
   id: string; name: string; homepageUrl: string
   registrationDeadline: Date; shippingDeadline: Date; bottlesRequired: number
   shippingAddress: string; dropoffAddress: string | null; addedById: string
   commitByDate: Date; deliverByDate: Date; isPast: boolean
-  shipmentCarrier: string | null; shipmentTracking: string | null; shippedAt: Date | null
-  deliveryStatus: DeliveryStatus | null; deliveredAt: Date | null
+  // shippedAt/deliveryStatus/deliveredAt are DERIVED (rolled up) from shipments — see rollupShipments.
+  shippedAt: Date | null; deliveryStatus: DeliveryStatus | null; deliveredAt: Date | null
+  shipments: ShipmentView[]
 }
 // myEntries = the viewer's own (for edit controls); allEntries = every entrant
 // with resolved names, shown to all members (the "who entered what" ceremony list).
@@ -26,7 +31,7 @@ export type BannerItem = { competitionId: string; competitionName: string; kind:
 export type NewCompetitionInput = { name: string; homepageUrl: string; registrationDeadline: Date; shippingDeadline: Date; bottlesRequired: number; shippingAddress: string; dropoffAddress?: string | null }
 export type NewEntryInput = { beerName: string; style: string; channel: EntryChannel; registered: boolean; bottled?: boolean }
 export type CompResult = { ok: true; id: string } | { ok: false; reason: 'validation' | 'not_found' | 'forbidden' }
-export type MutResult = { ok: true } | { ok: false; reason: 'not_found' | 'forbidden' }
+export type MutResult = { ok: true } | { ok: false; reason: 'not_found' | 'forbidden' | 'validation' }
 
 export function mapsUrl(address: string): string {
   return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`
@@ -38,14 +43,49 @@ export function podTotal(entries: { channel: EntryChannel }[], bottlesRequired: 
   return entries.filter((e) => e.channel === 'club_ship').length * bottlesRequired
 }
 
+// Roll up the comp-level shipment status from its per-package Shipment rows.
+// Precedence: exception (any) > not-all-delivered-but-moving (in_transit) > all-delivered > null.
+// shippedAt = earliest package shippedAt (null if no packages). deliveredAt = latest
+// package deliveredAt, but ONLY once every package is delivered (never a false positive).
+export function rollupShipments(shipments: { shippedAt: Date; deliveryStatus: DeliveryStatus | null; deliveredAt: Date | null }[]): {
+  shippedAt: Date | null; deliveryStatus: DeliveryStatus | null; deliveredAt: Date | null
+} {
+  if (shipments.length === 0) return { shippedAt: null, deliveryStatus: null, deliveredAt: null }
+  const shippedAt = shipments.reduce((min, s) => (s.shippedAt < min ? s.shippedAt : min), shipments[0].shippedAt)
+  let deliveryStatus: DeliveryStatus | null
+  let deliveredAt: Date | null = null
+  if (shipments.some((s) => s.deliveryStatus === 'exception')) {
+    deliveryStatus = 'exception'
+  } else if (shipments.every((s) => s.deliveryStatus === 'delivered')) {
+    deliveryStatus = 'delivered'
+    deliveredAt = shipments.reduce((max: Date | null, s) => {
+      if (!s.deliveredAt) return max
+      return !max || s.deliveredAt > max ? s.deliveredAt : max
+    }, null)
+  } else if (shipments.some((s) => s.deliveryStatus === 'in_transit' || s.deliveryStatus === 'delivered')) {
+    deliveryStatus = 'in_transit'
+  } else {
+    deliveryStatus = null
+  }
+  return { shippedAt, deliveryStatus, deliveredAt }
+}
+
 function toCompView(c: any, now: Date): CompetitionView {
+  const shipments: ShipmentView[] = ((c.shipments ?? []) as any[])
+    .map((s) => ({
+      id: s.id, carrier: s.carrier, tracking: s.tracking, shippedAt: s.shippedAt,
+      deliveryStatus: (s.deliveryStatus ?? null) as DeliveryStatus | null, deliveredAt: s.deliveredAt ?? null,
+      trackingUrl: trackingUrl(s.carrier, s.tracking),
+    }))
+    .sort((a, b) => a.shippedAt.getTime() - b.shippedAt.getTime())
+  const rollup = rollupShipments(shipments)
   return {
     id: c.id, name: c.name, homepageUrl: c.homepageUrl,
     registrationDeadline: c.registrationDeadline, shippingDeadline: c.shippingDeadline, bottlesRequired: c.bottlesRequired,
     shippingAddress: c.shippingAddress, dropoffAddress: c.dropoffAddress ?? null, addedById: c.addedById,
     commitByDate: commitByDate(c.shippingDeadline), deliverByDate: deliverByDate(c.shippingDeadline), isPast: isPast(c.shippingDeadline, now),
-    shipmentCarrier: c.shipmentCarrier ?? null, shipmentTracking: c.shipmentTracking ?? null, shippedAt: c.shippedAt ?? null,
-    deliveryStatus: (c.deliveryStatus ?? null) as DeliveryStatus | null, deliveredAt: c.deliveredAt ?? null,
+    shippedAt: rollup.shippedAt, deliveryStatus: rollup.deliveryStatus, deliveredAt: rollup.deliveredAt,
+    shipments,
   }
 }
 
@@ -72,7 +112,7 @@ async function memberNames(db: typeof prisma, ids: string[]): Promise<Map<string
 export async function listMemberComps(memberId: string, deps: { db?: typeof prisma; now?: Date } = {}): Promise<MemberCompView[]> {
   const db = deps.db ?? prisma
   const now = deps.now ?? new Date()
-  const comps = await db.competition.findMany({ where: { shippingDeadline: { gte: now } }, include: { entries: true }, orderBy: { shippingDeadline: 'asc' } })
+  const comps = await db.competition.findMany({ where: { shippingDeadline: { gte: now } }, include: { entries: true, shipments: true }, orderBy: { shippingDeadline: 'asc' } })
   // Resolve entrant names once across all comps for the shared "who entered" list.
   const allIds = (comps as any[]).flatMap((c) => (c.entries ?? []).map((e: any) => e.memberId))
   const names = await memberNames(db, allIds)
@@ -91,14 +131,14 @@ export async function listMemberComps(memberId: string, deps: { db?: typeof pris
 export async function listPastComps(deps: { db?: typeof prisma; now?: Date } = {}): Promise<CompetitionView[]> {
   const db = deps.db ?? prisma
   const now = deps.now ?? new Date()
-  const comps = await db.competition.findMany({ where: { shippingDeadline: { lt: now } }, orderBy: { shippingDeadline: 'desc' } })
+  const comps = await db.competition.findMany({ where: { shippingDeadline: { lt: now } }, include: { shipments: true }, orderBy: { shippingDeadline: 'desc' } })
   return (comps as any[]).map((c) => toCompView(c, now))
 }
 
 export async function listOfficerComps(deps: { db?: typeof prisma; now?: Date } = {}): Promise<OfficerCompView[]> {
   const db = deps.db ?? prisma
   const now = deps.now ?? new Date()
-  const comps = await db.competition.findMany({ where: { shippingDeadline: { gte: now } }, include: { entries: true }, orderBy: { shippingDeadline: 'asc' } })
+  const comps = await db.competition.findMany({ where: { shippingDeadline: { gte: now } }, include: { entries: true, shipments: true }, orderBy: { shippingDeadline: 'asc' } })
   const allIds = (comps as any[]).flatMap((c) => (c.entries ?? []).map((e: any) => e.memberId))
   const names = await memberNames(db, allIds)
   return (comps as any[]).map((c) => {
@@ -179,34 +219,64 @@ function isUpsCarrier(carrier: string | null): boolean {
   return c.includes('ups') && !c.includes('usps')
 }
 
-// Set (or clear) the club shipment tracking for a competition. Board-only.
-// Empty carrier+tracking clears it (un-shipped). Sets shippedAt when tracking present.
-// When a NEW/changed UPS tracking number is set, registers it with 17track so the
-// daily delivery poll can follow it — fail-soft (a registration error never blocks
-// saving) and quota-safe (only on a changed number, never on clear/unchanged/non-UPS).
-export async function setShipmentTracking(
-  id: string, carrier: string | null, tracking: string | null,
+// Add one club-shipped package to a competition. Board-only. Empty tracking
+// is a validation no-op (no row created). When the tracking number is a NEW
+// UPS number, registers it with 17track so the daily delivery poll can follow
+// it — fail-soft (a registration error never blocks saving) and quota-safe
+// (never on a non-UPS carrier).
+export async function addShipment(
+  compId: string, carrier: string | null, tracking: string | null,
   deps: { db?: typeof prisma; now?: Date; registerTracking?: typeof realRegisterTracking } = {},
 ): Promise<MutResult> {
   const db = deps.db ?? prisma
-  const c = await db.competition.findUnique({ where: { id } })
-  if (!c) return { ok: false, reason: 'not_found' }
+  const comp = await db.competition.findUnique({ where: { id: compId } })
+  if (!comp) return { ok: false, reason: 'not_found' }
   const cc = carrier?.trim() || null
   const tt = tracking?.trim() || null
-  const hasTracking = !!tt
-  const changed = tt !== ((c as any).shipmentTracking ?? null)
-  await db.competition.update({
-    where: { id },
-    data: {
-      shipmentCarrier: cc, shipmentTracking: tt,
-      shippedAt: hasTracking ? ((c as any).shippedAt ?? deps.now ?? new Date()) : null,
-    },
+  if (!tt) return { ok: false, reason: 'validation' }
+  await db.shipment.create({
+    data: { competitionId: compId, carrier: cc ?? '', tracking: tt, shippedAt: deps.now ?? new Date() },
   })
-  if (hasTracking && changed && isUpsCarrier(cc)) {
+  if (isUpsCarrier(cc)) {
     const register = deps.registerTracking ?? realRegisterTracking
     // Fail-soft: never let a registration hiccup fail the save; the daily poll self-heals.
     await register(tt, UPS_CARRIER).catch(() => {})
   }
+  return { ok: true }
+}
+
+// Edit one package's carrier/tracking. Board-only. Re-registers with 17track
+// ONLY when the tracking number actually CHANGED and the (possibly new)
+// carrier is UPS — quota-safe (never on clear/unchanged/non-UPS).
+export async function editShipment(
+  shipmentId: string, carrier: string | null, tracking: string | null,
+  deps: { db?: typeof prisma; now?: Date; registerTracking?: typeof realRegisterTracking } = {},
+): Promise<MutResult> {
+  const db = deps.db ?? prisma
+  const s = await db.shipment.findUnique({ where: { id: shipmentId } })
+  if (!s) return { ok: false, reason: 'not_found' }
+  const cc = carrier?.trim() || null
+  const tt = tracking?.trim() || null
+  // Same rule as addShipment: never allow an empty tracking. A blank tracking
+  // would leave an unpollable, linkless "Shipped" package still feeding the
+  // rollup. To remove a package, use deleteShipment.
+  if (!tt) return { ok: false, reason: 'validation' }
+  const changed = tt !== ((s as any).tracking ?? null)
+  await db.shipment.update({ where: { id: shipmentId }, data: { carrier: cc ?? '', tracking: tt } })
+  if (changed && tt && isUpsCarrier(cc)) {
+    const register = deps.registerTracking ?? realRegisterTracking
+    // Fail-soft: never let a registration hiccup fail the save; the daily poll self-heals.
+    await register(tt, UPS_CARRIER).catch(() => {})
+  }
+  return { ok: true }
+}
+
+// Remove one package from a competition. Board-only.
+export async function deleteShipment(shipmentId: string, deps: { db?: typeof prisma } = {}): Promise<MutResult> {
+  const db = deps.db ?? prisma
+  const s = await db.shipment.findUnique({ where: { id: shipmentId } })
+  if (!s) return { ok: false, reason: 'not_found' }
+  await db.shipment.delete({ where: { id: shipmentId } })
   return { ok: true }
 }
 

@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { auth } from '@/lib/auth'
 import {
   addCompetition, editCompetition, deleteCompetition, addEntry, editEntry, deleteEntry,
-  setShipmentTracking,
+  addShipment, editShipment, deleteShipment,
   type NewCompetitionInput, type NewEntryInput,
 } from '@/lib/competitions'
 
@@ -39,9 +39,21 @@ export async function deleteCompetitionAction(id: string) {
   if (r.ok) revalidateComps()
   return r
 }
-export async function setShipmentTrackingAction(id: string, carrier: string, tracking: string) {
+export async function addShipmentAction(compId: string, carrier: string, tracking: string) {
   await requireBoard()
-  const r = await setShipmentTracking(id, carrier, tracking)
+  const r = await addShipment(compId, carrier, tracking)
+  if (r.ok) revalidateComps()
+  return r
+}
+export async function editShipmentAction(shipmentId: string, carrier: string, tracking: string) {
+  await requireBoard()
+  const r = await editShipment(shipmentId, carrier, tracking)
+  if (r.ok) revalidateComps()
+  return r
+}
+export async function deleteShipmentAction(shipmentId: string) {
+  await requireBoard()
+  const r = await deleteShipment(shipmentId)
   if (r.ok) revalidateComps()
   return r
 }

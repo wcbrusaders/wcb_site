@@ -1,9 +1,9 @@
 'use client'
 import { useState, useTransition } from 'react'
-import type { MemberCompView, EntryChannel } from '@/lib/competitions'
-import { mapsUrl, trackingUrl } from '@/lib/competitions'
+import type { MemberCompView, EntryChannel, ShipmentView } from '@/lib/competitions'
+import { mapsUrl } from '@/lib/competitions'
 import { channelBadge, isUrgent, deliverBannerState, humanDate, relDays, compTimeline, type BadgeVariant } from '@/lib/comp-format'
-import { addEntryAction, editEntryAction, deleteEntryAction, deleteCompetitionAction, setShipmentTrackingAction } from '@/app/members/_actions/competition-actions'
+import { addEntryAction, editEntryAction, deleteEntryAction, deleteCompetitionAction, addShipmentAction, editShipmentAction, deleteShipmentAction } from '@/app/members/_actions/competition-actions'
 
 const BADGE_CLASS: Record<BadgeVariant, string> = {
   club: 'bg-accent/15 text-accent border border-accent/30',
@@ -33,9 +33,11 @@ export function CompetitionCard({ comp, viewerIsBoard, viewerId }: { comp: Membe
   const [pending, start] = useTransition()
   const [err, setErr] = useState<string | null>(null)
   const [adding, setAdding] = useState(false)
-  const [editingShip, setEditingShip] = useState(false)
+  const [addingShip, setAddingShip] = useState(false)
+  const [shipDraft, setShipDraft] = useState({ carrier: '', tracking: '' })
+  const [editingShipId, setEditingShipId] = useState<string | null>(null)
+  const [editShipDraft, setEditShipDraft] = useState({ carrier: '', tracking: '' })
   const [menuOpen, setMenuOpen] = useState(false)
-  const [shipDraft, setShipDraft] = useState({ carrier: comp.shipmentCarrier ?? '', tracking: comp.shipmentTracking ?? '' })
   const [draft, setDraft] = useState({ beerName: '', style: '', channel: 'club_ship' as EntryChannel, registered: false })
   const canEditComp = viewerIsBoard || comp.addedById === viewerId
   const hasClubShip = comp.myEntries.some((e) => e.channel === 'club_ship')
@@ -133,30 +135,26 @@ export function CompetitionCard({ comp, viewerIsBoard, viewerId }: { comp: Membe
         )
       })()}
 
-      {/* --- Club shipment status (unchanged logic, System-B styling) --- */}
+      {/* --- Club shipment status: comp-level summary + per-package list (System-B styling) --- */}
       {(() => {
-        const url = trackingUrl(comp.shipmentCarrier, comp.shipmentTracking)
-        const hasTracking = !!(comp.shipmentCarrier || comp.shipmentTracking)
-        if (!hasTracking && !viewerIsBoard) return null
+        const hasShipments = comp.shipments.length > 0
+        if (!hasShipments && !viewerIsBoard) return null
         return (
           <div className="mt-4 rounded-xl border border-border/60 bg-background/40 p-3.5">
             <div className="flex items-center justify-between gap-3 flex-wrap">
               <div className="min-w-0">
                 <p className="text-[11px] uppercase tracking-wide text-foreground/45">Club shipment</p>
-                {hasTracking ? (
+                {hasShipments ? (
                   <div className="text-sm mt-0.5">
                     {comp.deliveryStatus === 'delivered' && comp.deliveredAt ? (
-                      <span className="font-semibold text-[#4ade80]">Delivered {humanDate(comp.deliveredAt)} · </span>
+                      <span className="font-semibold text-[#4ade80]">Delivered {humanDate(comp.deliveredAt)}</span>
                     ) : comp.shippedAt ? (
                       <span className="text-foreground/55">
                         Shipped {humanDate(comp.shippedAt)}
-                        {comp.deliveryStatus === 'in_transit' && ' · In transit'} ·{' '}
+                        {comp.deliveryStatus === 'in_transit' && ' · In transit'}
                       </span>
-                    ) : null}
-                    <span className="font-semibold">{comp.shipmentCarrier || 'Carrier'}</span>
-                    {comp.shipmentTracking && (url
-                      ? <> · <a href={url} target="_blank" rel="noreferrer" className="text-accent hover:text-accent-hover underline underline-offset-2">{comp.shipmentTracking}</a></>
-                      : <> · <span className="font-mono">{comp.shipmentTracking}</span></>
+                    ) : (
+                      <span className="text-foreground/55">Not shipped yet</span>
                     )}
                     {comp.deliveryStatus === 'exception' && (
                       <span className="text-amber-400/80"> · Delivery exception — check tracking</span>
@@ -166,20 +164,67 @@ export function CompetitionCard({ comp, viewerIsBoard, viewerId }: { comp: Membe
                   <p className="text-sm text-foreground/55 mt-0.5">Not shipped yet</p>
                 )}
               </div>
-              {viewerIsBoard && !editingShip && (
-                <button disabled={pending} onClick={() => { setShipDraft({ carrier: comp.shipmentCarrier ?? '', tracking: comp.shipmentTracking ?? '' }); setEditingShip(true) }}
-                  className="border border-border px-2.5 py-0.5 rounded-full text-xs shrink-0">{hasTracking ? 'Edit tracking' : 'Add tracking'}</button>
+              {viewerIsBoard && !addingShip && (
+                <button disabled={pending} onClick={() => { setShipDraft({ carrier: '', tracking: '' }); setAddingShip(true) }}
+                  className="border border-border px-2.5 py-0.5 rounded-full text-xs shrink-0">+ Add package</button>
               )}
             </div>
-            {viewerIsBoard && editingShip && (
+
+            {/* per-package list — member-visible */}
+            {hasShipments && (
+              <ul className="mt-3 space-y-2">
+                {comp.shipments.map((s: ShipmentView) => (
+                  <li key={s.id} className="flex items-center justify-between gap-3 flex-wrap rounded-lg border border-border/40 bg-background/30 px-3 py-2">
+                    {editingShipId === s.id ? (
+                      <div className="w-full space-y-2">
+                        <input placeholder="Carrier (UPS, FedEx)" value={editShipDraft.carrier} onChange={(e) => setEditShipDraft({ ...editShipDraft, carrier: e.target.value })} className={field} />
+                        <input placeholder="Tracking number" value={editShipDraft.tracking} onChange={(e) => setEditShipDraft({ ...editShipDraft, tracking: e.target.value })} className={field} />
+                        <div className="flex gap-2">
+                          <button disabled={pending} onClick={() => run(async () => { const r = await editShipmentAction(s.id, editShipDraft.carrier, editShipDraft.tracking); if (r.ok) setEditingShipId(null); return r })} className="bg-accent hover:bg-accent-hover text-background px-3 py-1 rounded-full text-sm disabled:opacity-50">Save</button>
+                          <button onClick={() => setEditingShipId(null)} className="border border-border px-3 py-1 rounded-full text-sm">Cancel</button>
+                        </div>
+                      </div>
+                    ) : (
+                      <>
+                        <div className="text-sm min-w-0">
+                          <span className="font-semibold">{s.carrier || 'Carrier'}</span>
+                          {s.tracking && (s.trackingUrl
+                            ? <> · <a href={s.trackingUrl} target="_blank" rel="noreferrer" className="text-accent hover:text-accent-hover underline underline-offset-2">{s.tracking}</a></>
+                            : <> · <span className="font-mono">{s.tracking}</span></>
+                          )}
+                          {s.deliveryStatus === 'delivered' && s.deliveredAt ? (
+                            <span className="text-[#4ade80]"> · Delivered {humanDate(s.deliveredAt)}</span>
+                          ) : s.deliveryStatus === 'in_transit' ? (
+                            <span className="text-foreground/55"> · In transit</span>
+                          ) : s.deliveryStatus === 'exception' ? (
+                            <span className="text-amber-400/80"> · Delivery exception</span>
+                          ) : (
+                            <span className="text-foreground/55"> · Shipped {humanDate(s.shippedAt)}</span>
+                          )}
+                        </div>
+                        {viewerIsBoard && (
+                          <span className="flex gap-2 shrink-0">
+                            <button disabled={pending} onClick={() => { setEditShipDraft({ carrier: s.carrier, tracking: s.tracking }); setEditingShipId(s.id) }} className="border border-border px-2.5 py-0.5 rounded-full text-xs">Edit</button>
+                            <button disabled={pending} onClick={() => { if (confirm('Remove this package?')) run(() => deleteShipmentAction(s.id)) }} className="border border-red-500/40 text-red-400 px-2.5 py-0.5 rounded-full text-xs">Remove</button>
+                          </span>
+                        )}
+                      </>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
+
+            {/* board-only add-package form */}
+            {viewerIsBoard && addingShip && (
               <div className="mt-3 space-y-2">
                 <input placeholder="Carrier (UPS, FedEx)" value={shipDraft.carrier} onChange={(e) => setShipDraft({ ...shipDraft, carrier: e.target.value })} className={field} />
                 <input placeholder="Tracking number" value={shipDraft.tracking} onChange={(e) => setShipDraft({ ...shipDraft, tracking: e.target.value })} className={field} />
                 <div className="flex gap-2">
-                  <button disabled={pending} onClick={() => run(async () => { const r = await setShipmentTrackingAction(comp.id, shipDraft.carrier, shipDraft.tracking); if (r.ok) setEditingShip(false); return r })} className="bg-accent hover:bg-accent-hover text-background px-3 py-1 rounded-full text-sm disabled:opacity-50">Save tracking</button>
-                  <button onClick={() => setEditingShip(false)} className="border border-border px-3 py-1 rounded-full text-sm">Cancel</button>
+                  <button disabled={pending || !shipDraft.tracking} onClick={() => run(async () => { const r = await addShipmentAction(comp.id, shipDraft.carrier, shipDraft.tracking); if (r.ok) { setShipDraft({ carrier: '', tracking: '' }); setAddingShip(false) } return r })} className="bg-accent hover:bg-accent-hover text-background px-3 py-1 rounded-full text-sm disabled:opacity-50">Save package</button>
+                  <button onClick={() => setAddingShip(false)} className="border border-border px-3 py-1 rounded-full text-sm">Cancel</button>
                 </div>
-                <p className="text-[11px] text-foreground/45">Leave both blank and save to clear. Any member can see this.</p>
+                <p className="text-[11px] text-foreground/45">Any member can see this.</p>
               </div>
             )}
           </div>
