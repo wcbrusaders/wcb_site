@@ -494,12 +494,18 @@ export async function readReminderRows(deps: ReadReminderRowsDeps = {}): Promise
     const email = cell(headers, row, 'Email Address')
     if (!name && !email) continue
     // Couple/Dual partner-placeholder row (see findPartnerPlaceholders):
-    // 'Email Address' === 'NEEDS UPDATE' is the sentinel for "no real member
-    // here yet". It has Current: Yes + a real Expires, so without this skip
-    // it enters dueReminders/dueLapses — Resend rejects the send (caught
-    // fail-soft) but it's noisy, and it's an extra row for the lapse loop's
-    // descending-rowNumber ordering to walk for no reason.
+    // no real member here yet. It has Current: Yes + a real Expires, so
+    // without this skip it enters dueReminders/dueLapses — noisy at best,
+    // and (once it lapses) it would email a re-engagement to the partner
+    // for a membership the primary already paid, before the board even
+    // completes the row. Skip on EITHER sentinel: the NAME sentinel is
+    // authoritative (findPartnerPlaceholders keys on it), and since M2 the
+    // email may already be auto-filled from the PayPal note while the name
+    // is still the placeholder — so the name check is what catches those.
+    // The email check stays too: it's harmless defense-in-depth and covers
+    // the zero-noteEmails case identically.
     if (email.toUpperCase() === 'NEEDS UPDATE') continue
+    if (PARTNER_NAME_SENTINEL_RE.test(name.trim())) continue
 
     const reminderCountStr = cell(headers, row, 'Reminder Count')
     const reminderCount = parseInt(reminderCountStr, 10)

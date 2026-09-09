@@ -836,6 +836,21 @@ describe('readReminderRows', () => {
     expect(out).toHaveLength(0)
   })
 
+  // M2 regression: once the partner's email is auto-filled from the PayPal
+  // note, the row's Email Address is a REAL address, so the old
+  // email-only skip no longer catches it. But the row is still an
+  // incomplete partner placeholder (real name not yet set by the board) —
+  // it must NOT be dunned. The name-sentinel skip covers this.
+  it('excludes a partner placeholder even when its email is auto-filled', async () => {
+    const rows = [
+      REMINDER_HEADERS,
+      ['[Partner of Peter Pray - UPDATE]', 'partner@x.com', '9/15/2026', '', '0', ''],
+    ]
+    const getTab = async () => rows
+    const out = await readReminderRows({ getTab })
+    expect(out).toHaveLength(0)
+  })
+
   it('still includes a normal row with a real email and skips true blank spacer rows', async () => {
     const rows = [
       REMINDER_HEADERS,
