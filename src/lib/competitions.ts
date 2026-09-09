@@ -11,6 +11,7 @@ export type ShipmentView = {
   id: string; carrier: string; tracking: string; shippedAt: Date
   deliveryStatus: DeliveryStatus | null; deliveredAt: Date | null; trackingUrl: string | null
 }
+export type ContributionView = { payerName: string | null; amount: number; createdAt: Date }
 export type CompetitionView = {
   id: string; name: string; homepageUrl: string
   registrationDeadline: Date; shippingDeadline: Date; bottlesRequired: number
@@ -19,6 +20,9 @@ export type CompetitionView = {
   // shippedAt/deliveryStatus/deliveredAt are DERIVED (rolled up) from shipments — see rollupShipments.
   shippedAt: Date | null; deliveryStatus: DeliveryStatus | null; deliveredAt: Date | null
   shipments: ShipmentView[]
+  // contributionTotal/contributions are DERIVED (rolled up) from contributions — newest-first.
+  contributionTotal: number
+  contributions: ContributionView[]
 }
 // myEntries = the viewer's own (for edit controls); allEntries = every entrant
 // with resolved names, shown to all members (the "who entered what" ceremony list).
@@ -79,6 +83,11 @@ function toCompView(c: any, now: Date): CompetitionView {
     }))
     .sort((a, b) => a.shippedAt.getTime() - b.shippedAt.getTime())
   const rollup = rollupShipments(shipments)
+  const contribs = c.contributions ?? []
+  const contributionTotal = contribs.reduce((s: number, x: any) => s + x.amount, 0)
+  const contributions: ContributionView[] = [...contribs]
+    .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+    .map((x) => ({ payerName: x.payerName ?? null, amount: x.amount, createdAt: x.createdAt }))
   return {
     id: c.id, name: c.name, homepageUrl: c.homepageUrl,
     registrationDeadline: c.registrationDeadline, shippingDeadline: c.shippingDeadline, bottlesRequired: c.bottlesRequired,
@@ -86,6 +95,7 @@ function toCompView(c: any, now: Date): CompetitionView {
     commitByDate: commitByDate(c.shippingDeadline), deliverByDate: deliverByDate(c.shippingDeadline), isPast: isPast(c.shippingDeadline, now),
     shippedAt: rollup.shippedAt, deliveryStatus: rollup.deliveryStatus, deliveredAt: rollup.deliveredAt,
     shipments,
+    contributionTotal, contributions,
   }
 }
 
@@ -112,7 +122,7 @@ async function memberNames(db: typeof prisma, ids: string[]): Promise<Map<string
 export async function listMemberComps(memberId: string, deps: { db?: typeof prisma; now?: Date } = {}): Promise<MemberCompView[]> {
   const db = deps.db ?? prisma
   const now = deps.now ?? new Date()
-  const comps = await db.competition.findMany({ where: { shippingDeadline: { gte: now } }, include: { entries: true, shipments: true }, orderBy: { shippingDeadline: 'asc' } })
+  const comps = await db.competition.findMany({ where: { shippingDeadline: { gte: now } }, include: { entries: true, shipments: true, contributions: true }, orderBy: { shippingDeadline: 'asc' } })
   // Resolve entrant names once across all comps for the shared "who entered" list.
   const allIds = (comps as any[]).flatMap((c) => (c.entries ?? []).map((e: any) => e.memberId))
   const names = await memberNames(db, allIds)
@@ -131,14 +141,14 @@ export async function listMemberComps(memberId: string, deps: { db?: typeof pris
 export async function listPastComps(deps: { db?: typeof prisma; now?: Date } = {}): Promise<CompetitionView[]> {
   const db = deps.db ?? prisma
   const now = deps.now ?? new Date()
-  const comps = await db.competition.findMany({ where: { shippingDeadline: { lt: now } }, include: { shipments: true }, orderBy: { shippingDeadline: 'desc' } })
+  const comps = await db.competition.findMany({ where: { shippingDeadline: { lt: now } }, include: { shipments: true, contributions: true }, orderBy: { shippingDeadline: 'desc' } })
   return (comps as any[]).map((c) => toCompView(c, now))
 }
 
 export async function listOfficerComps(deps: { db?: typeof prisma; now?: Date } = {}): Promise<OfficerCompView[]> {
   const db = deps.db ?? prisma
   const now = deps.now ?? new Date()
-  const comps = await db.competition.findMany({ where: { shippingDeadline: { gte: now } }, include: { entries: true, shipments: true }, orderBy: { shippingDeadline: 'asc' } })
+  const comps = await db.competition.findMany({ where: { shippingDeadline: { gte: now } }, include: { entries: true, shipments: true, contributions: true }, orderBy: { shippingDeadline: 'asc' } })
   const allIds = (comps as any[]).flatMap((c) => (c.entries ?? []).map((e: any) => e.memberId))
   const names = await memberNames(db, allIds)
   return (comps as any[]).map((c) => {
