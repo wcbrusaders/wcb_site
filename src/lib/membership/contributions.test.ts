@@ -78,4 +78,19 @@ describe('recordContribution', () => {
     expect(db.contribution.create).not.toHaveBeenCalled()
     expect(result).toEqual({ outcome: 'unknown-comp' })
   })
+
+  // A contribution's amount feeds the member-visible "Chipped in so far" total,
+  // so a $0.00 (payer edited the amount to zero) or NaN (malformed mc_gross that
+  // parseFloat couldn't read) payment must NOT be recorded — it would pollute
+  // the total with a no-op / garbage row.
+  it.each([
+    ['zero', 0],
+    ['negative', -5],
+    ['NaN', NaN],
+  ])('does not create a row and returns invalid-amount for a %s amount', async (_label, amount) => {
+    const db = fakeDb({ comp: { id: 'comp1' } })
+    const result = await recordContribution({ ...input, amount }, { db: db as any })
+    expect(db.contribution.create).not.toHaveBeenCalled()
+    expect(result).toEqual({ outcome: 'invalid-amount' })
+  })
 })
