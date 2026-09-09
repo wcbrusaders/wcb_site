@@ -1,10 +1,10 @@
-import { test, expect } from 'vitest'
+import { test, expect, describe } from 'vitest'
 import { vi } from 'vitest'
 import {
   mapsUrl, isPast, commitByDate, deliverByDate, podTotal, trackingUrl,
   listMemberComps, listOfficerComps, computeBannerItems,
   addCompetition, editCompetition, deleteCompetition, addEntry, editEntry, deleteEntry,
-  setShipmentTracking,
+  rollupShipments, addShipment, editShipment, deleteShipment,
 } from './competitions'
 
 test('trackingUrl builds carrier URLs and returns null for unknown/empty', () => {
@@ -19,6 +19,68 @@ test('trackingUrl builds carrier URLs and returns null for unknown/empty', () =>
 
 const day = 86400000
 const NOW = new Date('2026-09-01T00:00:00Z')
+
+describe('rollupShipments', () => {
+  const pkg = (over: any = {}) => ({
+    id: 's1', carrier: 'UPS', tracking: '1Z1', shippedAt: new Date('2026-09-05T00:00:00Z'),
+    deliveryStatus: null, deliveredAt: null, ...over,
+  })
+
+  test('empty array -> all null', () => {
+    expect(rollupShipments([])).toEqual({ shippedAt: null, deliveryStatus: null, deliveredAt: null })
+  })
+
+  test('all delivered -> delivered, deliveredAt is the LATEST, shippedAt is the earliest', () => {
+    const shipments = [
+      pkg({ id: 's1', shippedAt: new Date('2026-09-05T00:00:00Z'), deliveryStatus: 'delivered', deliveredAt: new Date('2026-09-10T00:00:00Z') }),
+      pkg({ id: 's2', shippedAt: new Date('2026-09-03T00:00:00Z'), deliveryStatus: 'delivered', deliveredAt: new Date('2026-09-12T00:00:00Z') }),
+    ]
+    expect(rollupShipments(shipments)).toEqual({
+      shippedAt: new Date('2026-09-03T00:00:00Z'),
+      deliveryStatus: 'delivered',
+      deliveredAt: new Date('2026-09-12T00:00:00Z'),
+    })
+  })
+
+  test('one delivered + one in_transit -> in_transit, deliveredAt null', () => {
+    const shipments = [
+      pkg({ id: 's1', deliveryStatus: 'delivered', deliveredAt: new Date('2026-09-10T00:00:00Z') }),
+      pkg({ id: 's2', deliveryStatus: 'in_transit' }),
+    ]
+    expect(rollupShipments(shipments)).toEqual({
+      shippedAt: shipments[1].shippedAt < shipments[0].shippedAt ? shipments[1].shippedAt : shipments[0].shippedAt,
+      deliveryStatus: 'in_transit',
+      deliveredAt: null,
+    })
+  })
+
+  test('any exception wins even with a delivered package', () => {
+    const shipments = [
+      pkg({ id: 's1', deliveryStatus: 'exception' }),
+      pkg({ id: 's2', deliveryStatus: 'delivered', deliveredAt: new Date('2026-09-10T00:00:00Z') }),
+    ]
+    expect(rollupShipments(shipments).deliveryStatus).toBe('exception')
+  })
+
+  test('one in_transit + one null-status -> in_transit', () => {
+    const shipments = [
+      pkg({ id: 's1', deliveryStatus: 'in_transit' }),
+      pkg({ id: 's2', deliveryStatus: null }),
+    ]
+    expect(rollupShipments(shipments).deliveryStatus).toBe('in_transit')
+  })
+
+  test('all null-status -> null deliveryStatus; shippedAt is earliest package shippedAt', () => {
+    const shipments = [
+      pkg({ id: 's1', shippedAt: new Date('2026-09-05T00:00:00Z'), deliveryStatus: null }),
+      pkg({ id: 's2', shippedAt: new Date('2026-09-02T00:00:00Z'), deliveryStatus: null }),
+    ]
+    const r = rollupShipments(shipments)
+    expect(r.deliveryStatus).toBeNull()
+    expect(r.deliveredAt).toBeNull()
+    expect(r.shippedAt).toEqual(new Date('2026-09-02T00:00:00Z'))
+  })
+})
 
 test('mapsUrl encodes the address into a google maps query URL', () => {
   expect(mapsUrl('123 Main St, Holly Springs NC')).toBe(
@@ -44,9 +106,11 @@ test('podTotal counts only club_ship entries times bottlesRequired', () => {
 })
 
 // --- fake db ---
-function db(comps: any[], entries: any[], members: any[] = []) {
+function db(comps: any[], entries: any[], members: any[] = [], shipments: any[] = []) {
   const findComp = (id: string) => comps.find((c) => c.id === id)
   const findEntry = (id: string) => entries.find((e) => e.id === id)
+  const findShipment = (id: string) => shipments.find((s) => s.id === id)
+  let nextShipmentId = 1
   return {
     competition: {
       findMany: async ({ where }: any = {}) => {
@@ -54,7 +118,11 @@ function db(comps: any[], entries: any[], members: any[] = []) {
         let rows = comps
         if (where?.shippingDeadline?.lt) rows = rows.filter((c) => c.shippingDeadline < where.shippingDeadline.lt)
         if (where?.shippingDeadline?.gte) rows = rows.filter((c) => c.shippingDeadline >= where.shippingDeadline.gte)
-        return rows.map((c) => ({ ...c, entries: entries.filter((e) => e.competitionId === c.id) }))
+        return rows.map((c) => ({
+          ...c,
+          entries: entries.filter((e) => e.competitionId === c.id),
+          shipments: shipments.filter((s) => s.competitionId === c.id),
+        }))
       },
       findUnique: async ({ where }: any) => findComp(where.id) ?? null,
       create: async ({ data }: any) => { const row = { id: 'newcomp', ...data }; comps.push(row); return row },
@@ -66,6 +134,12 @@ function db(comps: any[], entries: any[], members: any[] = []) {
       create: async ({ data }: any) => { const row = { id: 'newentry', ...data }; entries.push(row); return row },
       update: async ({ where, data }: any) => { Object.assign(findEntry(where.id), data); return findEntry(where.id) },
       delete: async ({ where }: any) => { const i = entries.findIndex((e) => e.id === where.id); entries.splice(i, 1); return {} },
+    },
+    shipment: {
+      findUnique: async ({ where }: any) => findShipment(where.id) ?? null,
+      create: async ({ data }: any) => { const row = { id: `newship${nextShipmentId++}`, deliveryStatus: null, deliveredAt: null, lastTrackedAt: null, shippedAt: data.shippedAt ?? new Date(), ...data }; shipments.push(row); return row },
+      update: async ({ where, data }: any) => { Object.assign(findShipment(where.id), data); return findShipment(where.id) },
+      delete: async ({ where }: any) => { const i = shipments.findIndex((s) => s.id === where.id); shipments.splice(i, 1); return {} },
     },
     member: {
       findMany: async ({ where }: any) => members.filter((m) => (where?.id?.in ?? []).includes(m.id)),
@@ -183,10 +257,11 @@ test('bottled: addEntry defaults false; editEntry toggles it (owner-gated); surf
 })
 
 test('computeBannerItems: a SHIPPED club shipment suppresses both deliver and ship banners', async () => {
-  // Same setup as the "member/officer see items" test, but shippedAt is set.
-  const shippedComps = [comp({ shippedAt: new Date('2026-09-05T00:00:00Z') })]
+  // Same setup as the "member/officer see items" test, but a package has shipped (derived from shipments[]).
+  const shippedComps = [comp()]
   const entries = [entry({ id: 'e1', memberId: 'm1', channel: 'club_ship' })]
-  const officer = await listOfficerComps({ db: db(shippedComps, entries, [{ id: 'm1', name: 'Amy' }]), now: NOW })
+  const shipments = [{ id: 's1', competitionId: 'c1', carrier: 'UPS', tracking: '1Z999', shippedAt: new Date('2026-09-05T00:00:00Z'), deliveryStatus: null, deliveredAt: null }]
+  const officer = await listOfficerComps({ db: db(shippedComps, entries, [{ id: 'm1', name: 'Amy' }], shipments), now: NOW })
   expect(officer[0].shippedAt).not.toBeNull()
   // member: no 'deliver' item once shipped
   const memberItems = computeBannerItems(officer, 'm1', false, NOW)
@@ -204,33 +279,108 @@ test('computeBannerItems: an UN-shipped club shipment still shows deliver + ship
   expect(computeBannerItems(officer, 'nobody', true, NOW).some((b) => b.kind === 'ship')).toBe(true)
 })
 
-test('toCompView carries deliveryStatus + deliveredAt', async () => {
+test('toCompView carries deliveryStatus + deliveredAt (derived from shipments[])', async () => {
   const delivered = new Date('2026-09-18T00:00:00Z')
-  const comps = [comp({ deliveryStatus: 'delivered', deliveredAt: delivered })]
-  const res = await listMemberComps('m1', { db: db(comps, [entry()]), now: NOW })
+  const comps = [comp()]
+  const shipments = [{ id: 's1', competitionId: 'c1', carrier: 'UPS', tracking: '1Z999', shippedAt: new Date('2026-09-05T00:00:00Z'), deliveryStatus: 'delivered', deliveredAt: delivered }]
+  const res = await listMemberComps('m1', { db: db(comps, [entry()], [], shipments), now: NOW })
   expect(res[0].deliveryStatus).toBe('delivered')
   expect(res[0].deliveredAt).toEqual(delivered)
 })
 
-test('setShipmentTracking: registers a NEW UPS tracking number with 17track (fail-soft seam)', async () => {
-  const comps = [comp({ shipmentCarrier: null, shipmentTracking: null, shippedAt: null })]
-  const register = vi.fn(async () => {})
-  const r = await setShipmentTracking('c1', 'UPS', '1Z999', { db: db(comps, []), now: NOW, registerTracking: register })
-  expect(r.ok).toBe(true)
-  expect(register).toHaveBeenCalledTimes(1)
-  expect(register).toHaveBeenCalledWith('1Z999', expect.any(Number))
+test('toCompView exposes per-package shipments[] with trackingUrl, sorted by shippedAt ascending', async () => {
+  const comps = [comp()]
+  const shipments = [
+    { id: 's-later', competitionId: 'c1', carrier: 'FedEx', tracking: '7712', shippedAt: new Date('2026-09-10T00:00:00Z'), deliveryStatus: null, deliveredAt: null },
+    { id: 's-earlier', competitionId: 'c1', carrier: 'UPS', tracking: '1Z999', shippedAt: new Date('2026-09-03T00:00:00Z'), deliveryStatus: 'in_transit', deliveredAt: null },
+  ]
+  const res = await listMemberComps('m1', { db: db(comps, [entry()], [], shipments), now: NOW })
+  expect(res[0].shipments.map((s) => s.id)).toEqual(['s-earlier', 's-later'])
+  expect(res[0].shipments[0].trackingUrl).toBe('https://www.ups.com/track?tracknum=1Z999')
+  expect(res[0].shipments[1].trackingUrl).toBe('https://www.fedex.com/fedextrack/?trknbr=7712')
 })
 
-test('setShipmentTracking: does NOT re-register an unchanged number, or a non-UPS carrier, or a clear', async () => {
-  const register = vi.fn(async () => {})
-  // unchanged number
-  const same = [comp({ shipmentCarrier: 'UPS', shipmentTracking: '1Z999' })]
-  await setShipmentTracking('c1', 'UPS', '1Z999', { db: db(same, []), now: NOW, registerTracking: register })
-  // non-UPS carrier
-  const fedex = [comp({ shipmentCarrier: null, shipmentTracking: null })]
-  await setShipmentTracking('c1', 'FedEx', '77712', { db: db(fedex, []), now: NOW, registerTracking: register })
-  // clearing (blank)
-  const clearing = [comp({ shipmentCarrier: 'UPS', shipmentTracking: '1Z999' })]
-  await setShipmentTracking('c1', '', '', { db: db(clearing, []), now: NOW, registerTracking: register })
-  expect(register).not.toHaveBeenCalled()
+describe('addShipment', () => {
+  test('creates a Shipment row and registers a NEW UPS tracking number with 17track (fail-soft seam)', async () => {
+    const comps = [comp()]
+    const shipments: any[] = []
+    const register = vi.fn(async () => {})
+    const store = db(comps, [], [], shipments)
+    const r = await addShipment('c1', 'UPS', '1Z999', { db: store, now: NOW, registerTracking: register })
+    expect(r.ok).toBe(true)
+    expect(shipments.length).toBe(1)
+    expect(shipments[0].carrier).toBe('UPS')
+    expect(shipments[0].tracking).toBe('1Z999')
+    expect(register).toHaveBeenCalledTimes(1)
+    expect(register).toHaveBeenCalledWith('1Z999', expect.any(Number))
+  })
+
+  test('does NOT register a non-UPS carrier', async () => {
+    const comps = [comp()]
+    const register = vi.fn(async () => {})
+    await addShipment('c1', 'FedEx', '77712', { db: db(comps, [], [], []), now: NOW, registerTracking: register })
+    expect(register).not.toHaveBeenCalled()
+  })
+
+  test('trims carrier + tracking; empty tracking is a validation no-op (does not create)', async () => {
+    const comps = [comp()]
+    const shipments: any[] = []
+    const r = await addShipment('c1', ' UPS ', '   ', { db: db(comps, [], [], shipments), now: NOW })
+    expect(r.ok).toBe(false)
+    expect((r as any).reason).toBe('validation')
+    expect(shipments.length).toBe(0)
+  })
+
+  test('not_found when competition does not exist', async () => {
+    const r = await addShipment('nope', 'UPS', '1Z999', { db: db([], [], [], []) })
+    expect(r.ok).toBe(false)
+    expect((r as any).reason).toBe('not_found')
+  })
+})
+
+describe('editShipment', () => {
+  test('updates carrier + tracking (trimmed) and re-registers ONLY when tracking CHANGED and is UPS', async () => {
+    const shipments = [{ id: 's1', competitionId: 'c1', carrier: 'UPS', tracking: '1Z999', shippedAt: NOW, deliveryStatus: null, deliveredAt: null }]
+    const register = vi.fn(async () => {})
+    const r = await editShipment('s1', ' UPS ', ' 1Z000 ', { db: db([comp()], [], [], shipments), now: NOW, registerTracking: register })
+    expect(r.ok).toBe(true)
+    expect(shipments[0].tracking).toBe('1Z000')
+    expect(register).toHaveBeenCalledTimes(1)
+    expect(register).toHaveBeenCalledWith('1Z000', expect.any(Number))
+  })
+
+  test('does NOT re-register when the tracking number is unchanged', async () => {
+    const shipments = [{ id: 's1', competitionId: 'c1', carrier: 'UPS', tracking: '1Z999', shippedAt: NOW, deliveryStatus: null, deliveredAt: null }]
+    const register = vi.fn(async () => {})
+    await editShipment('s1', 'UPS', '1Z999', { db: db([comp()], [], [], shipments), now: NOW, registerTracking: register })
+    expect(register).not.toHaveBeenCalled()
+  })
+
+  test('does NOT re-register a changed but non-UPS carrier', async () => {
+    const shipments = [{ id: 's1', competitionId: 'c1', carrier: 'FedEx', tracking: '77712', shippedAt: NOW, deliveryStatus: null, deliveredAt: null }]
+    const register = vi.fn(async () => {})
+    await editShipment('s1', 'FedEx', '77713', { db: db([comp()], [], [], shipments), now: NOW, registerTracking: register })
+    expect(register).not.toHaveBeenCalled()
+  })
+
+  test('not_found when shipment does not exist', async () => {
+    const r = await editShipment('nope', 'UPS', '1Z999', { db: db([comp()], [], [], []) })
+    expect(r.ok).toBe(false)
+    expect((r as any).reason).toBe('not_found')
+  })
+})
+
+describe('deleteShipment', () => {
+  test('removes the shipment row', async () => {
+    const shipments = [{ id: 's1', competitionId: 'c1', carrier: 'UPS', tracking: '1Z999', shippedAt: NOW, deliveryStatus: null, deliveredAt: null }]
+    const r = await deleteShipment('s1', { db: db([comp()], [], [], shipments) })
+    expect(r.ok).toBe(true)
+    expect(shipments.length).toBe(0)
+  })
+
+  test('not_found when shipment does not exist', async () => {
+    const r = await deleteShipment('nope', { db: db([comp()], [], [], []) })
+    expect(r.ok).toBe(false)
+    expect((r as any).reason).toBe('not_found')
+  })
 })
