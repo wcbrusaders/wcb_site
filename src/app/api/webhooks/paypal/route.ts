@@ -4,6 +4,22 @@ import { readMembersForMatching, writeRosterCells, moveRowToTab, appendMemberRow
 import { sendMembershipEmail } from '@/lib/membership/emails'
 import { verifyIpn, parseIpn, isProcessablePayment, type Ipn } from '@/lib/membership/paypal-ipn'
 import { processPayment, type ProcessDeps, type PendingCandidate } from '@/lib/membership/process-payment'
+import { recordContribution, receiverIsClub } from '@/lib/membership/contributions'
+
+// Pure routing decision: does this IPN's `custom` field tag it as a
+// competition contribution, or is it (the default) a membership payment?
+// Matches `comp:<id>` and requires a non-empty (post-trim) id — a malformed
+// `custom=comp:` with nothing after the colon must NOT be treated as a
+// contribution (spec: Task 4 / webhook routing invariant), so it falls
+// through to membership like any other payment.
+export function classifyIpn(ipn: Ipn): { kind: 'contribution'; compId: string } | { kind: 'membership' } {
+  const m = /^comp:(.+)$/.exec(ipn.custom)
+  if (m) {
+    const compId = m[1].trim()
+    if (compId !== '') return { kind: 'contribution', compId }
+  }
+  return { kind: 'membership' }
+}
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -80,6 +96,35 @@ export async function POST(req: Request): Promise<NextResponse> {
   }
 
   const ipn = parseIpn(new URLSearchParams(raw))
+
+  const classified = classifyIpn(ipn)
+  if (classified.kind === 'contribution') {
+    if (!isProcessablePayment(ipn)) {
+      console.log('paypal ipn: not a processable payment', { txnId: ipn.txnId, status: ipn.status, txnType: ipn.txnType })
+      return NextResponse.json({ ok: true }, { status: 200 })
+    }
+    if (!receiverIsClub(ipn.receiverEmail)) {
+      console.warn('paypal ipn: contribution receiver mismatch', { txnId: ipn.txnId })
+      return NextResponse.json({ ok: true }, { status: 200 })
+    }
+    try {
+      const result = await recordContribution(
+        {
+          compId: classified.compId,
+          txnId: ipn.txnId,
+          amount: ipn.amount,
+          payerName: `${ipn.firstName} ${ipn.lastName}`.trim() || null,
+          payerEmail: ipn.email || null,
+        },
+        {},
+      )
+      // Never log the raw payload (contains PII) — outcome + txnId only.
+      console.log('paypal ipn contribution recorded', { txnId: ipn.txnId, outcome: result.outcome })
+    } catch (e) {
+      console.error('paypal ipn: recordContribution threw', { txnId: ipn.txnId, error: e instanceof Error ? e.message : String(e) })
+    }
+    return NextResponse.json({ ok: true }, { status: 200 })
+  }
 
   if (!isProcessablePayment(ipn)) {
     console.log('paypal ipn: not a processable payment', { txnId: ipn.txnId, status: ipn.status, txnType: ipn.txnType })

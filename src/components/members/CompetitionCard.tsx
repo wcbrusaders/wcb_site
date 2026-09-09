@@ -4,6 +4,7 @@ import type { MemberCompView, EntryChannel, ShipmentView } from '@/lib/competiti
 import { mapsUrl } from '@/lib/competitions'
 import { channelBadge, isUrgent, deliverBannerState, humanDate, relDays, compTimeline, type BadgeVariant } from '@/lib/comp-format'
 import { addEntryAction, editEntryAction, deleteEntryAction, deleteCompetitionAction, addShipmentAction, editShipmentAction, deleteShipmentAction } from '@/app/members/_actions/competition-actions'
+import { ChipInButton } from '@/components/members/ChipInButton'
 
 const BADGE_CLASS: Record<BadgeVariant, string> = {
   club: 'bg-accent/15 text-accent border border-accent/30',
@@ -29,7 +30,7 @@ const DOT: Record<string, { color: string; ring: string }> = {
   pending: { color: '#5a5a5a', ring: 'transparent' },
 }
 
-export function CompetitionCard({ comp, viewerIsBoard, viewerId }: { comp: MemberCompView; viewerIsBoard: boolean; viewerId: string }) {
+export function CompetitionCard({ comp, viewerIsBoard, viewerId, donateUrl }: { comp: MemberCompView; viewerIsBoard: boolean; viewerId: string; donateUrl: string }) {
   const [pending, start] = useTransition()
   const [err, setErr] = useState<string | null>(null)
   const [adding, setAdding] = useState(false)
@@ -68,7 +69,7 @@ export function CompetitionCard({ comp, viewerIsBoard, viewerId }: { comp: Membe
                 className="text-foreground/40 hover:text-foreground px-2 py-1 rounded-lg border border-border/50 text-sm leading-none">⋯</button>
               {menuOpen && (
                 <div className="absolute right-0 mt-1 z-10 rounded-lg border border-border bg-card-bg shadow-lg py-1 min-w-[9rem]">
-                  <button disabled={pending} onClick={() => { setMenuOpen(false); if (confirm(`Delete "${comp.name}" and all its entries?`)) run(() => deleteCompetitionAction(comp.id)) }}
+                  <button disabled={pending} onClick={() => { setMenuOpen(false); if (confirm(`Delete "${comp.name}" and all its entries and recorded contributions?`)) run(() => deleteCompetitionAction(comp.id)) }}
                     className="block w-full text-left px-3 py-1.5 text-xs text-red-400 hover:bg-red-500/10">Delete competition</button>
                 </div>
               )}
@@ -230,6 +231,31 @@ export function CompetitionCard({ comp, viewerIsBoard, viewerId }: { comp: Membe
           </div>
         )
       })()}
+
+      {/* --- Chip in: per-comp contribution total + PayPal button (all members); contributor list (board only) --- */}
+      <div className="mt-4 rounded-xl border border-border/60 bg-background/40 p-3.5">
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <div className="min-w-0">
+            <p className="text-[11px] uppercase tracking-wide text-foreground/45">Chip in</p>
+            <p className="text-sm mt-0.5 text-foreground/70">
+              Chipped in so far: <span className="font-semibold text-foreground">${comp.contributionTotal.toFixed(2)}</span> · Suggested $15
+            </p>
+          </div>
+          <ChipInButton donateUrl={donateUrl} />
+        </div>
+
+        {viewerIsBoard && comp.contributions.length > 0 && (
+          <ul className="mt-3 space-y-1.5">
+            {comp.contributions.map((c, i) => (
+              <li key={i} className="text-sm flex items-baseline gap-2 flex-wrap text-foreground/60">
+                <span className="min-w-[8rem] text-foreground/70">{c.payerName ?? 'Anonymous'}</span>
+                <span className="font-medium text-foreground">${c.amount.toFixed(2)}</span>
+                <span>· {humanDate(c.createdAt)}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
 
       {/* --- Your entries --- */}
       <div className="mt-4">
