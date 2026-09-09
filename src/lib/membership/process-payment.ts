@@ -1,6 +1,7 @@
 import { matchPayment, type MatchMember } from './match'
 import { tierFromAmount, computeExpiration } from './tiers'
 import { renderWelcome, renderRenewal } from './emails'
+import { normalizeEmail } from '@/lib/roster'
 import type { Ipn } from './paypal-ipn'
 
 export type PendingCandidate = { rowNumber: number; tab: 'current' | 'lapsed' }
@@ -50,6 +51,19 @@ export async function processPayment(ipn: Ipn, deps: ProcessDeps): Promise<{ out
     const { expires, daysCredited } = computeExpiration(member.expires, deps.now)
     const paymentDate = fmtDate(deps.now)
 
+    // Auto-catalog: if this payer email isn't already one of the member's known
+    // emails, append it to their 'Payment Emails' alias column so a future
+    // payment from the same address exact-matches. member.emails already holds
+    // every known address (incl. existing aliases); member.paymentEmails is the
+    // raw alias-column cell we append to so we don't clobber existing aliases.
+    const payer = normalizeEmail(ipn.email)
+    const knownEmails = new Set(member.emails.map((e) => normalizeEmail(e)))
+    const aliasWrite: Record<string, string> = {}
+    if (payer && !knownEmails.has(payer)) {
+      const existing = (member.paymentEmails ?? '').split(',').map((e) => e.trim()).filter(Boolean)
+      aliasWrite['Payment Emails'] = [...existing, payer].join(', ')
+    }
+
     // Claim the txn BEFORE the first mutation: from here on we're committed
     // to mutating the roster, so a crash/timeout after this point but before
     // completion must make a PayPal retry short-circuit at the
@@ -66,6 +80,7 @@ export async function processPayment(ipn: Ipn, deps: ProcessDeps): Promise<{ out
         Current: 'Yes',
         'Last Reminder Sent': '',
         'Reminder Count': '0',
+        ...aliasWrite,
       })
       const { subject, html } = renderRenewal({ firstName: ipn.firstName, tier, expiration: expires, daysCredited })
       await deps.sendEmail(ipn.email, subject, html)
@@ -79,6 +94,7 @@ export async function processPayment(ipn: Ipn, deps: ProcessDeps): Promise<{ out
       Current: 'Yes',
       'Last Reminder Sent': '',
       'Reminder Count': '0',
+      ...aliasWrite,
     })
     const { subject, html } = renderRenewal({ firstName: ipn.firstName, tier, expiration: expires, daysCredited })
     await deps.sendEmail(ipn.email, subject, html)
