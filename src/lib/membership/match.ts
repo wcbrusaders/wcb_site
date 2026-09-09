@@ -11,6 +11,11 @@ export interface MatchMember {
   // on renewal via computeExpiration(member.expires, now) instead of losing
   // them.
   expires: string | null
+  // Raw 'Payment Emails' cell (comma-joined aliases), or '' if blank/absent.
+  // Matching doesn't read this (those aliases are already folded into `emails`)
+  // — it's carried so the orchestrator can APPEND a newly-seen payer email to
+  // the existing alias list without clobbering it (auto-cataloging).
+  paymentEmails?: string
 }
 export interface PaymentIdentity { email: string; firstName: string; lastName: string }
 export type MatchResult =

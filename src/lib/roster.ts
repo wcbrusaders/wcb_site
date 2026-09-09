@@ -442,7 +442,7 @@ export async function readMembersForMatching(deps: ReadForMatchingDeps = {}): Pr
       // rather than resetting to a flat 365 days from today.
       const expires = cell(headers, row, 'Expires') || null
 
-      out.push({ rowNumber: i + 1, tab, name, emails: uniqueEmails, expires })
+      out.push({ rowNumber: i + 1, tab, name, emails: uniqueEmails, expires, paymentEmails })
     }
     return out
   }

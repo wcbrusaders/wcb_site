@@ -33,6 +33,22 @@ describe('processPayment', () => {
     expect(r.outcome).toBe('renewed')
     expect(d.writeCells).toHaveBeenCalledWith('current', 11, expect.objectContaining({ 'Current': 'Yes', 'Last Reminder Sent': '', 'Reminder Count': '0' }))
   })
+  it('renewal from a NEW email (matched by normalized) -> catalogs it as a Payment Emails alias', async () => {
+    // Member's known emails don't include the exact payer address; matcher hits
+    // via normalized (gmail dots). The new address should be appended to the
+    // Payment Emails alias column so it exact-matches next time.
+    const ipn = { ...baseIpn, email: 'pete.h.pray@gmail.com' }
+    const d = deps({ readMembers: async () => [{ rowNumber: 11, tab: 'current', name: 'Peter Pray', emails: ['petehpray@gmail.com'], expires: null }] })
+    const r = await processPayment(ipn, d)
+    expect(r.outcome).toBe('renewed')
+    expect(d.writeCells).toHaveBeenCalledWith('current', 11, expect.objectContaining({ 'Payment Emails': 'pete.h.pray@gmail.com' }))
+  })
+  it('renewal from an ALREADY-known email -> does NOT rewrite Payment Emails', async () => {
+    const d = deps({ readMembers: async () => [{ rowNumber: 11, tab: 'current', name: 'Peter Pray', emails: ['petehpray@yahoo.com'], expires: null }] })
+    await processPayment(baseIpn, d)
+    const call = (d.writeCells as ReturnType<typeof vi.fn>).mock.calls[0]
+    expect(call[2]).not.toHaveProperty('Payment Emails')
+  })
   it('early renewal (30 days still remaining) -> credits the remaining days onto the new Expires, and the email reflects the credit', async () => {
     const now = new Date('2026-09-08T00:00:00Z')
     const futureExpires = new Date(now.getTime() + 30 * 86400000) // 30 days out
