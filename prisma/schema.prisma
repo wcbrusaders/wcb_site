@@ -171,6 +171,7 @@ model Competition {
   // shippedAt/deliveryStatus/deliveredAt are now DERIVED (rolled up) from it.
   shipments            Shipment[]
   entries              CompEntry[]
+  contributions        Contribution[]
   createdAt            DateTime    @default(now())
   updatedAt            DateTime    @updatedAt
   @@index([shippingDeadline])
@@ -380,4 +381,16 @@ model ArtifactDraft {
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
   @@index([status])
+}
+
+model Contribution {
+  id            String      @id @default(cuid())
+  competitionId String
+  competition   Competition @relation(fields: [competitionId], references: [id], onDelete: Cascade)
+  txnId         String      @unique
+  amount        Float
+  payerName     String?
+  payerEmail    String?
+  createdAt     DateTime    @default(now())
+  @@index([competitionId])
 }
