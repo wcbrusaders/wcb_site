@@ -1,4 +1,11 @@
-import { prisma } from '@/lib/db'
+// NOTE: import PrismaClient directly (not '@/lib/db') — this script is run via
+// `npx tsx scripts/backfill-shipments.ts`, and tsx/esbuild does NOT honor the
+// tsconfig `@/` path alias at runtime (tsc does, which is why the alias
+// type-checks but crashes with ERR_MODULE_NOT_FOUND when run). Matches the
+// sibling convention in seed-governance.ts / backfill-equipment-subcategory.mjs.
+import { PrismaClient } from '@prisma/client'
+
+const prisma = new PrismaClient()
 
 async function main() {
   const comps = (await prisma.competition.findMany({

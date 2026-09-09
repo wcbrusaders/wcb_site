@@ -368,6 +368,18 @@ describe('editShipment', () => {
     expect(r.ok).toBe(false)
     expect((r as any).reason).toBe('not_found')
   })
+
+  test('rejects clearing tracking to empty (validation) and leaves the row unchanged', async () => {
+    // Consistency with addShipment: an empty tracking would create an
+    // unpollable, linkless "Shipped" package that still feeds the rollup.
+    const shipments = [{ id: 's1', competitionId: 'c1', carrier: 'UPS', tracking: '1Z999', shippedAt: NOW, deliveryStatus: null, deliveredAt: null }]
+    const register = vi.fn(async () => {})
+    const r = await editShipment('s1', 'UPS', '   ', { db: db([comp()], [], [], shipments), now: NOW, registerTracking: register })
+    expect(r.ok).toBe(false)
+    expect((r as any).reason).toBe('validation')
+    expect(shipments[0].tracking).toBe('1Z999') // untouched
+    expect(register).not.toHaveBeenCalled()
+  })
 })
 
 describe('deleteShipment', () => {

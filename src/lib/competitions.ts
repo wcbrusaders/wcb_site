@@ -257,8 +257,12 @@ export async function editShipment(
   if (!s) return { ok: false, reason: 'not_found' }
   const cc = carrier?.trim() || null
   const tt = tracking?.trim() || null
+  // Same rule as addShipment: never allow an empty tracking. A blank tracking
+  // would leave an unpollable, linkless "Shipped" package still feeding the
+  // rollup. To remove a package, use deleteShipment.
+  if (!tt) return { ok: false, reason: 'validation' }
   const changed = tt !== ((s as any).tracking ?? null)
-  await db.shipment.update({ where: { id: shipmentId }, data: { carrier: cc ?? '', tracking: tt ?? '' } })
+  await db.shipment.update({ where: { id: shipmentId }, data: { carrier: cc ?? '', tracking: tt } })
   if (changed && tt && isUpsCarrier(cc)) {
     const register = deps.registerTracking ?? realRegisterTracking
     // Fail-soft: never let a registration hiccup fail the save; the daily poll self-heals.
