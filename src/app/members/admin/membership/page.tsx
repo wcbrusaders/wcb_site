@@ -15,6 +15,7 @@ import { LapsedMembersEditor } from '@/components/members/LapsedMembersEditor'
 import { PendingMatchQueue, type PendingMatchRow } from '@/components/members/PendingMatchQueue'
 import { PartnerComplete } from '@/components/members/PartnerComplete'
 import { DiscordNudgeButton } from '@/components/members/DiscordNudgeButton'
+import { SendSampleEmailsButton } from '@/components/members/SendSampleEmailsButton'
 
 type PendingPayload = { email: string; amount: number; firstName?: string; lastName?: string }
 
@@ -203,6 +204,9 @@ export default async function MembershipReportsPage() {
 
       <SectionLabel icon="💬">Discord join/link nudge</SectionLabel>
       <DiscordNudgeButton unlinkedCount={unlinkedCount} />
+
+      <SectionLabel icon="✉️">Email preview</SectionLabel>
+      <SendSampleEmailsButton />
 
       {/* Zone 2: comparison chart — the centerpiece. */}
       <SectionLabel icon="📊">Trends comparison (quarterly)</SectionLabel>
