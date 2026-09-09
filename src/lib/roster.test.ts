@@ -1,5 +1,5 @@
 import { test, describe, it, expect, vi, afterEach } from 'vitest'
-import { normalizeEmail, mapSheetRow, isCurrentMember, syncRoster, syncPayments, validateSecondaryEmail, isAccessBlocked, isAccessBlockedNow, fetchAllRosterRows, fetchAllMembers, fetchPayments, readReminderRows, readDiscordLinkedEmails, readDiscordLinkedEmailsResult } from './roster'
+import { normalizeEmail, mapSheetRow, isCurrentMember, syncRoster, syncPayments, validateSecondaryEmail, isAccessBlocked, isAccessBlockedNow, fetchAllRosterRows, fetchAllMembers, fetchPayments, readReminderRows, readDiscordLinkedEmails, readDiscordLinkedEmailsResult, findPartnerPlaceholders } from './roster'
 
 afterEach(() => {
   vi.unstubAllEnvs()
@@ -847,6 +847,66 @@ describe('readReminderRows', () => {
     expect(out).toHaveLength(1)
     expect(out[0].name).toBe('Jane Doe')
     expect(out[0].rowNumber).toBe(3) // physical row number preserved (uncompacted)
+  })
+})
+
+// findPartnerPlaceholders: a Couple/Dual partner row still needs board
+// completion until its NAME is set to a real name — the old sentinel
+// ('Email Address' === 'NEEDS UPDATE') no longer works once M2 auto-fills
+// the partner's email from the PayPal note, because a row can now have a
+// REAL email and still be missing a real name. So the sentinel moves to the
+// NAME column: any row whose Name still matches the literal
+// '[Partner of ... - UPDATE]' placeholder is incomplete, regardless of what
+// its Email Address holds. The row's current Email Address is carried
+// through in the result so the completion UI (PartnerComplete) can
+// pre-populate its email field rather than starting blank.
+
+describe('findPartnerPlaceholders', () => {
+  const PLACEHOLDER_HEADERS = ['Name', 'Tier', 'Email Address', 'Expires', 'Current']
+
+  it('flags a row whose Name is the partner sentinel even when Email Address is a real (pre-filled) email, and returns that email', async () => {
+    const rows = [
+      PLACEHOLDER_HEADERS,
+      ['[Partner of Joe Smith - UPDATE]', 'Couple', 'partner@x.com', '9/15/2027', 'Yes'],
+    ]
+    const getTab = async (tabName: string) => {
+      expect(tabName).toBe('Sheet1')
+      return rows
+    }
+    const out = await findPartnerPlaceholders({ getTab })
+    expect(out).toHaveLength(1)
+    expect(out[0]).toEqual({ rowNumber: 2, tier: 'Couple', email: 'partner@x.com' })
+  })
+
+  it('flags a row whose Name is the partner sentinel and Email Address is still NEEDS UPDATE', async () => {
+    const rows = [
+      PLACEHOLDER_HEADERS,
+      ['[Partner of Joe Smith - UPDATE]', 'Couple', 'NEEDS UPDATE', '9/15/2027', 'Yes'],
+    ]
+    const getTab = async () => rows
+    const out = await findPartnerPlaceholders({ getTab })
+    expect(out).toHaveLength(1)
+    expect(out[0]).toEqual({ rowNumber: 2, tier: 'Couple', email: 'NEEDS UPDATE' })
+  })
+
+  it('does NOT flag a fully-completed row (real name + real email)', async () => {
+    const rows = [
+      PLACEHOLDER_HEADERS,
+      ['Jane Smith', 'Couple', 'jane@x.com', '9/15/2027', 'Yes'],
+    ]
+    const getTab = async () => rows
+    const out = await findPartnerPlaceholders({ getTab })
+    expect(out).toHaveLength(0)
+  })
+
+  it('matches the sentinel case-insensitively', async () => {
+    const rows = [
+      PLACEHOLDER_HEADERS,
+      ['[partner of joe smith - update]', 'Couple', 'partner@x.com', '9/15/2027', 'Yes'],
+    ]
+    const getTab = async () => rows
+    const out = await findPartnerPlaceholders({ getTab })
+    expect(out).toHaveLength(1)
   })
 })
 

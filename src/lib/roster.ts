@@ -549,18 +549,28 @@ export async function readRosterCell(
   return row ? (row[colIdx] ?? '').toString().trim() : ''
 }
 
-export type PartnerPlaceholder = { rowNumber: number; tier: string | null }
+export type PartnerPlaceholder = { rowNumber: number; tier: string | null; email: string }
 
 type FindPlaceholdersDeps = {
   getTab?: (tabName: string) => Promise<string[][]>
 }
 
-// Finds Couple/Dual membership rows still awaiting the second person's name +
-// email — the sentinel per the design doc is 'Email Address' === 'NEEDS
-// UPDATE' (the row exists so the paying member's Couple tier is on record,
-// but who the partner actually is hasn't been filled in yet). Only scans the
-// current-members tab; a lapsed placeholder isn't actionable here. Board
-// completes these via completePartnerAction (writes Name + Email Address).
+// Sentinel for "this row's Name hasn't been replaced with the partner's real
+// name yet" — written by process-payment.ts as `[Partner of X - UPDATE]`.
+// Matched case-insensitively as a full-string pattern (not a substring test)
+// so a real name that happens to contain similar text can't false-positive.
+const PARTNER_NAME_SENTINEL_RE = /^\[Partner of .* - UPDATE\]$/i
+
+// Finds Couple/Dual membership rows still awaiting the second person's real
+// NAME. The sentinel is the NAME column (`[Partner of X - UPDATE]`), not the
+// email — since M2, the partner's Email Address may already be auto-filled
+// from the PayPal note (see process-payment.ts's noteEmails handling) while
+// the name is still unknown, and that row must keep showing up in this queue
+// until a human sets the real name. The row's current Email Address is
+// carried through in the result so the completion UI can pre-populate it
+// instead of starting blank. Only scans the current-members tab; a lapsed
+// placeholder isn't actionable here. Board completes these via
+// completePartnerAction (writes Name + Email Address).
 export async function findPartnerPlaceholders(deps: FindPlaceholdersDeps = {}): Promise<PartnerPlaceholder[]> {
   const getTab = deps.getTab ?? realGetTab
   const values = await getTab(TAB)
@@ -569,9 +579,13 @@ export async function findPartnerPlaceholders(deps: FindPlaceholdersDeps = {}): 
   const out: PartnerPlaceholder[] = []
   for (let i = 1; i < values.length; i++) {
     const row = values[i].map((c) => String(c ?? ''))
-    const email = cell(headers, row, 'Email Address')
-    if (email.toUpperCase() !== 'NEEDS UPDATE') continue
-    out.push({ rowNumber: i + 1, tier: cell(headers, row, 'Tier') || null })
+    const name = cell(headers, row, 'Name')
+    if (!PARTNER_NAME_SENTINEL_RE.test(name.trim())) continue
+    out.push({
+      rowNumber: i + 1,
+      tier: cell(headers, row, 'Tier') || null,
+      email: cell(headers, row, 'Email Address'),
+    })
   }
   return out
 }

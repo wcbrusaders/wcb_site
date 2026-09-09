@@ -79,7 +79,7 @@ describe('processPayment', () => {
     const r = await processPayment({ ...baseIpn, amount: 12 }, deps())
     expect(r.outcome).toBe('skipped-tier')
   })
-  it('$65 Couple new-member payment -> appends the primary row AND a partner placeholder row (NEEDS UPDATE sentinel)', async () => {
+  it('$65 Couple new-member payment -> appends the primary row AND a partner placeholder row (NEEDS UPDATE sentinel, no noteEmails)', async () => {
     const coupleIpn: Ipn = { ...baseIpn, amount: 65 }
     const d = deps({ readMembers: async () => [] }) // no existing rows -> 'none' match -> new member
     const r = await processPayment(coupleIpn, d)
@@ -87,9 +87,45 @@ describe('processPayment', () => {
     expect(d.appendNew).toHaveBeenCalledTimes(2)
     // 1st call: the primary (paying) member's row.
     expect(d.appendNew).toHaveBeenNthCalledWith(1, expect.objectContaining({ Name: 'Peter Pray', Tier: 'Couple', 'Email Address': 'petehpray@yahoo.com' }))
-    // 2nd call: the partner placeholder — findPartnerPlaceholders (roster.ts) keys ONLY on
-    // 'Email Address' === 'NEEDS UPDATE', so that sentinel must match exactly.
+    // 2nd call: the partner placeholder. Name stays the sentinel; with zero
+    // noteEmails the Email Address also stays the NEEDS UPDATE sentinel —
+    // findPartnerPlaceholders (roster.ts) now keys off the NAME sentinel, but
+    // this is still the "nothing to autofill" case.
     expect(d.appendNew).toHaveBeenNthCalledWith(2, expect.objectContaining({ Name: '[Partner of Peter Pray - UPDATE]', Tier: 'Couple', 'Email Address': 'NEEDS UPDATE' }))
+  })
+  it('$65 Couple new-member payment with exactly ONE noteEmail -> partner row Email Address is auto-filled with it', async () => {
+    const coupleIpn: Ipn = { ...baseIpn, amount: 65, noteEmails: ['partner@x.com'] }
+    const d = deps({ readMembers: async () => [] })
+    const r = await processPayment(coupleIpn, d)
+    expect(r.outcome).toBe('new')
+    expect(d.appendNew).toHaveBeenCalledTimes(2)
+    expect(d.appendNew).toHaveBeenNthCalledWith(2, expect.objectContaining({
+      Name: '[Partner of Peter Pray - UPDATE]',
+      Tier: 'Couple',
+      'Email Address': 'partner@x.com',
+    }))
+  })
+  it('$65 Couple new-member payment with ZERO noteEmails -> partner row Email Address stays NEEDS UPDATE', async () => {
+    const coupleIpn: Ipn = { ...baseIpn, amount: 65, noteEmails: [] }
+    const d = deps({ readMembers: async () => [] })
+    const r = await processPayment(coupleIpn, d)
+    expect(r.outcome).toBe('new')
+    expect(d.appendNew).toHaveBeenNthCalledWith(2, expect.objectContaining({
+      Name: '[Partner of Peter Pray - UPDATE]',
+      Tier: 'Couple',
+      'Email Address': 'NEEDS UPDATE',
+    }))
+  })
+  it('$65 Couple new-member payment with MORE THAN ONE noteEmail -> ambiguous, does NOT guess, stays NEEDS UPDATE', async () => {
+    const coupleIpn: Ipn = { ...baseIpn, amount: 65, noteEmails: ['a@x.com', 'b@x.com'] }
+    const d = deps({ readMembers: async () => [] })
+    const r = await processPayment(coupleIpn, d)
+    expect(r.outcome).toBe('new')
+    expect(d.appendNew).toHaveBeenNthCalledWith(2, expect.objectContaining({
+      Name: '[Partner of Peter Pray - UPDATE]',
+      Tier: 'Couple',
+      'Email Address': 'NEEDS UPDATE',
+    }))
   })
   it('$40 Single new-member payment -> appends only ONE row (no partner placeholder)', async () => {
     const d = deps({ readMembers: async () => [] })

@@ -7,6 +7,7 @@ import { EmptyState } from '@/components/ui'
 export type PartnerPlaceholderRow = {
   rowNumber: number
   tier: string | null
+  email: string
 }
 
 // Board-only completion form for a Couple/Dual membership's second person.
@@ -29,7 +30,13 @@ export function PartnerComplete({ placeholders }: { placeholders: PartnerPlaceho
 
 function PartnerRow({ placeholder }: { placeholder: PartnerPlaceholderRow }) {
   const [name, setName] = useState('')
-  const [email, setEmail] = useState('')
+  // Pre-fill with the parsed partner email when PayPal's note carried it
+  // unambiguously (see process-payment.ts's noteEmails handling) — the
+  // sentinel 'NEEDS UPDATE' means nothing was auto-filled, so start blank
+  // rather than showing that literal string as if it were a real address.
+  const [email, setEmail] = useState(
+    placeholder.email && placeholder.email.toUpperCase() !== 'NEEDS UPDATE' ? placeholder.email : '',
+  )
   const [pending, start] = useTransition()
   const [msg, setMsg] = useState<string | null>(null)
   const [done, setDone] = useState(false)

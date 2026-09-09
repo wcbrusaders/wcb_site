@@ -126,17 +126,26 @@ export async function processPayment(ipn: Ipn, deps: ProcessDeps): Promise<{ out
     'Join Date': paymentDate,
   })
   // A Couple/Dual signup is really two people, but PayPal only tells us
-  // about the one who paid. Append a placeholder row for the unnamed
-  // partner (unchanged behavior from the old bot, per the design doc §5) so
-  // the board can complete it with the partner's real name/email later
-  // (Task 8's completePartnerAction) — findPartnerPlaceholders (roster.ts)
-  // is the consumer this must agree with: it keys ONLY on 'Email Address'
-  // === 'NEEDS UPDATE', so that sentinel is load-bearing here.
+  // about the one who paid. Append a placeholder row for the partner so the
+  // board can complete it later (completePartnerAction) — the NAME always
+  // stays the '[Partner of X - UPDATE]' sentinel (the partner's name isn't
+  // reliably parseable from the IPN payload), which is what
+  // findPartnerPlaceholders (roster.ts) now keys on.
+  //
+  // The partner's EMAIL, though, PayPal often DOES carry — in the payment
+  // note field, parsed into ipn.noteEmails (payer's own address already
+  // excluded, lowercased + deduped). Auto-fill it onto the partner row only
+  // when it's unambiguous:
+  //   - exactly one noteEmail -> that's the partner's, use it
+  //   - zero -> nothing to fill, keep the NEEDS UPDATE sentinel
+  //   - more than one -> ambiguous (can't tell which is the partner's);
+  //     do NOT guess, keep NEEDS UPDATE so it flags for board review
+  const partnerEmail = ipn.noteEmails.length === 1 ? ipn.noteEmails[0] : 'NEEDS UPDATE'
   if (tier === 'Couple') {
     await deps.appendNew({
       Name: `[Partner of ${ipn.firstName} ${ipn.lastName} - UPDATE]`.trim(),
       Tier: tier,
-      'Email Address': 'NEEDS UPDATE',
+      'Email Address': partnerEmail,
       'Payment Date': paymentDate,
       Expires: expires,
       Current: 'Yes',
