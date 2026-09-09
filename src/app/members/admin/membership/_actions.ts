@@ -6,9 +6,10 @@ import { prisma } from '@/lib/db'
 import { getMembershipReports } from '@/lib/metrics'
 import { generateInsights } from '@/lib/metrics/insights'
 import { LAPSE_REASONS } from '@/lib/metrics/lapsed'
-import { writeRosterCells, appendMemberRow, normalizeEmail, readMembersForMatching, readRosterCell, moveRowToTab } from '@/lib/roster'
+import { writeRosterCells, appendMemberRow, normalizeEmail, readMembersForMatching, readRosterCell, moveRowToTab, readReminderRows, readDiscordLinkedEmailsResult, type ReminderRow } from '@/lib/roster'
 import { computeExpiration, tierFromAmount } from '@/lib/membership/tiers'
-import { renderWelcome, renderRenewal, sendMembershipEmail } from '@/lib/membership/emails'
+import { renderWelcome, renderRenewal, renderReminder, renderReengagement, sendMembershipEmail } from '@/lib/membership/emails'
+import { selectNudgeRecipients, renderDiscordNudge } from '@/lib/membership/discord-nudge'
 import { recordAudit } from '@/lib/audit'
 
 type Actor = { memberId?: string; email: string }
@@ -322,4 +323,141 @@ export async function setLapseReason(
 
   revalidatePath('/members/admin/membership')
   return { ok: true }
+}
+
+/**
+ * Board-triggered, on-demand Discord join/link nudge blast.
+ *
+ * Recipients = current members with a real email, not already Discord-
+ * linked, not opted out — see selectNudgeRecipients for the exact filter.
+ * readReminderRows is the recipient source (not readMembersForMatching):
+ * it's already current-tab-only, already excludes the NEEDS UPDATE
+ * partner-placeholder sentinel, AND carries `optOut`, which
+ * readMembersForMatching's MatchMember projection lacks entirely.
+ */
+
+export type SendNudgeResult =
+  | { ok: false; reason: 'forbidden' }
+  | {
+      ok: true
+      sent: number
+      skippedOptOut: number
+      skippedLinked: number
+      linkTableRead: 'ok' | 'failed'
+    }
+
+export type SendNudgeDeps = {
+  readRows: () => Promise<ReminderRow[]>
+  // Wraps readDiscordLinkedEmails: `ok` reports whether that (already
+  // fail-soft) read actually succeeded, so the blast's return value can
+  // surface "link table read failed, treating all as unlinked" to the board
+  // rather than silently presenting a real-looking number.
+  readLinked: () => Promise<{ linked: Set<string>; ok: boolean }>
+  sendEmail: (to: string, subject: string, html: string) => Promise<void>
+}
+
+export async function sendDiscordNudgeCore(
+  actor: Actor | null,
+  deps: SendNudgeDeps,
+): Promise<SendNudgeResult> {
+  if (!actor) return { ok: false, reason: 'forbidden' }
+
+  const [rows, linkResult] = await Promise.all([deps.readRows(), deps.readLinked()])
+
+  const skippedOptOut = rows.filter((r) => r.optOut === 'STOP' || r.optOut === 'Yes').length
+  const skippedLinked = rows.filter((r) => {
+    if (r.optOut === 'STOP' || r.optOut === 'Yes') return false
+    const email = r.email.trim()
+    if (!email || email.toUpperCase() === 'NEEDS UPDATE') return false
+    return linkResult.linked.has(normalizeEmail(email))
+  }).length
+
+  const recipients = selectNudgeRecipients(
+    rows.map((r) => ({ name: r.name, email: r.email, current: true, optOut: r.optOut })),
+    linkResult.linked,
+  )
+
+  let sent = 0
+  for (const recipient of recipients) {
+    try {
+      const firstName = recipient.name.split(' ')[0] || recipient.name
+      const { subject, html } = renderDiscordNudge({ firstName })
+      await deps.sendEmail(recipient.email, subject, html)
+      sent++
+    } catch (e) {
+      // Fail-soft: one bad send must not abort the rest of the blast.
+      console.error(`Discord nudge send failed for ${recipient.email}:`, e)
+    }
+  }
+
+  return {
+    ok: true,
+    sent,
+    skippedOptOut,
+    skippedLinked,
+    linkTableRead: linkResult.ok ? 'ok' : 'failed',
+  }
+}
+
+const realNudgeDeps: SendNudgeDeps = {
+  readRows: () => readReminderRows(),
+  readLinked: () => readDiscordLinkedEmailsResult(),
+  sendEmail: (to, subject, html) => sendMembershipEmail(to, subject, html),
+}
+
+export async function sendDiscordNudgeAction(): Promise<SendNudgeResult> {
+  const actor = await requireBoard()
+  const r = await sendDiscordNudgeCore(actor, realNudgeDeps)
+  if (actor && r.ok) {
+    await recordAudit({
+      actorMemberId: actor.memberId, actorEmail: actor.email,
+      action: 'send-discord-nudge',
+      detail: `sent ${r.sent}, skipped ${r.skippedOptOut} opted-out, ${r.skippedLinked} already-linked, linkTableRead=${r.linkTableRead}`,
+    })
+  }
+  return r
+}
+
+// --- Send sample emails (board-only, for copy review) ------------------------
+// Renders every membership email with sample data and sends them all to a fixed
+// club address so the board can eyeball the real rendered emails in an inbox.
+// Writes NOTHING to the roster; sends only to club@ (never to a member). The
+// send path is the same sendMembershipEmail used in production (noreply@ +
+// replyTo club@), so what lands is exactly what a member would get.
+const SAMPLE_TO = 'club@wcbrusaders.com'
+
+export type SendSamplesResult = { ok: true; sent: number; to: string } | { ok: false; reason: string }
+
+export async function sendSampleEmailsAction(): Promise<SendSamplesResult> {
+  const actor = await requireBoard()
+  if (!actor) return { ok: false, reason: 'forbidden' }
+
+  const exp = '10/29/2027'
+  const unsub = 'https://www.wcbrusaders.com/members/unsubscribe?t=SAMPLE'
+  const samples = [
+    renderWelcome({ firstName: 'Sample', tier: 'Couple', expiration: exp }),
+    renderRenewal({ firstName: 'Sample', tier: 'Single', expiration: exp, daysCredited: 30 }),
+    renderReminder({ firstName: 'Sample', expiration: exp, daysLeft: 7, phase: 'pre', unsubscribeUrl: unsub }),
+    renderReminder({ firstName: 'Sample', expiration: exp, daysLeft: 4, phase: 'post', unsubscribeUrl: unsub }),
+    renderReengagement({ firstName: 'Sample', unsubscribeUrl: unsub }),
+    renderDiscordNudge({ firstName: 'Sample' }),
+  ]
+
+  let sent = 0
+  for (const s of samples) {
+    try {
+      // Prefix the subject so the board can tell these apart from real member mail.
+      await sendMembershipEmail(SAMPLE_TO, `[SAMPLE] ${s.subject}`, s.html)
+      sent++
+    } catch {
+      // fail-soft per email — one bad send shouldn't abort the batch
+    }
+  }
+
+  await recordAudit({
+    actorMemberId: actor.memberId, actorEmail: actor.email,
+    action: 'send-sample-emails',
+    detail: `sent ${sent}/${samples.length} sample emails to ${SAMPLE_TO}`,
+  })
+  return { ok: true, sent, to: SAMPLE_TO }
 }

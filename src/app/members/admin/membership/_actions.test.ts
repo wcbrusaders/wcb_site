@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
-import { resolvePendingCore } from '@/app/members/admin/membership/_actions'
+import { resolvePendingCore, sendDiscordNudgeCore } from '@/app/members/admin/membership/_actions'
 
 describe('resolvePendingCore', () => {
   it('rejects when actor is not board', async () => {
@@ -37,5 +37,74 @@ describe('resolvePendingCore', () => {
     // that would silently corrupt an unrelated member's row.
     expect(writeCells).toHaveBeenCalledWith('current', 47, expect.objectContaining({ 'Current': 'Yes' }))
     expect(writeCells).not.toHaveBeenCalledWith('current', 11, expect.anything())
+  })
+})
+
+// sendDiscordNudgeCore: board-gated, pure-core (deps-injected) blast that
+// emails every current/unlinked/not-opted-out member the join/link nudge.
+
+describe('sendDiscordNudgeCore', () => {
+  const row = (o: Partial<{ name: string; email: string; optOut: string }> = {}) => ({
+    rowNumber: 2, name: 'Jane', email: 'jane@x.com', expires: '', lastReminder: '', reminderCount: 0, optOut: '', ...o,
+  })
+
+  it('rejects when actor is not board (never reads the roster or sends anything)', async () => {
+    const readRows = vi.fn(async () => [row()])
+    const readLinked = vi.fn(async () => ({ linked: new Set<string>(), ok: true }))
+    const sendEmail = vi.fn(async () => {})
+    const r = await sendDiscordNudgeCore(null, { readRows, readLinked, sendEmail })
+    expect(r).toEqual({ ok: false, reason: 'forbidden' })
+    expect(readRows).not.toHaveBeenCalled()
+    expect(readLinked).not.toHaveBeenCalled()
+    expect(sendEmail).not.toHaveBeenCalled()
+  })
+
+  it('sends one email per eligible recipient and returns correct counts', async () => {
+    const rows = [
+      row({ email: 'unlinked@x.com' }),
+      row({ email: 'linked@x.com', name: 'Linked' }),
+      row({ email: 'optout@x.com', name: 'Optout', optOut: 'STOP' }),
+    ]
+    const readRows = vi.fn(async () => rows)
+    const readLinked = vi.fn(async () => ({ linked: new Set(['linked@x.com']), ok: true }))
+    const sendEmail = vi.fn(async () => {})
+    const r = await sendDiscordNudgeCore({ memberId: 'm', email: 'board@x.com' }, { readRows, readLinked, sendEmail })
+    expect(r.ok).toBe(true)
+    if (!r.ok) throw new Error('unreachable')
+    expect(sendEmail).toHaveBeenCalledTimes(1)
+    expect(sendEmail).toHaveBeenCalledWith('unlinked@x.com', expect.stringMatching(/discord/i), expect.stringContaining('discord.gg'))
+    expect(r.sent).toBe(1)
+    expect(r.skippedLinked).toBe(1)
+    expect(r.skippedOptOut).toBe(1)
+    expect(r.linkTableRead).toBe('ok')
+  })
+
+  it('is fail-soft per recipient: one bad send does not abort the rest', async () => {
+    const rows = [row({ email: 'bad@x.com' }), row({ email: 'good@x.com' })]
+    const readRows = vi.fn(async () => rows)
+    const readLinked = vi.fn(async () => ({ linked: new Set<string>(), ok: true }))
+    const sendEmail = vi.fn(async (to: string) => {
+      if (to === 'bad@x.com') throw new Error('resend down')
+    })
+    const r = await sendDiscordNudgeCore({ memberId: 'm', email: 'board@x.com' }, { readRows, readLinked, sendEmail })
+    expect(r.ok).toBe(true)
+    if (!r.ok) throw new Error('unreachable')
+    expect(sendEmail).toHaveBeenCalledTimes(2)
+    expect(r.sent).toBe(1) // only the good one counted as sent
+  })
+
+  it('reports linkTableRead: "failed" when the link-table dep signals failure (treating all as unlinked)', async () => {
+    const rows = [row({ email: 'a@x.com' })]
+    const readRows = vi.fn(async () => rows)
+    // readLinked signals failure via the linkTableRead flag rather than throwing —
+    // the underlying readDiscordLinkedEmails is itself already fail-soft (see
+    // roster.test.ts), so this dep reports whether that fail-soft path was hit.
+    const readLinked = vi.fn(async (): Promise<{ linked: Set<string>; ok: boolean }> => ({ linked: new Set(), ok: false }))
+    const sendEmail = vi.fn(async () => {})
+    const r = await sendDiscordNudgeCore({ memberId: 'm', email: 'board@x.com' }, { readRows, readLinked, sendEmail })
+    expect(r.ok).toBe(true)
+    if (!r.ok) throw new Error('unreachable')
+    expect(r.linkTableRead).toBe('failed')
+    expect(r.sent).toBe(1) // still sends -- fail-soft means over-nudge, not error
   })
 })

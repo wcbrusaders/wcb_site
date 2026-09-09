@@ -3,7 +3,8 @@ import { auth } from '@/lib/auth'
 import { getMembershipReports } from '@/lib/metrics'
 import { fetchLapsedMembers } from '@/lib/metrics/lapsed'
 import { prisma } from '@/lib/db'
-import { findPartnerPlaceholders, readMembersForMatching } from '@/lib/roster'
+import { findPartnerPlaceholders, readMembersForMatching, readReminderRows, readDiscordLinkedEmailsResult } from '@/lib/roster'
+import { selectNudgeRecipients } from '@/lib/membership/discord-nudge'
 import { PageHeader, SectionLabel, EmptyState } from '@/components/ui'
 import { InfoCard, Row } from '@/components/members/InfoCard'
 import { TrendsCompareChart } from '@/components/members/reports/TrendsCompareChart'
@@ -13,6 +14,8 @@ import { MembershipInsights } from '@/components/members/MembershipInsights'
 import { LapsedMembersEditor } from '@/components/members/LapsedMembersEditor'
 import { PendingMatchQueue, type PendingMatchRow } from '@/components/members/PendingMatchQueue'
 import { PartnerComplete } from '@/components/members/PartnerComplete'
+import { DiscordNudgeButton } from '@/components/members/DiscordNudgeButton'
+import { SendSampleEmailsButton } from '@/components/members/SendSampleEmailsButton'
 
 type PendingPayload = { email: string; amount: number; firstName?: string; lastName?: string }
 
@@ -59,6 +62,22 @@ async function loadPendingMatches(): Promise<PendingMatchRow[]> {
       createdAt: r.createdAt.toISOString(),
     }
   })
+}
+
+// Computes the current unlinked-member count for the Discord nudge button's
+// label. Mirrors sendDiscordNudgeCore's own recipient derivation (same
+// readReminderRows + readDiscordLinkedEmailsResult + selectNudgeRecipients
+// pipeline) so the number shown here matches what a click would actually
+// send — but this is DISPLAY ONLY; the action re-derives everything live
+// server-side rather than trusting this count.
+async function loadUnlinkedCount(): Promise<number> {
+  const rows = await readReminderRows()
+  const { linked } = await readDiscordLinkedEmailsResult()
+  const recipients = selectNudgeRecipients(
+    rows.map((r) => ({ name: r.name, email: r.email, current: true, optOut: r.optOut })),
+    linked,
+  )
+  return recipients.length
 }
 
 export const dynamic = 'force-dynamic'
@@ -108,6 +127,7 @@ export default async function MembershipReportsPage() {
   const lapsedMembers = await fetchLapsedMembers(prisma)
   const pendingMatches = await loadPendingMatches()
   const partnerPlaceholders = await findPartnerPlaceholders()
+  const unlinkedCount = await loadUnlinkedCount()
   const k = r.kpis
   const g = r.growthSummary
 
@@ -181,6 +201,12 @@ export default async function MembershipReportsPage() {
 
       <SectionLabel icon="💑">Couple/partner completion</SectionLabel>
       <PartnerComplete placeholders={partnerPlaceholders} />
+
+      <SectionLabel icon="💬">Discord join/link nudge</SectionLabel>
+      <DiscordNudgeButton unlinkedCount={unlinkedCount} />
+
+      <SectionLabel icon="✉️">Email preview</SectionLabel>
+      <SendSampleEmailsButton />
 
       {/* Zone 2: comparison chart — the centerpiece. */}
       <SectionLabel icon="📊">Trends comparison (quarterly)</SectionLabel>
