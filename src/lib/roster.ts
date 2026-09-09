@@ -462,6 +462,12 @@ export type ReminderRow = {
   lastReminder: string
   reminderCount: number
   optOut: string
+  // Alternate emails (Google Email / Partner Email columns). The reminder cron
+  // ignores these; they exist so the Discord-nudge recipient check can test
+  // ALL of a member's known emails against the link table (members often link
+  // Discord under their Google Email, not the roster's primary Email Address).
+  googleEmail: string
+  partnerEmail: string
 }
 
 type ReadReminderRowsDeps = {
@@ -506,6 +512,8 @@ export async function readReminderRows(deps: ReadReminderRowsDeps = {}): Promise
       lastReminder: cell(headers, row, 'Last Reminder Sent'),
       reminderCount: isNaN(reminderCount) ? 0 : reminderCount,
       optOut: cell(headers, row, 'Opt Out'),
+      googleEmail: cell(headers, row, 'Google Email'),
+      partnerEmail: cell(headers, row, 'Partner Email'),
     })
   }
   return out

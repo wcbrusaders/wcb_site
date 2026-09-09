@@ -364,16 +364,24 @@ export async function sendDiscordNudgeCore(
 
   const [rows, linkResult] = await Promise.all([deps.readRows(), deps.readLinked()])
 
+  // All known emails per member (primary + Google + Partner), so "already
+  // linked" is checked against every address — a member often links Discord
+  // under their Google Email rather than the roster's primary Email Address.
+  const allEmails = (r: ReminderRow): string[] =>
+    [r.email, r.googleEmail, r.partnerEmail].map((e) => (e ?? '').trim()).filter(Boolean)
+  const isLinked = (r: ReminderRow): boolean =>
+    allEmails(r).some((e) => linkResult.linked.has(normalizeEmail(e)))
+
   const skippedOptOut = rows.filter((r) => r.optOut === 'STOP' || r.optOut === 'Yes').length
   const skippedLinked = rows.filter((r) => {
     if (r.optOut === 'STOP' || r.optOut === 'Yes') return false
     const email = r.email.trim()
     if (!email || email.toUpperCase() === 'NEEDS UPDATE') return false
-    return linkResult.linked.has(normalizeEmail(email))
+    return isLinked(r)
   }).length
 
   const recipients = selectNudgeRecipients(
-    rows.map((r) => ({ name: r.name, email: r.email, current: true, optOut: r.optOut })),
+    rows.map((r) => ({ name: r.name, email: r.email, emails: allEmails(r), current: true, optOut: r.optOut })),
     linkResult.linked,
   )
 

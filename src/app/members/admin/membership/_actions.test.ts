@@ -44,8 +44,9 @@ describe('resolvePendingCore', () => {
 // emails every current/unlinked/not-opted-out member the join/link nudge.
 
 describe('sendDiscordNudgeCore', () => {
-  const row = (o: Partial<{ name: string; email: string; optOut: string }> = {}) => ({
-    rowNumber: 2, name: 'Jane', email: 'jane@x.com', expires: '', lastReminder: '', reminderCount: 0, optOut: '', ...o,
+  const row = (o: Partial<{ name: string; email: string; optOut: string; googleEmail: string; partnerEmail: string }> = {}) => ({
+    rowNumber: 2, name: 'Jane', email: 'jane@x.com', expires: '', lastReminder: '', reminderCount: 0, optOut: '',
+    googleEmail: '', partnerEmail: '', ...o,
   })
 
   it('rejects when actor is not board (never reads the roster or sends anything)', async () => {
