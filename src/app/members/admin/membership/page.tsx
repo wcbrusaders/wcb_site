@@ -74,7 +74,13 @@ async function loadUnlinkedCount(): Promise<number> {
   const rows = await readReminderRows()
   const { linked } = await readDiscordLinkedEmailsResult()
   const recipients = selectNudgeRecipients(
-    rows.map((r) => ({ name: r.name, email: r.email, current: true, optOut: r.optOut })),
+    rows.map((r) => ({
+      name: r.name,
+      email: r.email,
+      emails: [r.email, r.googleEmail, r.partnerEmail].map((e) => (e ?? '').trim()).filter(Boolean),
+      current: true,
+      optOut: r.optOut,
+    })),
     linked,
   )
   return recipients.length

@@ -38,7 +38,10 @@ ${bodyHtml}
 
 export type NudgeCandidate = {
   name: string
-  email: string
+  email: string          // primary (roster Email Address) — where the nudge is sent
+  emails: string[]        // ALL known emails (Email Address + Google Email + Partner Email);
+                          // "already linked" is checked against every one of these, since a
+                          // member often links Discord under their Google Email, not column C
   current: boolean
   optOut: string
 }
@@ -55,7 +58,10 @@ function isOptedOut(optOut: string): boolean {
 //   - has a real email — not blank, not the Couple/Dual "NEEDS UPDATE"
 //     partner-placeholder sentinel (see roster.ts's readReminderRows, which
 //     already excludes this row shape at the source)
-//   - not already Discord-linked (email absent from linkedEmails)
+//   - not already Discord-linked — checked against ALL of the member's known
+//     emails (m.emails), not just the primary. Members frequently link Discord
+//     under their Google Email rather than the roster's Email Address column,
+//     so checking only the primary produced false "unlinked" flags.
 //   - not opted out of club emails (Opt Out !== 'STOP'/'Yes', mirrors
 //     reminders.ts's isOptedOut)
 export function selectNudgeRecipients(
@@ -69,9 +75,14 @@ export function selectNudgeRecipients(
     if (!email) continue
     if (email.toUpperCase() === 'NEEDS UPDATE') continue
     if (isOptedOut(m.optOut)) continue
-    const normalized = normalizeEmail(email)
-    if (linkedEmails.has(normalized)) continue
-    out.push({ email: normalized, name: m.name })
+    // Linked if ANY known email is in the link table (Google Email, Partner
+    // Email, or the primary) — a member linked under any of them is linked.
+    const anyLinked = m.emails
+      .map((e) => normalizeEmail(e.trim()))
+      .filter(Boolean)
+      .some((e) => linkedEmails.has(e))
+    if (anyLinked) continue
+    out.push({ email: normalizeEmail(email), name: m.name })
   }
   return out
 }
