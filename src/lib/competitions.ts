@@ -151,7 +151,12 @@ export async function listMemberComps(memberId: string, deps: { db?: typeof pris
 export async function listPastComps(deps: { db?: typeof prisma; now?: Date } = {}): Promise<CompetitionView[]> {
   const db = deps.db ?? prisma
   const now = deps.now ?? new Date()
-  const comps = await db.competition.findMany({ where: { shippingDeadline: { lt: now } }, include: { shipments: true, contributions: true }, orderBy: { shippingDeadline: 'desc' } })
+  // No `contributions` include: past comps are rendered as plain links (no
+  // chip-in total or list), so fetching payer names here would be both an
+  // unused over-fetch AND a latent PII footgun if a future edit dropped a past
+  // comp into a client component. toCompView tolerates the absent relation
+  // (contributionTotal 0, contributions []).
+  const comps = await db.competition.findMany({ where: { shippingDeadline: { lt: now } }, include: { shipments: true }, orderBy: { shippingDeadline: 'desc' } })
   return (comps as any[]).map((c) => toCompView(c, now))
 }
 
