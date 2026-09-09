@@ -8,20 +8,23 @@
 // contexts, and the merchant id — while public — is kept a server-only env
 // var (CLUB_PAYPAL_MERCHANT_ID, not NEXT_PUBLIC_*). The caller (a server
 // component) reads process.env and passes the value in.
+// NOTE: deliberately NO `amount` param. On a classic PayPal `_donations` link,
+// sending an amount LOCKS the payment to it (the donor can't change it) — the
+// opposite of what we want. Omitting it opens PayPal with an editable amount
+// box so the donor pays whatever they like; the "suggested $15" nudge lives in
+// the on-page copy (CompetitionCard), not the URL.
 export function buildDonateUrl(opts: {
   merchantId: string
   compId: string
   compName: string
-  amount: number
   returnUrl?: string
 }): string {
-  const { merchantId, compId, compName, amount, returnUrl } = opts
+  const { merchantId, compId, compName, returnUrl } = opts
   const base = 'https://www.paypal.com/cgi-bin/webscr'
   const params = new URLSearchParams({
     cmd: '_donations',
     business: merchantId,
     currency_code: 'USD',
-    amount: String(amount),
     custom: `comp:${compId}`,
     item_name: `WCB ${compName} — competition costs`,
     no_note: '0',

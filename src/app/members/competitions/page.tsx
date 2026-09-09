@@ -12,8 +12,8 @@ import { PageHeader, EmptyState } from '@/components/ui'
 // build the donate URL here (where process.env is available) and pass only
 // the resulting string down to the client CompetitionCard. If the env var is
 // unset, buildDonateUrl still returns a URL (with an empty `business`) rather
-// than throwing — a missing env var shouldn't crash the page.
-const CHIP_IN_AMOUNT = 15
+// than throwing — a missing env var shouldn't crash the page. No amount is
+// sent (donor chooses); the "$15 suggested" nudge is on-page copy only.
 
 export default async function CompetitionsPage() {
   const session = await auth()
@@ -41,7 +41,6 @@ export default async function CompetitionsPage() {
               merchantId: process.env.CLUB_PAYPAL_MERCHANT_ID ?? '',
               compId: c.id,
               compName: c.name,
-              amount: CHIP_IN_AMOUNT,
             })
             return <CompetitionCard key={c.id} comp={c} viewerIsBoard={isBoard} viewerId={memberId} donateUrl={donateUrl} />
           })}
