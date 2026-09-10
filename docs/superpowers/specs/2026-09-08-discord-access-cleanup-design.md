@@ -30,6 +30,32 @@ a third of members never did. Building role-gating on top of this as-is would ma
 new paid members join and **see nothing** until they happen to `/link` — worse than
 today.
 
+## ADDENDUM (2026-09-10) — corrected flip after the live dry-run
+
+The first flip impl drifted from this spec and had to be corrected against the REAL
+server (dry-run caught it before any apply). Binding corrections:
+
+- **Gate rule is an EXCLUDE-list, not an allow-list.** Gate EVERY category to Brusader
+  EXCEPT `Club Management` (officer/coordinator area — holds `#wcb-coordinators`, already
+  gated). The original impl hardcoded specific member-category NAMES (Brewing/Events/…)
+  which didn't match the real names (`Brewing and Recipes`, `Events and Activities`,
+  `Voice Channels`) and would have left them PUBLIC. Real categories (8): Bot Help,
+  Brewing and Recipes, Events and Activities, Social, Voice Channels, Equipment (all
+  gated); Club Info + Club Management handled specially (below).
+- **The lobby is ONE CHANNEL, `#welcome`, not a category.** Club Info is NO LONGER
+  excluded — it gets gated like the rest, so its other channels (#announcements,
+  #club-business, #voting-booth) become members-only. `#welcome` keeps an explicit
+  @everyone-ALLOW override so it stays the sole public lobby channel.
+- **CHANNEL-level overrides matter (37 channels).** Category gating only affects
+  INHERIT channels (they follow the category). Channels with their own @everyone-ALLOW
+  override (`OPEN` in the audit) survive the category deny — so the flip must ALSO remove
+  those overrides. Live OPEN channels to fix → members-only by removing their override:
+  `#bot-help`, `#equipment-program`, `#announcements`, `#club-business`, `#voting-booth`.
+  KEEP `#welcome` open. Never touch Club Management channels (already GATED).
+- apply_flip must therefore emit CHANNEL ops (remove @everyone override / ensure
+  #welcome allow) in addition to category ops, and the dry-run + channel_gating audit
+  together must show both levels before confirm.
+
 ## Decisions (settled in brainstorming, 2026-09-08)
 
 ### A. The permission flip (makes role-gating actually work)
