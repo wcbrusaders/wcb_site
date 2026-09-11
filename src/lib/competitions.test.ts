@@ -2,7 +2,7 @@ import { test, expect, describe } from 'vitest'
 import { vi } from 'vitest'
 import {
   mapsUrl, isPast, commitByDate, deliverByDate, podTotal, trackingUrl,
-  listMemberComps, listOfficerComps, computeBannerItems,
+  listMemberComps, listPastComps, listOfficerComps, computeBannerItems,
   addCompetition, editCompetition, deleteCompetition, addEntry, editEntry, deleteEntry,
   rollupShipments, addShipment, editShipment, deleteShipment,
 } from './competitions'
@@ -114,8 +114,19 @@ function db(comps: any[], entries: any[], members: any[] = [], shipments: any[] 
   return {
     competition: {
       findMany: async ({ where }: any = {}) => {
-        // where.shippingDeadline is { lt: now } (past) or { gte: now } (active)
+        // Active/past now keys on resultsDate (the awards-ceremony date), NOT
+        // shippingDeadline. Active: resultsDate null OR >= now. Past:
+        // resultsDate != null AND < now. Mirror both shapes.
         let rows = comps
+        if (where?.OR) {
+          // active clause: [{ resultsDate: null }, { resultsDate: { gte: now } }]
+          const gte = where.OR.find((c: any) => c.resultsDate?.gte)?.resultsDate?.gte
+          rows = rows.filter((c) => c.resultsDate == null || (gte && c.resultsDate >= gte))
+        }
+        if (where?.resultsDate?.lt) {
+          rows = rows.filter((c) => c.resultsDate != null && c.resultsDate < where.resultsDate.lt)
+        }
+        // legacy fallback (some tests may still pass shippingDeadline)
         if (where?.shippingDeadline?.lt) rows = rows.filter((c) => c.shippingDeadline < where.shippingDeadline.lt)
         if (where?.shippingDeadline?.gte) rows = rows.filter((c) => c.shippingDeadline >= where.shippingDeadline.gte)
         return rows.map((c) => ({
@@ -156,13 +167,31 @@ const comp = (over: any = {}) => ({
 const entry = (over: any = {}) => ({ id: 'e1', competitionId: 'c1', memberId: 'm1', beerName: 'Hazy', style: 'NEIPA', channel: 'club_ship', registered: true, ...over })
 
 test('listMemberComps: only the viewer own entries, active only, with derived dates', async () => {
-  const comps = [comp(), comp({ id: 'c2', shippingDeadline: new Date(NOW.getTime() - day) })] // c2 is past
+  // Active/past is decided by resultsDate (awards date), NOT shippingDeadline.
+  // c2 has a PAST resultsDate -> archived. c1 has no resultsDate -> active.
+  const comps = [comp(), comp({ id: 'c2', resultsDate: new Date(NOW.getTime() - day) })]
   const entries = [entry({ id: 'e1', memberId: 'm1' }), entry({ id: 'e2', memberId: 'm2' })]
   const res = await listMemberComps('m1', { db: db(comps, entries), now: NOW })
-  expect(res.map((c) => c.id)).toEqual(['c1']) // c2 past -> excluded
+  expect(res.map((c) => c.id)).toEqual(['c1']) // c2 (past awards) excluded
   expect(res[0].myEntries.map((e) => e.id)).toEqual(['e1']) // only m1's entry
   expect(res[0].commitByDate.toISOString()).toBe('2026-09-13T00:00:00.000Z')
   expect(res[0].isPast).toBe(false)
+})
+
+test('active/past keys on resultsDate, NOT shippingDeadline (the archiving bug)', async () => {
+  const comps = [
+    // Shipping deadline LONG past, but no awards date yet -> MUST stay active
+    // (this is the exact bug: shipped-not-delivered comps were vanishing).
+    comp({ id: 'shipped', shippingDeadline: new Date(NOW.getTime() - 30 * day), resultsDate: null }),
+    // Awards date still in the future -> active
+    comp({ id: 'upcoming-awards', shippingDeadline: new Date(NOW.getTime() - 5 * day), resultsDate: new Date(NOW.getTime() + 10 * day) }),
+    // Awards date passed -> archived
+    comp({ id: 'done', shippingDeadline: new Date(NOW.getTime() - 40 * day), resultsDate: new Date(NOW.getTime() - day) }),
+  ]
+  const active = await listMemberComps('m1', { db: db(comps, []), now: NOW })
+  expect(active.map((c) => c.id).sort()).toEqual(['shipped', 'upcoming-awards'])
+  const past = await listPastComps({ db: db(comps, []), now: NOW })
+  expect(past.map((c) => c.id)).toEqual(['done'])
 })
 
 test('listMemberComps: allEntries exposes every entrant (name+beer+style) for the ceremony view', async () => {

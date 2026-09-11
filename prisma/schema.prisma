@@ -167,6 +167,12 @@ model Competition {
   shippingAddress      String
   dropoffAddress       String?
   addedById            String
+  // Awards/results ceremony date. A comp stays in the ACTIVE tracking area
+  // until this passes (a comp is not "done" at its shipping deadline — it's
+  // still in transit, judged, then awarded). NULL = no date set yet → stays
+  // active indefinitely (safe default; never auto-vanishes). Only a set-AND-
+  // past resultsDate archives a comp.
+  resultsDate          DateTime?
   // Club shipment tracking: one row per package. See the Shipment model —
   // shippedAt/deliveryStatus/deliveredAt are now DERIVED (rolled up) from it.
   shipments            Shipment[]

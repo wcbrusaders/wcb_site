@@ -2,7 +2,7 @@
 import { useState, useTransition } from 'react'
 import { addCompetitionAction } from '@/app/members/_actions/competition-actions'
 
-const EMPTY = { name: '', homepageUrl: '', registrationDeadline: '', shippingDeadline: '', bottlesRequired: '', shippingAddress: '', dropoffAddress: '' }
+const EMPTY = { name: '', homepageUrl: '', registrationDeadline: '', shippingDeadline: '', resultsDate: '', bottlesRequired: '', shippingAddress: '', dropoffAddress: '' }
 
 export function AddCompetitionForm() {
   const [pending, start] = useTransition()
@@ -24,6 +24,7 @@ export function AddCompetitionForm() {
           const r = await addCompetitionAction({
             name: f.name, homepageUrl: f.homepageUrl,
             registrationDeadline: new Date(f.registrationDeadline), shippingDeadline: new Date(f.shippingDeadline),
+            resultsDate: f.resultsDate ? new Date(f.resultsDate) : null,
             bottlesRequired: Number(f.bottlesRequired), shippingAddress: f.shippingAddress,
             dropoffAddress: f.dropoffAddress || null,
           })
@@ -48,6 +49,10 @@ export function AddCompetitionForm() {
         <div>
           <label className="block text-xs text-foreground/50 mb-1">Beer arrival <span className="text-foreground/35">by</span></label>
           <input required type="date" value={f.shippingDeadline} onChange={set('shippingDeadline')} className="w-full rounded-lg border border-border bg-background/60 px-3 py-2 text-sm" />
+        </div>
+        <div>
+          <label className="block text-xs text-foreground/50 mb-1">Awards <span className="text-foreground/35">(optional)</span></label>
+          <input type="date" value={f.resultsDate} onChange={set('resultsDate')} className="w-full rounded-lg border border-border bg-background/60 px-3 py-2 text-sm" />
         </div>
         <div>
           <label className="block text-xs text-foreground/50 mb-1">Bottles/entry</label>

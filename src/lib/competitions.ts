@@ -16,6 +16,7 @@ export type CompetitionView = {
   id: string; name: string; homepageUrl: string
   registrationDeadline: Date; shippingDeadline: Date; bottlesRequired: number
   shippingAddress: string; dropoffAddress: string | null; addedById: string
+  resultsDate: Date | null
   commitByDate: Date; deliverByDate: Date; isPast: boolean
   // shippedAt/deliveryStatus/deliveredAt are DERIVED (rolled up) from shipments — see rollupShipments.
   shippedAt: Date | null; deliveryStatus: DeliveryStatus | null; deliveredAt: Date | null
@@ -32,7 +33,7 @@ export type OfficerCompView = CompetitionView & {
   perMember: { memberId: string; memberName: string | null; entryCount: number; clubShipCount: number; registeredCount: number }[]
 }
 export type BannerItem = { competitionId: string; competitionName: string; kind: 'register' | 'commit' | 'deliver' | 'ship'; date: Date; daysAway: number; detail: string }
-export type NewCompetitionInput = { name: string; homepageUrl: string; registrationDeadline: Date; shippingDeadline: Date; bottlesRequired: number; shippingAddress: string; dropoffAddress?: string | null }
+export type NewCompetitionInput = { name: string; homepageUrl: string; registrationDeadline: Date; shippingDeadline: Date; bottlesRequired: number; shippingAddress: string; dropoffAddress?: string | null; resultsDate?: Date | null }
 export type NewEntryInput = { beerName: string; style: string; channel: EntryChannel; registered: boolean; bottled?: boolean }
 export type CompResult = { ok: true; id: string } | { ok: false; reason: 'validation' | 'not_found' | 'forbidden' }
 export type MutResult = { ok: true } | { ok: false; reason: 'not_found' | 'forbidden' | 'validation' }
@@ -41,6 +42,14 @@ export function mapsUrl(address: string): string {
   return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`
 }
 export function isPast(shippingDeadline: Date, now: Date): boolean { return shippingDeadline.getTime() < now.getTime() }
+// A competition is ARCHIVED (moved out of the active tracking area) only once
+// its awards/results date is SET and has PASSED. A null resultsDate keeps it
+// active indefinitely (safe default — a comp isn't "done" at its shipping
+// deadline; it's still shipping/judging/awaiting awards). This is the correct
+// active/past cutoff — shippingDeadline is NOT used for archiving anymore.
+export function isArchived(resultsDate: Date | null | undefined, now: Date): boolean {
+  return resultsDate != null && new Date(resultsDate).getTime() < now.getTime()
+}
 export function commitByDate(shippingDeadline: Date): Date { return new Date(shippingDeadline.getTime() - SEVEN_DAYS) }
 export function deliverByDate(shippingDeadline: Date): Date { return new Date(shippingDeadline.getTime() - SEVEN_DAYS) }
 export function podTotal(entries: { channel: EntryChannel }[], bottlesRequired: number): number {
@@ -92,7 +101,10 @@ function toCompView(c: any, now: Date): CompetitionView {
     id: c.id, name: c.name, homepageUrl: c.homepageUrl,
     registrationDeadline: c.registrationDeadline, shippingDeadline: c.shippingDeadline, bottlesRequired: c.bottlesRequired,
     shippingAddress: c.shippingAddress, dropoffAddress: c.dropoffAddress ?? null, addedById: c.addedById,
-    commitByDate: commitByDate(c.shippingDeadline), deliverByDate: deliverByDate(c.shippingDeadline), isPast: isPast(c.shippingDeadline, now),
+    resultsDate: c.resultsDate ?? null,
+    commitByDate: commitByDate(c.shippingDeadline), deliverByDate: deliverByDate(c.shippingDeadline),
+    // isPast = archived (awards date set + passed), NOT shipping-deadline-past.
+    isPast: isArchived(c.resultsDate ?? null, now),
     shippedAt: rollup.shippedAt, deliveryStatus: rollup.deliveryStatus, deliveredAt: rollup.deliveredAt,
     shipments,
     contributionTotal, contributions,
@@ -123,7 +135,7 @@ export async function listMemberComps(memberId: string, deps: { db?: typeof pris
   const db = deps.db ?? prisma
   const now = deps.now ?? new Date()
   const isBoard = deps.isBoard ?? false
-  const comps = await db.competition.findMany({ where: { shippingDeadline: { gte: now } }, include: { entries: true, shipments: true, contributions: true }, orderBy: { shippingDeadline: 'asc' } })
+  const comps = await db.competition.findMany({ where: { OR: [{ resultsDate: null }, { resultsDate: { gte: now } }] }, include: { entries: true, shipments: true, contributions: true }, orderBy: { shippingDeadline: 'asc' } })
   // Resolve entrant names once across all comps for the shared "who entered" list.
   const allIds = (comps as any[]).flatMap((c) => (c.entries ?? []).map((e: any) => e.memberId))
   const names = await memberNames(db, allIds)
@@ -156,14 +168,14 @@ export async function listPastComps(deps: { db?: typeof prisma; now?: Date } = {
   // unused over-fetch AND a latent PII footgun if a future edit dropped a past
   // comp into a client component. toCompView tolerates the absent relation
   // (contributionTotal 0, contributions []).
-  const comps = await db.competition.findMany({ where: { shippingDeadline: { lt: now } }, include: { shipments: true }, orderBy: { shippingDeadline: 'desc' } })
+  const comps = await db.competition.findMany({ where: { resultsDate: { lt: now } }, include: { shipments: true }, orderBy: { shippingDeadline: 'desc' } })
   return (comps as any[]).map((c) => toCompView(c, now))
 }
 
 export async function listOfficerComps(deps: { db?: typeof prisma; now?: Date } = {}): Promise<OfficerCompView[]> {
   const db = deps.db ?? prisma
   const now = deps.now ?? new Date()
-  const comps = await db.competition.findMany({ where: { shippingDeadline: { gte: now } }, include: { entries: true, shipments: true, contributions: true }, orderBy: { shippingDeadline: 'asc' } })
+  const comps = await db.competition.findMany({ where: { OR: [{ resultsDate: null }, { resultsDate: { gte: now } }] }, include: { entries: true, shipments: true, contributions: true }, orderBy: { shippingDeadline: 'asc' } })
   const allIds = (comps as any[]).flatMap((c) => (c.entries ?? []).map((e: any) => e.memberId))
   const names = await memberNames(db, allIds)
   return (comps as any[]).map((c) => {
@@ -224,6 +236,7 @@ export async function addCompetition(input: NewCompetitionInput, addedById: stri
     registrationDeadline: input.registrationDeadline, shippingDeadline: input.shippingDeadline,
     bottlesRequired: input.bottlesRequired, shippingAddress: input.shippingAddress.trim(),
     dropoffAddress: input.dropoffAddress?.trim() || null, addedById,
+    resultsDate: input.resultsDate ?? null,
   } })
   return { ok: true, id: c.id }
 }
