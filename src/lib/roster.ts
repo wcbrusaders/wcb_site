@@ -11,6 +11,8 @@ export type MemberRecord = {
   isBoard: boolean
   role: string | null
   partnerEmail: string | null
+  /** Normalized, deduped NON-primary known emails (Google, Partner, Payment Emails). */
+  altEmails: string[]
   expires: Date | null
   joinDate: Date | null
   paymentDate: Date | null
@@ -66,6 +68,18 @@ function parseDate(v: string): Date | null {
   return isNaN(d.getTime()) ? null : d
 }
 
+/** Collect normalized, deduped, email-shaped aliases (splitting on , or ;), excluding the primary. */
+function collectAltEmails(primary: string | null, sources: string[]): string[] {
+  const out = new Set<string>()
+  for (const src of sources) {
+    for (const part of src.split(/[,;]/)) {
+      const e = normalizeEmail(part)
+      if (e && e.includes('@') && e !== primary) out.add(e)
+    }
+  }
+  return [...out]
+}
+
 export type MapSheetRowOpts = { tab?: 'current' | 'lapsed' }
 
 export function mapSheetRow(headers: string[], row: string[], opts: MapSheetRowOpts = {}): MemberRecord | null {
@@ -100,6 +114,7 @@ export function mapSheetRow(headers: string[], row: string[], opts: MapSheetRowO
     isBoard: truthy(cell(headers, row, 'Board Member')),
     role: cell(headers, row, 'Role') || null,
     partnerEmail: p ? normalizeEmail(p) : null,
+    altEmails: collectAltEmails(email ? normalizeEmail(email) : null, [g, p, cell(headers, row, 'Payment Emails')]),
     expires: parseDate(exp),
     joinDate: parseDate(cell(headers, row, 'Join Date')),
     paymentDate: parseDate(cell(headers, row, 'Payment Date')),
@@ -956,14 +971,14 @@ export async function isCurrentMember(email: string, deps: GateDeps = {}): Promi
       ? process.env.DEV_ALLOWED_EMAILS?.split(',').map((x) => x.trim().toLowerCase())
       : undefined
   if (devList?.includes(e)) {
-    return { ok: true, member: { emailAddress: e, googleEmail: null, name: 'DEV', tier: null, current: true, isBoard: false, role: null, partnerEmail: null, expires: null, joinDate: null, paymentDate: null, referredBy: null, membershipState: 'active' } }
+    return { ok: true, member: { emailAddress: e, googleEmail: null, name: 'DEV', tier: null, current: true, isBoard: false, role: null, partnerEmail: null, altEmails: [], expires: null, joinDate: null, paymentDate: null, referredBy: null, membershipState: 'active' } }
   }
 
   try {
     const hit = await db.member.findFirst({
       where: { current: true, OR: [{ emailAddress: e }, { googleEmail: e }] },
     })
-    if (hit) return { ok: true, member: hit as MemberRecord }
+    if (hit) return { ok: true, member: { ...hit, altEmails: [] } as MemberRecord }
 
     // fallback: live Sheet read for a just-added member. Looked up BY email,
     // so a hit always carries that same non-null email back (email-less

@@ -53,6 +53,34 @@ test('mapSheetRow returns null for a blank spacer row (no name and no email)', (
   expect(mapSheetRow(HEADERS, row)).toBeNull()
 })
 
+const ALT_HEADERS = ['Name','Email Address','Google Email','Partner Email','Payment Emails']
+
+describe('mapSheetRow altEmails', () => {
+  it('splits comma-joined Payment Emails, excluding primary', () => {
+    const m = mapSheetRow(ALT_HEADERS, ['P','p@x.com','','','a@x.com, b@x.com'])!
+    expect([...m.altEmails].sort()).toEqual(['a@x.com', 'b@x.com'])
+  })
+  it('splits semicolon-joined Payment Emails', () => {
+    const m = mapSheetRow(ALT_HEADERS, ['P','p@x.com','','','a@x.com; b@x.com'])!
+    expect([...m.altEmails].sort()).toEqual(['a@x.com', 'b@x.com'])
+  })
+  it('includes google and partner emails, excluding primary', () => {
+    const m = mapSheetRow(ALT_HEADERS, ['P','p@x.com','G@x.com','Q@x.com','p@x.com'])!
+    expect([...m.altEmails].sort()).toEqual(['g@x.com', 'q@x.com'])
+  })
+  it('is empty when no aliases', () => {
+    expect(mapSheetRow(ALT_HEADERS, ['P','p@x.com','','',''])!.altEmails).toEqual([])
+  })
+  it('dedupes aliases across columns', () => {
+    const m = mapSheetRow(ALT_HEADERS, ['P','p@x.com','a@x.com','','a@x.com, A@x.com'])!
+    expect(m.altEmails).toEqual(['a@x.com'])
+  })
+  it('normalizes casing/whitespace and drops junk', () => {
+    const m = mapSheetRow(ALT_HEADERS, ['P','p@x.com','','','  A@X.com , junk, ;'])!
+    expect(m.altEmails).toEqual(['a@x.com'])
+  })
+})
+
 test('mapSheetRow parses board member true', () => {
   const row = ['Chair','Full','chair@x.com','2027-01-01','yes','','','Yes']
   expect(mapSheetRow(HEADERS, row)!.isBoard).toBe(true)
@@ -116,8 +144,8 @@ test('mapSheetRow: default tab (no opts) behaves like "current" for back-compat'
 test('syncRoster upserts fetched rows and deactivates absent members', async () => {
   const { syncRoster } = await import('./roster')
   const fetched = [
-    { emailAddress: 'a@x.com', googleEmail: null, name: 'A', tier: null, current: true, isBoard: false, role: null, partnerEmail: null, expires: null, joinDate: null, paymentDate: null, referredBy: null, membershipState: 'active' },
-    { emailAddress: 'b@x.com', googleEmail: null, name: 'B', tier: null, current: false, isBoard: false, role: null, partnerEmail: null, expires: null, joinDate: null, paymentDate: null, referredBy: null, membershipState: 'active' },
+    { emailAddress: 'a@x.com', googleEmail: null, name: 'A', tier: null, current: true, isBoard: false, role: null, partnerEmail: null, altEmails: [], expires: null, joinDate: null, paymentDate: null, referredBy: null, membershipState: 'active' },
+    { emailAddress: 'b@x.com', googleEmail: null, name: 'B', tier: null, current: false, isBoard: false, role: null, partnerEmail: null, altEmails: [], expires: null, joinDate: null, paymentDate: null, referredBy: null, membershipState: 'active' },
   ]
   const upserts: string[] = []
   let updateManyWhereIn: string[] = []
@@ -151,8 +179,8 @@ test('syncRoster upserts fetched rows and deactivates absent members', async () 
 test('syncRoster does not call updateMany when no absent members', async () => {
   const { syncRoster } = await import('./roster')
   const fetched = [
-    { emailAddress: 'a@x.com', googleEmail: null, name: 'A', tier: null, current: true, isBoard: false, role: null, partnerEmail: null, expires: null, joinDate: null, paymentDate: null, referredBy: null, membershipState: 'active' },
-    { emailAddress: 'b@x.com', googleEmail: null, name: 'B', tier: null, current: false, isBoard: false, role: null, partnerEmail: null, expires: null, joinDate: null, paymentDate: null, referredBy: null, membershipState: 'active' },
+    { emailAddress: 'a@x.com', googleEmail: null, name: 'A', tier: null, current: true, isBoard: false, role: null, partnerEmail: null, altEmails: [], expires: null, joinDate: null, paymentDate: null, referredBy: null, membershipState: 'active' },
+    { emailAddress: 'b@x.com', googleEmail: null, name: 'B', tier: null, current: false, isBoard: false, role: null, partnerEmail: null, altEmails: [], expires: null, joinDate: null, paymentDate: null, referredBy: null, membershipState: 'active' },
   ]
   const upserts: string[] = []
   let updateManyWasCalled = false
@@ -226,7 +254,7 @@ describe('syncRoster (membership-state-aware)', () => {
 
   const rec = (over: Partial<import('./roster').MemberRecord> = {}) => ({
     emailAddress: null, googleEmail: null, name: null, tier: null, current: true,
-    isBoard: false, role: null, partnerEmail: null, expires: null, joinDate: null,
+    isBoard: false, role: null, partnerEmail: null, altEmails: [], expires: null, joinDate: null,
     paymentDate: null, referredBy: null, membershipState: 'active', ...over,
   })
 
@@ -414,7 +442,7 @@ describe('syncPayments', () => {
 
 // isCurrentMember tests
 
-const M = (over = {}) => ({ emailAddress: 'a@x.com', googleEmail: null, name: 'A', tier: null, current: true, isBoard: false, role: null, partnerEmail: null, expires: null, joinDate: null, paymentDate: null, referredBy: null, membershipState: 'active', ...over })
+const M = (over = {}) => ({ emailAddress: 'a@x.com', googleEmail: null, name: 'A', tier: null, current: true, isBoard: false, role: null, partnerEmail: null, altEmails: [], expires: null, joinDate: null, paymentDate: null, referredBy: null, membershipState: 'active', ...over })
 
 function fakeDb(row: any, honorsWhere = false) {
   return { member: {
@@ -542,8 +570,8 @@ test('syncRoster sets resourceAccess from group membership', async () => {
     updateMany: async () => ({ count: 0 }),
   } } as any
   const rows = [
-    { emailAddress:'in@x.com', googleEmail:null, name:'A', tier:null, current:true, isBoard:false, role:null, partnerEmail:null, expires:null, joinDate:null, paymentDate:null, referredBy:null, membershipState:'active' },
-    { emailAddress:'out@x.com', googleEmail:null, name:'B', tier:null, current:true, isBoard:false, role:null, partnerEmail:null, expires:null, joinDate:null, paymentDate:null, referredBy:null, membershipState:'active' },
+    { emailAddress:'in@x.com', googleEmail:null, name:'A', tier:null, current:true, isBoard:false, role:null, partnerEmail:null, altEmails:[], expires:null, joinDate:null, paymentDate:null, referredBy:null, membershipState:'active' },
+    { emailAddress:'out@x.com', googleEmail:null, name:'B', tier:null, current:true, isBoard:false, role:null, partnerEmail:null, altEmails:[], expires:null, joinDate:null, paymentDate:null, referredBy:null, membershipState:'active' },
   ]
   await syncRoster({ db, fetchAll: async () => rows, fetchGroupMembers: async () => new Set(['in@x.com']) })
   const inU = upserts.find(u => u.where.emailAddress === 'in@x.com')
@@ -559,7 +587,7 @@ test('syncRoster is fail-soft when the group read throws (resourceAccess untouch
     findMany: async () => [],
     updateMany: async () => ({ count: 0 }),
   } } as any
-  const rows = [{ emailAddress:'a@x.com', googleEmail:null, name:'A', tier:null, current:true, isBoard:false, role:null, partnerEmail:null, expires:null, joinDate:null, paymentDate:null, referredBy:null, membershipState:'active' }]
+  const rows = [{ emailAddress:'a@x.com', googleEmail:null, name:'A', tier:null, current:true, isBoard:false, role:null, partnerEmail:null, altEmails:[], expires:null, joinDate:null, paymentDate:null, referredBy:null, membershipState:'active' }]
   const r = await syncRoster({ db, fetchAll: async () => rows, fetchGroupMembers: async () => { throw new Error('directory down') } })
   expect(r.synced).toBe(1)                                  // sheet sync still completed
   expect('resourceAccess' in upserts[0].update).toBe(false) // omitted -> left unchanged
