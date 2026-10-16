@@ -38,6 +38,23 @@ export function makeSignInCallback(deps: { isMember: typeof isCurrentMember }) {
   }
 }
 
+/**
+ * Resolve the Member row for a login email. If the email matches multiple rows
+ * (e.g. a stale/former duplicate), prefer the current one, then the most
+ * recently updated. DI'd `db` so it can be unit-tested with a fake.
+ */
+export async function resolveSessionMember(
+  email: string,
+  deps: { db?: Pick<typeof prisma, 'member'> } = {},
+) {
+  const db = deps.db ?? prisma
+  return db.member.findFirst({
+    where: { OR: [{ emailAddress: email }, { googleEmail: email }] },
+    orderBy: [{ current: 'desc' }, { updatedAt: 'desc' }],
+    select: { id: true, tier: true, isBoard: true, current: true },
+  })
+}
+
 function sixDigitCode(): string {
   return String(Math.floor(100000 + Math.random() * 900000))
 }
@@ -73,10 +90,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     async session({ session }) {
       if (session.user?.email) {
         const e = normalizeEmail(session.user.email)
-        const m = await prisma.member.findFirst({
-          where: { OR: [{ emailAddress: e }, { googleEmail: e }] },
-          select: { id: true, tier: true, isBoard: true },
-        })
+        const m = await resolveSessionMember(e)
         session.user.memberId = m?.id
         session.user.tier = m?.tier
         session.user.isBoard = m?.isBoard ?? false

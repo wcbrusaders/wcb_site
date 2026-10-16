@@ -11,6 +11,8 @@ export type MemberRecord = {
   isBoard: boolean
   role: string | null
   partnerEmail: string | null
+  /** Normalized, deduped NON-primary known emails (Google, Partner, Payment Emails). */
+  altEmails: string[]
   expires: Date | null
   joinDate: Date | null
   paymentDate: Date | null
@@ -66,6 +68,18 @@ function parseDate(v: string): Date | null {
   return isNaN(d.getTime()) ? null : d
 }
 
+/** Collect normalized, deduped, email-shaped aliases (splitting on , or ;), excluding the primary. */
+function collectAltEmails(primary: string | null, sources: string[]): string[] {
+  const out = new Set<string>()
+  for (const src of sources) {
+    for (const part of src.split(/[,;]/)) {
+      const e = normalizeEmail(part)
+      if (e && e.includes('@') && e !== primary) out.add(e)
+    }
+  }
+  return [...out]
+}
+
 export type MapSheetRowOpts = { tab?: 'current' | 'lapsed' }
 
 export function mapSheetRow(headers: string[], row: string[], opts: MapSheetRowOpts = {}): MemberRecord | null {
@@ -100,6 +114,7 @@ export function mapSheetRow(headers: string[], row: string[], opts: MapSheetRowO
     isBoard: truthy(cell(headers, row, 'Board Member')),
     role: cell(headers, row, 'Role') || null,
     partnerEmail: p ? normalizeEmail(p) : null,
+    altEmails: collectAltEmails(email ? normalizeEmail(email) : null, [g, p, cell(headers, row, 'Payment Emails')]),
     expires: parseDate(exp),
     joinDate: parseDate(cell(headers, row, 'Join Date')),
     paymentDate: parseDate(cell(headers, row, 'Payment Date')),
@@ -274,6 +289,7 @@ export async function syncRoster(deps: SyncDeps = {}): Promise<{ synced: number;
 
   let synced = 0
   const seenEmails = new Set<string>()
+  const seenAnyEmail = new Set<string>()
   const seenNameKeys = new Set<string>()
 
   for (const m of rows) {
@@ -302,11 +318,46 @@ export async function syncRoster(deps: SyncDeps = {}): Promise<{ synced: number;
       const access = groupSet === null
         ? {}
         : { resourceAccess: groupSet.has(email) || (m.googleEmail ? groupSet.has(m.googleEmail) : false) }
-      await db.member.upsert({
-        where: { emailAddress: email },
-        update: { ...commonFields, ...access },
-        create: { emailAddress: email, ...commonFields, ...access },
-      })
+      const known = Array.from(new Set(
+        [m.emailAddress, m.googleEmail, ...(m.altEmails ?? [])]
+          .filter((e): e is string => !!e && !!e.trim())
+          .map(normalizeEmail),
+      ))
+      for (const k of known) seenAnyEmail.add(k)
+
+      // Matching ladder: (1) primary hit -> today's path; (2) otherwise look the
+      // sheet row's known emails up against existing rows' emailAddress/googleEmail
+      // so a changed primary / secondary-email payer reconciles into ONE record.
+      const byPrimary = await db.member.findUnique({ where: { emailAddress: email } })
+      let reconciled = false
+      if (!byPrimary) {
+        const matches: Array<{ id: string; emailAddress: string | null }> = await db.member.findMany({
+          where: { OR: [{ emailAddress: { in: known } }, { googleEmail: { in: known } }] },
+        })
+        const distinct = Array.from(new Map(matches.map((x) => [x.id, x])).values())
+        if (distinct.length === 1) {
+          const target = distinct[0]
+          let data: Record<string, unknown> = { ...commonFields, ...access, emailAddress: email }
+          if (target.emailAddress !== email) {
+            const holder = await db.member.findUnique({ where: { emailAddress: email } })
+            if (holder && holder.id !== target.id) {
+              console.warn(`syncRoster: cannot rename member ${target.id} to ${email} — already held by ${holder.id}; keeping old email`)
+              data = { ...commonFields, ...access }
+            }
+          }
+          await db.member.update({ where: { id: target.id }, data })
+          reconciled = true
+        } else if (distinct.length > 1) {
+          console.warn(`syncRoster: identity conflict for ${email} — multiple members match known emails, not merging`, distinct.map((x) => x.id))
+        }
+      }
+      if (!reconciled) {
+        await db.member.upsert({
+          where: { emailAddress: email },
+          update: { ...commonFields, ...access },
+          create: { emailAddress: email, ...commonFields, ...access },
+        })
+      }
       seenEmails.add(email)
       synced++
       continue
@@ -333,9 +384,13 @@ export async function syncRoster(deps: SyncDeps = {}): Promise<{ synced: number;
   let deactivated = 0
 
   const existingByEmail = await db.member.findMany({ where: { emailAddress: { not: null } } })
+  // Don't sweep a member whose primary OR googleEmail was seen this run via any
+  // sheet row's known emails (alias-only / just-reconciled members).
   const toDeactivateEmails = existingByEmail
-    .map((e: any) => e.emailAddress as string | null)
-    .filter((e): e is string => e != null && !seenEmails.has(e))
+    .filter((e: any) => e.emailAddress != null && !seenEmails.has(e.emailAddress)
+      && !seenAnyEmail.has(e.emailAddress)
+      && !(e.googleEmail && seenAnyEmail.has(normalizeEmail(e.googleEmail))))
+    .map((e: any) => e.emailAddress as string)
   if (toDeactivateEmails.length) {
     const r = await db.member.updateMany({
       // Only transition members NOT already 'former' — otherwise every run
@@ -956,14 +1011,14 @@ export async function isCurrentMember(email: string, deps: GateDeps = {}): Promi
       ? process.env.DEV_ALLOWED_EMAILS?.split(',').map((x) => x.trim().toLowerCase())
       : undefined
   if (devList?.includes(e)) {
-    return { ok: true, member: { emailAddress: e, googleEmail: null, name: 'DEV', tier: null, current: true, isBoard: false, role: null, partnerEmail: null, expires: null, joinDate: null, paymentDate: null, referredBy: null, membershipState: 'active' } }
+    return { ok: true, member: { emailAddress: e, googleEmail: null, name: 'DEV', tier: null, current: true, isBoard: false, role: null, partnerEmail: null, altEmails: [], expires: null, joinDate: null, paymentDate: null, referredBy: null, membershipState: 'active' } }
   }
 
   try {
     const hit = await db.member.findFirst({
       where: { current: true, OR: [{ emailAddress: e }, { googleEmail: e }] },
     })
-    if (hit) return { ok: true, member: hit as MemberRecord }
+    if (hit) return { ok: true, member: { ...hit, altEmails: [] } as MemberRecord }
 
     // fallback: live Sheet read for a just-added member. Looked up BY email,
     // so a hit always carries that same non-null email back (email-less

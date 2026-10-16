@@ -53,6 +53,34 @@ test('mapSheetRow returns null for a blank spacer row (no name and no email)', (
   expect(mapSheetRow(HEADERS, row)).toBeNull()
 })
 
+const ALT_HEADERS = ['Name','Email Address','Google Email','Partner Email','Payment Emails']
+
+describe('mapSheetRow altEmails', () => {
+  it('splits comma-joined Payment Emails, excluding primary', () => {
+    const m = mapSheetRow(ALT_HEADERS, ['P','p@x.com','','','a@x.com, b@x.com'])!
+    expect([...m.altEmails].sort()).toEqual(['a@x.com', 'b@x.com'])
+  })
+  it('splits semicolon-joined Payment Emails', () => {
+    const m = mapSheetRow(ALT_HEADERS, ['P','p@x.com','','','a@x.com; b@x.com'])!
+    expect([...m.altEmails].sort()).toEqual(['a@x.com', 'b@x.com'])
+  })
+  it('includes google and partner emails, excluding primary', () => {
+    const m = mapSheetRow(ALT_HEADERS, ['P','p@x.com','G@x.com','Q@x.com','p@x.com'])!
+    expect([...m.altEmails].sort()).toEqual(['g@x.com', 'q@x.com'])
+  })
+  it('is empty when no aliases', () => {
+    expect(mapSheetRow(ALT_HEADERS, ['P','p@x.com','','',''])!.altEmails).toEqual([])
+  })
+  it('dedupes aliases across columns', () => {
+    const m = mapSheetRow(ALT_HEADERS, ['P','p@x.com','a@x.com','','a@x.com, A@x.com'])!
+    expect(m.altEmails).toEqual(['a@x.com'])
+  })
+  it('normalizes casing/whitespace and drops junk', () => {
+    const m = mapSheetRow(ALT_HEADERS, ['P','p@x.com','','','  A@X.com , junk, ;'])!
+    expect(m.altEmails).toEqual(['a@x.com'])
+  })
+})
+
 test('mapSheetRow parses board member true', () => {
   const row = ['Chair','Full','chair@x.com','2027-01-01','yes','','','Yes']
   expect(mapSheetRow(HEADERS, row)!.isBoard).toBe(true)
@@ -113,11 +141,21 @@ test('mapSheetRow: default tab (no opts) behaves like "current" for back-compat'
   expect(m.current).toBe(true)
 })
 
+// Legacy fakes predate the email-association ladder: add a findUnique that
+// finds nothing and make the known-emails OR lookup return no matches, so the
+// ladder falls through to the original primary upsert.
+function withLadder<T extends { member: any }>(db: T): T {
+  const fm = db.member.findMany
+  db.member.findUnique = db.member.findUnique ?? (async () => null)
+  db.member.findMany = async (args: any) => (args?.where?.OR ? [] : fm(args))
+  return db
+}
+
 test('syncRoster upserts fetched rows and deactivates absent members', async () => {
   const { syncRoster } = await import('./roster')
   const fetched = [
-    { emailAddress: 'a@x.com', googleEmail: null, name: 'A', tier: null, current: true, isBoard: false, role: null, partnerEmail: null, expires: null, joinDate: null, paymentDate: null, referredBy: null, membershipState: 'active' },
-    { emailAddress: 'b@x.com', googleEmail: null, name: 'B', tier: null, current: false, isBoard: false, role: null, partnerEmail: null, expires: null, joinDate: null, paymentDate: null, referredBy: null, membershipState: 'active' },
+    { emailAddress: 'a@x.com', googleEmail: null, name: 'A', tier: null, current: true, isBoard: false, role: null, partnerEmail: null, altEmails: [], expires: null, joinDate: null, paymentDate: null, referredBy: null, membershipState: 'active' },
+    { emailAddress: 'b@x.com', googleEmail: null, name: 'B', tier: null, current: false, isBoard: false, role: null, partnerEmail: null, altEmails: [], expires: null, joinDate: null, paymentDate: null, referredBy: null, membershipState: 'active' },
   ]
   const upserts: string[] = []
   let updateManyWhereIn: string[] = []
@@ -139,7 +177,7 @@ test('syncRoster upserts fetched rows and deactivates absent members', async () 
       },
     },
   }
-  const res = await syncRoster({ fetchAll: async () => fetched, db: db as any, fetchGroupMembers: async () => new Set() })
+  const res = await syncRoster({ fetchAll: async () => fetched, db: withLadder(db) as any, fetchGroupMembers: async () => new Set() })
   // Upsert called for each fetched row
   expect(upserts).toEqual(['a@x.com', 'b@x.com'])
   expect(res.synced).toBe(2)
@@ -151,8 +189,8 @@ test('syncRoster upserts fetched rows and deactivates absent members', async () 
 test('syncRoster does not call updateMany when no absent members', async () => {
   const { syncRoster } = await import('./roster')
   const fetched = [
-    { emailAddress: 'a@x.com', googleEmail: null, name: 'A', tier: null, current: true, isBoard: false, role: null, partnerEmail: null, expires: null, joinDate: null, paymentDate: null, referredBy: null, membershipState: 'active' },
-    { emailAddress: 'b@x.com', googleEmail: null, name: 'B', tier: null, current: false, isBoard: false, role: null, partnerEmail: null, expires: null, joinDate: null, paymentDate: null, referredBy: null, membershipState: 'active' },
+    { emailAddress: 'a@x.com', googleEmail: null, name: 'A', tier: null, current: true, isBoard: false, role: null, partnerEmail: null, altEmails: [], expires: null, joinDate: null, paymentDate: null, referredBy: null, membershipState: 'active' },
+    { emailAddress: 'b@x.com', googleEmail: null, name: 'B', tier: null, current: false, isBoard: false, role: null, partnerEmail: null, altEmails: [], expires: null, joinDate: null, paymentDate: null, referredBy: null, membershipState: 'active' },
   ]
   const upserts: string[] = []
   let updateManyWasCalled = false
@@ -172,7 +210,7 @@ test('syncRoster does not call updateMany when no absent members', async () => {
       },
     },
   }
-  const res = await syncRoster({ fetchAll: async () => fetched, db: db as any, fetchGroupMembers: async () => new Set() })
+  const res = await syncRoster({ fetchAll: async () => fetched, db: withLadder(db) as any, fetchGroupMembers: async () => new Set() })
   expect(upserts).toEqual(['a@x.com', 'b@x.com'])
   expect(res.synced).toBe(2)
   expect(updateManyWasCalled).toBe(false)
@@ -226,14 +264,14 @@ describe('syncRoster (membership-state-aware)', () => {
 
   const rec = (over: Partial<import('./roster').MemberRecord> = {}) => ({
     emailAddress: null, googleEmail: null, name: null, tier: null, current: true,
-    isBoard: false, role: null, partnerEmail: null, expires: null, joinDate: null,
+    isBoard: false, role: null, partnerEmail: null, altEmails: [], expires: null, joinDate: null,
     paymentDate: null, referredBy: null, membershipState: 'active', ...over,
   })
 
   it('current member -> upserted by email with membershipState active, current true', async () => {
     const { db, upserts } = makeDb()
     const rows = [rec({ emailAddress: 'a@x.com', name: 'A', current: true, membershipState: 'active' })]
-    const res = await syncRoster({ fetchAll: async () => rows, db: db as any, fetchGroupMembers: async () => new Set() })
+    const res = await syncRoster({ fetchAll: async () => rows, db: withLadder(db) as any, fetchGroupMembers: async () => new Set() })
     expect(upserts).toHaveLength(1)
     expect(upserts[0].where).toEqual({ emailAddress: 'a@x.com' })
     expect(upserts[0].update.membershipState).toBe('active')
@@ -245,7 +283,7 @@ describe('syncRoster (membership-state-aware)', () => {
   it('lapsed-tab member -> membershipState lapsed, current false', async () => {
     const { db, upserts } = makeDb()
     const rows = [rec({ emailAddress: 'old@x.com', name: 'Old', current: false, membershipState: 'lapsed' })]
-    await syncRoster({ fetchAll: async () => rows, db: db as any, fetchGroupMembers: async () => new Set() })
+    await syncRoster({ fetchAll: async () => rows, db: withLadder(db) as any, fetchGroupMembers: async () => new Set() })
     const u = upserts.find((u) => u.where.emailAddress === 'old@x.com')
     expect(u.update.membershipState).toBe('lapsed')
     expect(u.update.current).toBe(false)
@@ -258,7 +296,7 @@ describe('syncRoster (membership-state-aware)', () => {
     const origFindMany = db.member.findMany
     db.member.findMany = async (args: any) => { findManyCalls.push(args); return origFindMany(args) }
     const rows = [rec({ emailAddress: null, name: 'Cat Pearce', current: true, membershipState: 'honorary' })]
-    const res = await syncRoster({ fetchAll: async () => rows, db: db as any, fetchGroupMembers: async () => new Set() })
+    const res = await syncRoster({ fetchAll: async () => rows, db: withLadder(db) as any, fetchGroupMembers: async () => new Set() })
     // Must have looked up by name (email-less), not attempted an email upsert.
     const nameLookup = findManyCalls.find((c) => c.where?.name === 'Cat Pearce')
     expect(nameLookup).toBeTruthy()
@@ -272,7 +310,7 @@ describe('syncRoster (membership-state-aware)', () => {
       existingNullEmail: [{ id: 'm1', name: 'Cat Pearce', emailAddress: null }],
     })
     const rows = [rec({ emailAddress: null, name: 'Cat Pearce', current: true, membershipState: 'honorary' })]
-    await syncRoster({ fetchAll: async () => rows, db: db as any, fetchGroupMembers: async () => new Set() })
+    await syncRoster({ fetchAll: async () => rows, db: withLadder(db) as any, fetchGroupMembers: async () => new Set() })
     expect(nullEmailUpdates).toHaveLength(1)
     expect(nullEmailUpdates[0].where).toEqual({ id: 'm1' })
     expect(nullEmailUpdates[0].data.membershipState).toBe('honorary')
@@ -287,7 +325,7 @@ describe('syncRoster (membership-state-aware)', () => {
       ],
     })
     const rows = [rec({ emailAddress: null, name: 'Cat Pearce', current: true, membershipState: 'honorary' })]
-    await expect(syncRoster({ fetchAll: async () => rows, db: db as any, fetchGroupMembers: async () => new Set() })).resolves.toBeTruthy()
+    await expect(syncRoster({ fetchAll: async () => rows, db: withLadder(db) as any, fetchGroupMembers: async () => new Set() })).resolves.toBeTruthy()
     expect(warnSpy).toHaveBeenCalled()
     expect(nullEmailUpdates).toHaveLength(1)
     warnSpy.mockRestore()
@@ -298,7 +336,7 @@ describe('syncRoster (membership-state-aware)', () => {
       existingByEmail: [{ emailAddress: 'a@x.com' }, { emailAddress: 'vanished@x.com' }],
     })
     const rows = [rec({ emailAddress: 'a@x.com', name: 'A', current: true, membershipState: 'active' })]
-    const res = await syncRoster({ fetchAll: async () => rows, db: helper.db as any, fetchGroupMembers: async () => new Set() })
+    const res = await syncRoster({ fetchAll: async () => rows, db: withLadder(helper.db) as any, fetchGroupMembers: async () => new Set() })
     expect(helper.updateManyWhereIn).toEqual(['vanished@x.com'])
     expect(res.deactivated).toBe(1)
   })
@@ -322,7 +360,7 @@ describe('syncRoster (membership-state-aware)', () => {
         },
       },
     }
-    await syncRoster({ fetchAll: async () => [], db: db as any, fetchGroupMembers: async () => new Set() })
+    await syncRoster({ fetchAll: async () => [], db: withLadder(db) as any, fetchGroupMembers: async () => new Set() })
     expect(capturedWhere?.emailAddress?.in).toEqual(['gone@x.com'])
     expect(capturedWhere?.membershipState).toEqual({ not: 'former' })
   })
@@ -345,7 +383,7 @@ describe('syncRoster (membership-state-aware)', () => {
       },
     }
     // neither honorary is in this run's rows -> both are "unseen"
-    const res = await syncRoster({ fetchAll: async () => [], db: db as any, fetchGroupMembers: async () => new Set() })
+    const res = await syncRoster({ fetchAll: async () => [], db: withLadder(db) as any, fetchGroupMembers: async () => new Set() })
     // only the not-yet-former honorary (h2) is transitioned; the already-former h1 skipped
     expect(updates.map((u) => u.where.id)).toEqual(['h2'])
     expect(res.deactivated).toBe(1)
@@ -356,7 +394,7 @@ describe('syncRoster (membership-state-aware)', () => {
       existingByEmail: [{ emailAddress: 'old@x.com' }],
     })
     const rows = [rec({ emailAddress: 'old@x.com', name: 'Old', current: false, membershipState: 'lapsed' })]
-    const res = await syncRoster({ fetchAll: async () => rows, db: helper.db as any, fetchGroupMembers: async () => new Set() })
+    const res = await syncRoster({ fetchAll: async () => rows, db: withLadder(helper.db) as any, fetchGroupMembers: async () => new Set() })
     // old@x.com was seen this run (present in the fetched rows) -> must NOT appear in the sweep list.
     expect(helper.updateManyWhereIn).toEqual([])
     expect(res.deactivated).toBe(0)
@@ -365,12 +403,110 @@ describe('syncRoster (membership-state-aware)', () => {
   it('does not crash on a row with both name and email null (defensive spacer guard)', async () => {
     const { db } = makeDb()
     const rows = [rec({ emailAddress: null, name: null, current: true, membershipState: 'active' })]
-    const res = await syncRoster({ fetchAll: async () => rows, db: db as any, fetchGroupMembers: async () => new Set() })
+    const res = await syncRoster({ fetchAll: async () => rows, db: withLadder(db) as any, fetchGroupMembers: async () => new Set() })
     expect(res.synced).toBe(0)
   })
 })
 
 // syncPayments: idempotent upsert of Payments-tab rows on the (date, netDues, source) unique.
+
+// Email-association ladder: mutable fake db so reconcile/rename is observable.
+describe('syncRoster email association', () => {
+  function mutableDb(rows: any[], opts: { holderOnRecheck?: any } = {}) {
+    let primaryLookups = 0
+    const matchOR = (r: any, w: any) => w.OR.some((c: any) =>
+      (c.emailAddress?.in ?? []).includes(r.emailAddress) || (c.googleEmail?.in ?? []).includes(r.googleEmail))
+    const db: any = { member: {
+      findUnique: async ({ where }: any) => {
+        primaryLookups++
+        if (opts.holderOnRecheck && primaryLookups > 1) return opts.holderOnRecheck
+        return rows.find((r) => r.emailAddress === where.emailAddress) ?? null
+      },
+      findMany: async ({ where }: any) => {
+        if (where?.OR) return rows.filter((r) => matchOR(r, where))
+        if (where?.emailAddress === null) return rows.filter((r) => r.emailAddress == null)
+        return rows.filter((r) => r.emailAddress != null)
+      },
+      update: async ({ where, data }: any) => { Object.assign(rows.find((r) => r.id === where.id), data); return {} },
+      upsert: async ({ where, update, create }: any) => {
+        const r = rows.find((x) => x.emailAddress === where.emailAddress)
+        if (r) Object.assign(r, update); else rows.push({ id: `new${rows.length}`, ...create })
+        return {}
+      },
+      create: async ({ data }: any) => { rows.push({ id: `new${rows.length}`, ...data }); return {} },
+      updateMany: async ({ where, data }: any) => {
+        if (where.emailAddress === null) return { count: 0 }
+        const hit = rows.filter((r) => where.emailAddress.in.includes(r.emailAddress) && r.membershipState !== 'former')
+        hit.forEach((r) => Object.assign(r, data))
+        return { count: hit.length }
+      },
+    } }
+    return db
+  }
+  const rec = (over: any = {}) => ({
+    emailAddress: null, googleEmail: null, name: 'N', tier: null, current: true,
+    isBoard: false, role: null, partnerEmail: null, altEmails: [], expires: null, joinDate: null,
+    paymentDate: null, referredBy: null, membershipState: 'active', ...over,
+  })
+  const run = (db: any, rows: any[]) => syncRoster({ fetchAll: async () => rows, db, fetchGroupMembers: async () => new Set() })
+
+  it('(a) primary match updates in place, no new row', async () => {
+    const rows: any[] = [{ id: 'a', emailAddress: 'a@x.com', name: 'Old', current: false, membershipState: 'lapsed' }]
+    await run(mutableDb(rows), [rec({ emailAddress: 'a@x.com', name: 'New' })])
+    expect(rows).toHaveLength(1)
+    expect(rows[0]).toMatchObject({ id: 'a', name: 'New', current: true, membershipState: 'active' })
+  })
+
+  it('(b) Peter case: stale yahoo row reconciled to gmail primary, no duplicate, not swept', async () => {
+    const rows: any[] = [{ id: 'p', emailAddress: 'petehpray@yahoo.com', googleEmail: 'petehpray@gmail.com', current: false, membershipState: 'former' }]
+    const res = await run(mutableDb(rows), [rec({ emailAddress: 'petehpray@gmail.com', googleEmail: 'petehpray@gmail.com', name: 'Peter Pray' })])
+    expect(rows).toHaveLength(1)
+    expect(rows[0]).toMatchObject({ id: 'p', emailAddress: 'petehpray@gmail.com', current: true, membershipState: 'active' })
+    expect(res.deactivated).toBe(0)
+  })
+
+  it('(c) rename collision: skips rename, still updates, warns, no throw', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const rows: any[] = [{ id: 'p', emailAddress: 'old@x.com', googleEmail: 'new@x.com', name: 'Old', current: false, membershipState: 'lapsed' }]
+    const holder = { id: 'other', emailAddress: 'new@x.com' }
+    const res = await run(mutableDb(rows, { holderOnRecheck: holder }), [rec({ emailAddress: 'new@x.com', googleEmail: 'new@x.com', name: 'Fresh' })])
+    expect(rows[0]).toMatchObject({ emailAddress: 'old@x.com', name: 'Fresh', current: true })
+    expect(warn).toHaveBeenCalled()
+    expect(res.synced).toBe(1)
+    warn.mockRestore()
+  })
+
+  it('(d) >1 distinct members match: warns, safe primary upsert, no merge', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const rows: any[] = [
+      { id: 'x', emailAddress: 'x@x.com', googleEmail: null, membershipState: 'active' },
+      { id: 'y', emailAddress: 'y@x.com', googleEmail: null, membershipState: 'active' },
+    ]
+    await run(mutableDb(rows), [rec({ emailAddress: 'p@x.com', altEmails: ['x@x.com', 'y@x.com'] }), rec({ emailAddress: 'x@x.com' }), rec({ emailAddress: 'y@x.com' })])
+    expect(warn).toHaveBeenCalled()
+    expect(rows.map((r) => r.emailAddress).sort()).toEqual(['p@x.com', 'x@x.com', 'y@x.com'])
+    warn.mockRestore()
+  })
+
+  it('(e) alias-only: member whose googleEmail was seen is not swept', async () => {
+    const rows: any[] = [{ id: 'z', emailAddress: 'zold@x.com', googleEmail: 'z@gmail.com', current: true, membershipState: 'active' }]
+    const res = await run(mutableDb(rows), [rec({ emailAddress: 'znew@x.com', altEmails: ['z@gmail.com'] })])
+    // reconcile renames it; either way it must not be former
+    expect(rows).toHaveLength(1)
+    expect(rows[0].membershipState).toBe('active')
+    expect(res.deactivated).toBe(0)
+  })
+
+  it('(e2) sweep spares a member whose googleEmail is seen but emailAddress is not a primary', async () => {
+    const rows: any[] = [
+      { id: 'q', emailAddress: 'q@x.com', googleEmail: null, name: 'Q', membershipState: 'active' },
+      { id: 'z', emailAddress: 'zold@x.com', googleEmail: 'q@x.com', membershipState: 'active' },
+    ]
+    const res = await run(mutableDb(rows), [rec({ emailAddress: 'q@x.com' })])
+    expect(rows.find((r) => r.id === 'z').membershipState).toBe('active')
+    expect(res.deactivated).toBe(0)
+  })
+})
 
 describe('syncPayments', () => {
   it('upserts each fetched payment on the compound unique key', async () => {
@@ -414,7 +550,7 @@ describe('syncPayments', () => {
 
 // isCurrentMember tests
 
-const M = (over = {}) => ({ emailAddress: 'a@x.com', googleEmail: null, name: 'A', tier: null, current: true, isBoard: false, role: null, partnerEmail: null, expires: null, joinDate: null, paymentDate: null, referredBy: null, membershipState: 'active', ...over })
+const M = (over = {}) => ({ emailAddress: 'a@x.com', googleEmail: null, name: 'A', tier: null, current: true, isBoard: false, role: null, partnerEmail: null, altEmails: [], expires: null, joinDate: null, paymentDate: null, referredBy: null, membershipState: 'active', ...over })
 
 function fakeDb(row: any, honorsWhere = false) {
   return { member: {
@@ -542,10 +678,10 @@ test('syncRoster sets resourceAccess from group membership', async () => {
     updateMany: async () => ({ count: 0 }),
   } } as any
   const rows = [
-    { emailAddress:'in@x.com', googleEmail:null, name:'A', tier:null, current:true, isBoard:false, role:null, partnerEmail:null, expires:null, joinDate:null, paymentDate:null, referredBy:null, membershipState:'active' },
-    { emailAddress:'out@x.com', googleEmail:null, name:'B', tier:null, current:true, isBoard:false, role:null, partnerEmail:null, expires:null, joinDate:null, paymentDate:null, referredBy:null, membershipState:'active' },
+    { emailAddress:'in@x.com', googleEmail:null, name:'A', tier:null, current:true, isBoard:false, role:null, partnerEmail:null, altEmails:[], expires:null, joinDate:null, paymentDate:null, referredBy:null, membershipState:'active' },
+    { emailAddress:'out@x.com', googleEmail:null, name:'B', tier:null, current:true, isBoard:false, role:null, partnerEmail:null, altEmails:[], expires:null, joinDate:null, paymentDate:null, referredBy:null, membershipState:'active' },
   ]
-  await syncRoster({ db, fetchAll: async () => rows, fetchGroupMembers: async () => new Set(['in@x.com']) })
+  await syncRoster({ db: withLadder(db), fetchAll: async () => rows, fetchGroupMembers: async () => new Set(['in@x.com']) })
   const inU = upserts.find(u => u.where.emailAddress === 'in@x.com')
   const outU = upserts.find(u => u.where.emailAddress === 'out@x.com')
   expect(inU.update.resourceAccess).toBe(true)
@@ -559,8 +695,8 @@ test('syncRoster is fail-soft when the group read throws (resourceAccess untouch
     findMany: async () => [],
     updateMany: async () => ({ count: 0 }),
   } } as any
-  const rows = [{ emailAddress:'a@x.com', googleEmail:null, name:'A', tier:null, current:true, isBoard:false, role:null, partnerEmail:null, expires:null, joinDate:null, paymentDate:null, referredBy:null, membershipState:'active' }]
-  const r = await syncRoster({ db, fetchAll: async () => rows, fetchGroupMembers: async () => { throw new Error('directory down') } })
+  const rows = [{ emailAddress:'a@x.com', googleEmail:null, name:'A', tier:null, current:true, isBoard:false, role:null, partnerEmail:null, altEmails:[], expires:null, joinDate:null, paymentDate:null, referredBy:null, membershipState:'active' }]
+  const r = await syncRoster({ db: withLadder(db), fetchAll: async () => rows, fetchGroupMembers: async () => { throw new Error('directory down') } })
   expect(r.synced).toBe(1)                                  // sheet sync still completed
   expect('resourceAccess' in upserts[0].update).toBe(false) // omitted -> left unchanged
 })
