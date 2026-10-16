@@ -81,9 +81,10 @@ type FakeDraft = {
 function makeFakeDb(drafts: FakeDraft[]) {
   return {
     draftArticle: {
-      findMany: vi.fn(async ({ where }: { where: { status: string } }) =>
-        drafts.filter((d) => d.status === where.status),
-      ),
+      findMany: vi.fn(async ({ where, take }: { where: { status: string }; take?: number }) => {
+        const matched = drafts.filter((d) => d.status === where.status)
+        return typeof take === 'number' ? matched.slice(0, take) : matched
+      }),
       update: vi.fn(async ({ where, data }: { where: { id: string }; data: Partial<FakeDraft> }) => {
         const draft = drafts.find((d) => d.id === where.id)
         if (!draft) throw new Error('not found')
@@ -122,7 +123,7 @@ describe('processPendingDrafts', () => {
     )
   })
 
-  it('sets status error with errorText when extract throws, and continues to the next draft', async () => {
+  it('sets status error with errorText when extract throws (one draft per run)', async () => {
     const now = new Date('2026-08-17T12:00:00.000Z')
     const drafts: FakeDraft[] = [
       { id: 'd1', rawText: 'bad transcript', status: 'needs_processing' },
@@ -140,15 +141,37 @@ describe('processPendingDrafts', () => {
 
     const result = await processPendingDrafts({ db: db as never, extract, now: () => now })
 
-    expect(result).toEqual({ processed: 1, errored: 1 })
-
+    // ONE draft per invocation: only d1 is touched this run (it errored).
+    // d2 is left for the NEXT run — a slow/failing draft can't strand the rest,
+    // and a single Opus extraction can't blow the function's time budget.
+    expect(result).toEqual({ processed: 0, errored: 1 })
+    expect(extract).toHaveBeenCalledTimes(1)
     expect(drafts[0].status).toBe('error')
     expect(drafts[0].errorText).toBe('anthropic API exploded')
     expect(drafts[0].processedAt).toEqual(now)
+    // d2 untouched — still pending for the next cron run
+    expect(drafts[1].status).toBe('needs_processing')
+  })
 
-    // second draft in the same batch still processes despite the first's failure
-    expect(drafts[1].status).toBe('in_review')
-    expect(drafts[1].processedTitle).toBe('WCB Monthly Meeting — July 2026')
+  it('processes only ONE draft per run even when several are pending', async () => {
+    const now = new Date('2026-08-17T12:00:00.000Z')
+    const drafts: FakeDraft[] = [
+      { id: 'd1', rawText: 'first', status: 'needs_processing' },
+      { id: 'd2', rawText: 'second', status: 'needs_processing' },
+      { id: 'd3', rawText: 'third', status: 'needs_processing' },
+    ]
+    const db = makeFakeDb(drafts)
+    const extract = vi.fn(async (): Promise<ExtractedMeetingNote> => ({
+      title: 'T', bodyHtml: '<p>x</p>', excerpt: 'x',
+    }))
+
+    const result = await processPendingDrafts({ db: db as never, extract, now: () => now })
+
+    expect(result).toEqual({ processed: 1, errored: 0 })
+    expect(extract).toHaveBeenCalledTimes(1)
+    expect(drafts[0].status).toBe('in_review')
+    expect(drafts[1].status).toBe('needs_processing')
+    expect(drafts[2].status).toBe('needs_processing')
   })
 
   it('treats empty bodyHtml as a failure (guard) and does not move the draft to in_review', async () => {
@@ -171,7 +194,7 @@ describe('processPendingDrafts', () => {
     expect(drafts[0].processedAt).toEqual(now)
   })
 
-  it('processes multiple needs_processing drafts and ignores drafts in other statuses', async () => {
+  it('acts only on needs_processing (ignores other statuses), one per run', async () => {
     const now = new Date('2026-08-17T12:00:00.000Z')
     const drafts: FakeDraft[] = [
       { id: 'd1', rawText: 'raw 1', status: 'needs_processing' },
@@ -187,8 +210,11 @@ describe('processPendingDrafts', () => {
 
     const result = await processPendingDrafts({ db: db as never, extract, now: () => now })
 
-    expect(result).toEqual({ processed: 2, errored: 0 })
-    expect(extract).toHaveBeenCalledTimes(2)
-    expect(drafts[1].status).toBe('in_review') // untouched, was already in_review before call — sanity: still same value
+    // One per run: only d1 (first needs_processing) is processed this invocation.
+    expect(result).toEqual({ processed: 1, errored: 0 })
+    expect(extract).toHaveBeenCalledTimes(1)
+    expect(drafts[0].status).toBe('in_review')
+    expect(drafts[1].status).toBe('in_review') // d2 was already in_review — never a candidate, untouched
+    expect(drafts[2].status).toBe('needs_processing') // d3 waits for the next run
   })
 })

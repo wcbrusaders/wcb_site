@@ -3,7 +3,11 @@ import { syncMeetingNotes } from '@/lib/knowledge/notes-sync'
 import { processPendingDrafts } from '@/lib/knowledge/process-drafts'
 
 export const dynamic = 'force-dynamic'
-export const maxDuration = 60
+// 300s (Vercel Pro max): one meeting-note extraction is a claude-opus-5 call at
+// 32k max_tokens, which can run 60-120s+. The old 60s cap timed out and left
+// drafts stuck in needs_processing. processPendingDrafts also now handles ONE
+// draft per run so a single invocation can't exceed this budget.
+export const maxDuration = 300
 
 export async function GET(req: Request) {
   const secret = process.env.CRON_SECRET

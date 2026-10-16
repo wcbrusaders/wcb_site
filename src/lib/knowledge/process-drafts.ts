@@ -68,7 +68,17 @@ export async function processPendingDrafts(
   let processed = 0
   let errored = 0
 
-  const drafts = await db.draftArticle.findMany({ where: { status: 'needs_processing' } })
+  // ONE draft per invocation (oldest first). The AI extraction is a slow
+  // claude-opus-5 call (32k max_tokens, 60-120s); processing a backlog in a
+  // single run blew the route's maxDuration, timed out mid-loop, and left
+  // drafts permanently stuck in needs_processing. Bounding to one draft keeps
+  // every run within budget; the daily cron drains the (tiny) backlog over
+  // successive runs, and one slow/failing draft can never strand the others.
+  const drafts = await db.draftArticle.findMany({
+    where: { status: 'needs_processing' },
+    orderBy: { createdAt: 'asc' },
+    take: 1,
+  })
 
   for (const draft of drafts) {
     try {
