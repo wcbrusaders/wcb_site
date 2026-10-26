@@ -53,11 +53,11 @@ test('relDays: relative label for a date vs now', () => {
   expect(relDays(plus(-6), NOW)).toBe('passed')
 })
 
-test('compTimeline: 3-step state (register -> arrives -> delivered)', () => {
+test('compTimeline: 4-step state (register -> arrives -> delivered -> awards)', () => {
   // register within 7d (upcoming), arrival far out (future), not shipped
   const base = { registrationDeadline: plus(5), shippingDeadline: plus(19), shippedAt: null, deliveryStatus: null, deliveredAt: null }
   const t1 = compTimeline(base, NOW)
-  expect(t1.map((s) => s.key)).toEqual(['register', 'arrives', 'delivered'])
+  expect(t1.map((s) => s.key)).toEqual(['register', 'arrives', 'delivered', 'awards'])
   expect(t1.find((s) => s.key === 'delivered')!.state).toBe('pending')
   expect(t1.find((s) => s.key === 'register')!.state).toBe('upcoming')
   expect(t1.find((s) => s.key === 'arrives')!.state).toBe('future')
@@ -67,6 +67,24 @@ test('compTimeline: 3-step state (register -> arrives -> delivered)', () => {
   expect(t2.find((s) => s.key === 'register')!.state).toBe('done')
   expect(t2.find((s) => s.key === 'delivered')!.state).toBe('done')
   expect(t2.find((s) => s.key === 'delivered')!.date).toEqual(plus(-8))
+})
+
+test('compTimeline: awards step — TBD when unset, then future / upcoming / done by the ceremony date', () => {
+  const base = { registrationDeadline: plus(-30), shippingDeadline: plus(-10), shippedAt: null, deliveryStatus: null, deliveredAt: null }
+  const awards = (resultsDate: Date | string | null | undefined) =>
+    compTimeline({ ...base, resultsDate }, NOW).find((s) => s.key === 'awards')!
+
+  // no awards date set → pending with no date (card shows "TBD")
+  expect(awards(null)).toMatchObject({ label: 'Awards', state: 'pending', date: null })
+  expect(awards(undefined)).toMatchObject({ state: 'pending', date: null })
+  // more than a week out → future; within a week → upcoming; ceremony day itself → upcoming
+  expect(awards(plus(20)).state).toBe('future')
+  expect(awards(plus(3)).state).toBe('upcoming')
+  expect(awards(plus(0)).state).toBe('upcoming')
+  // after the ceremony → done, and the date is carried through for display
+  expect(awards(plus(-2))).toMatchObject({ state: 'done', date: plus(-2) })
+  // RSC boundary: an ISO string date works the same as a Date
+  expect(awards(plus(3).toISOString()).state).toBe('upcoming')
 })
 
 // Date fields serialize to ISO STRINGS when a server component passes them to a
