@@ -3,7 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { auth } from '@/lib/auth'
 import {
-  addCompetition, editCompetition, deleteCompetition, addEntry, editEntry, deleteEntry,
+  addCompetition, editCompetition, setAwardsDate, deleteCompetition, addEntry, editEntry, deleteEntry,
   addShipment, editShipment, deleteShipment,
   type NewCompetitionInput, type NewEntryInput,
 } from '@/lib/competitions'
@@ -30,6 +30,12 @@ export async function addCompetitionAction(input: NewCompetitionInput) {
 export async function editCompetitionAction(id: string, patch: Partial<NewCompetitionInput>) {
   const { memberId, isBoard } = await requireMember()
   const r = await editCompetition(id, patch, { memberId, isBoard })
+  if (r.ok) revalidateComps()
+  return r
+}
+export async function setAwardsDateAction(id: string, date: string | null) {
+  const { memberId, isBoard } = await requireMember()
+  const r = await setAwardsDate(id, date, { memberId, isBoard })
   if (r.ok) revalidateComps()
   return r
 }

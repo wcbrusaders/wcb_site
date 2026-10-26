@@ -50,7 +50,7 @@ export function relDays(date: Date | string | number, now: Date = new Date()): s
 
 export type MilestoneState = 'done' | 'upcoming' | 'future' | 'pending'
 export interface CompMilestone {
-  key: 'register' | 'arrives' | 'delivered'
+  key: 'register' | 'arrives' | 'delivered' | 'awards'
   label: string
   date: Date | string | null
   state: MilestoneState
@@ -68,6 +68,7 @@ export function compTimeline(
     shippedAt: Date | string | null
     deliveryStatus: string | null
     deliveredAt: Date | string | null
+    resultsDate?: Date | string | null
   },
   now: Date = new Date(),
 ): CompMilestone[] {
@@ -76,10 +77,16 @@ export function compTimeline(
   const registerState: MilestoneState = reg < 0 ? 'done' : reg <= 7 ? 'upcoming' : 'future'
   const arrivesState: MilestoneState = c.shippedAt || ship < 0 ? 'done' : ship <= 7 ? 'upcoming' : 'future'
   const deliveredState: MilestoneState = c.deliveryStatus === 'delivered' ? 'done' : 'pending'
+  // Awards ceremony: no date set yet → pending (card shows "TBD"); the ceremony day
+  // itself counts as upcoming (daysUntil = 0), the day after as done.
+  const awardsDate = c.resultsDate ?? null
+  const aw = awardsDate == null ? null : daysUntil(awardsDate, now)
+  const awardsState: MilestoneState = aw == null ? 'pending' : aw < 0 ? 'done' : aw <= 7 ? 'upcoming' : 'future'
   return [
     { key: 'register', label: 'Register', date: c.registrationDeadline, state: registerState },
     { key: 'arrives', label: 'Beer arrives', date: c.shippingDeadline, state: arrivesState },
     { key: 'delivered', label: 'Delivered', date: c.deliveredAt, state: deliveredState },
+    { key: 'awards', label: 'Awards', date: awardsDate, state: awardsState },
   ]
 }
 

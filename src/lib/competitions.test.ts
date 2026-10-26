@@ -5,6 +5,7 @@ import {
   listMemberComps, listPastComps, listOfficerComps, computeBannerItems,
   addCompetition, editCompetition, deleteCompetition, addEntry, editEntry, deleteEntry,
   rollupShipments, addShipment, editShipment, deleteShipment,
+  isArchived, setAwardsDate,
 } from './competitions'
 
 test('trackingUrl builds carrier URLs and returns null for unknown/empty', () => {
@@ -169,7 +170,7 @@ const entry = (over: any = {}) => ({ id: 'e1', competitionId: 'c1', memberId: 'm
 test('listMemberComps: only the viewer own entries, active only, with derived dates', async () => {
   // Active/past is decided by resultsDate (awards date), NOT shippingDeadline.
   // c2 has a PAST resultsDate -> archived. c1 has no resultsDate -> active.
-  const comps = [comp(), comp({ id: 'c2', resultsDate: new Date(NOW.getTime() - day) })]
+  const comps = [comp(), comp({ id: 'c2', resultsDate: new Date(NOW.getTime() - 2 * day) })]
   const entries = [entry({ id: 'e1', memberId: 'm1' }), entry({ id: 'e2', memberId: 'm2' })]
   const res = await listMemberComps('m1', { db: db(comps, entries), now: NOW })
   expect(res.map((c) => c.id)).toEqual(['c1']) // c2 (past awards) excluded
@@ -186,12 +187,60 @@ test('active/past keys on resultsDate, NOT shippingDeadline (the archiving bug)'
     // Awards date still in the future -> active
     comp({ id: 'upcoming-awards', shippingDeadline: new Date(NOW.getTime() - 5 * day), resultsDate: new Date(NOW.getTime() + 10 * day) }),
     // Awards date passed -> archived
-    comp({ id: 'done', shippingDeadline: new Date(NOW.getTime() - 40 * day), resultsDate: new Date(NOW.getTime() - day) }),
+    comp({ id: 'done', shippingDeadline: new Date(NOW.getTime() - 40 * day), resultsDate: new Date(NOW.getTime() - 2 * day) }),
   ]
   const active = await listMemberComps('m1', { db: db(comps, []), now: NOW })
   expect(active.map((c) => c.id).sort()).toEqual(['shipped', 'upcoming-awards'])
   const past = await listPastComps({ db: db(comps, []), now: NOW })
   expect(past.map((c) => c.id)).toEqual(['done'])
+})
+
+// resultsDate is a DATE-ONLY field stored as midnight UTC of the ceremony day (same
+// as the other comp dates, and what the add form's <input type="date"> produces).
+// The comp must stay active through the whole ceremony day in Eastern time, so it
+// archives only once that day has ended there — not at midnight UTC (8pm ET the day before).
+test('isArchived: a comp stays active through its ceremony day (Eastern), archives after', () => {
+  const ceremony = new Date('2026-10-10T00:00:00Z')                                 // awards on Oct 10
+  expect(isArchived(ceremony, new Date('2026-10-10T16:00:00Z'))).toBe(false)        // noon ET, ceremony day
+  expect(isArchived(ceremony, new Date('2026-10-11T02:00:00Z'))).toBe(false)        // 10pm ET, ceremony night
+  expect(isArchived(ceremony, new Date('2026-10-11T05:01:00Z'))).toBe(true)         // after midnight ET
+  expect(isArchived(null, new Date('2030-01-01T00:00:00Z'))).toBe(false)            // no date → never archives
+})
+
+test('ceremony-night comp is listed as active, not past', async () => {
+  const comps = [comp({ id: 'tonight', resultsDate: new Date('2026-10-10T00:00:00Z') })]
+  const tenPmEt = new Date('2026-10-11T02:00:00Z')
+  expect((await listMemberComps('m1', { db: db(comps, []), now: tenPmEt })).map((c) => c.id)).toEqual(['tonight'])
+  expect(await listPastComps({ db: db(comps, []), now: tenPmEt })).toEqual([])
+})
+
+test('setAwardsDate: stores YYYY-MM-DD as midnight UTC, clears on null/empty, adder or board only', async () => {
+  const comps = [comp()]
+  const store = db(comps, [])
+  const adder = { memberId: 'm1', isBoard: false }
+
+  expect(await setAwardsDate('c1', '2026-11-14', adder, { db: store })).toEqual({ ok: true })
+  expect(comps[0].resultsDate.toISOString()).toBe('2026-11-14T00:00:00.000Z')
+
+  expect(await setAwardsDate('c1', null, adder, { db: store })).toEqual({ ok: true })
+  expect(comps[0].resultsDate).toBeNull()
+  await setAwardsDate('c1', '2026-11-14', adder, { db: store })
+  expect(await setAwardsDate('c1', '', adder, { db: store })).toEqual({ ok: true })
+  expect(comps[0].resultsDate).toBeNull()
+
+  expect(await setAwardsDate('c1', '2026-11-14', { memberId: 'x', isBoard: true }, { db: store })).toEqual({ ok: true })
+  expect(await setAwardsDate('c1', '2026-11-14', { memberId: 'x', isBoard: false }, { db: store })).toEqual({ ok: false, reason: 'forbidden' })
+  expect(await setAwardsDate('nope', '2026-11-14', adder, { db: store })).toEqual({ ok: false, reason: 'not_found' })
+})
+
+test('setAwardsDate: rejects anything that is not a real YYYY-MM-DD date, leaving the stored date alone', async () => {
+  const comps = [comp({ resultsDate: new Date('2026-11-14T00:00:00Z') })]
+  const store = db(comps, [])
+  const adder = { memberId: 'm1', isBoard: false }
+  for (const bad of ['nope', '2026-13-01', '2026-02-30', '11/14/2026', '2026-11-14T05:00:00Z']) {
+    expect(await setAwardsDate('c1', bad, adder, { db: store })).toEqual({ ok: false, reason: 'validation' })
+  }
+  expect(comps[0].resultsDate.toISOString()).toBe('2026-11-14T00:00:00.000Z')
 })
 
 test('listMemberComps: allEntries exposes every entrant (name+beer+style) for the ceremony view', async () => {

@@ -47,8 +47,15 @@ export function isPast(shippingDeadline: Date, now: Date): boolean { return ship
 // active indefinitely (safe default — a comp isn't "done" at its shipping
 // deadline; it's still shipping/judging/awaiting awards). This is the correct
 // active/past cutoff — shippingDeadline is NOT used for archiving anymore.
+//
+// resultsDate is DATE-ONLY: midnight UTC of the ceremony day (what <input type="date">
+// yields, same as the other comp dates, so humanDate shows the right day). The comp
+// stays active through the whole ceremony day in Eastern time: it archives once
+// midnight ET has passed — 29h after midnight UTC covers both EDT (UTC-4) and EST (UTC-5).
+const AWARDS_GRACE_MS = 29 * 60 * 60 * 1000
+export function awardsCutoff(now: Date): Date { return new Date(now.getTime() - AWARDS_GRACE_MS) }
 export function isArchived(resultsDate: Date | null | undefined, now: Date): boolean {
-  return resultsDate != null && new Date(resultsDate).getTime() < now.getTime()
+  return resultsDate != null && new Date(resultsDate).getTime() < awardsCutoff(now).getTime()
 }
 export function commitByDate(shippingDeadline: Date): Date { return new Date(shippingDeadline.getTime() - SEVEN_DAYS) }
 export function deliverByDate(shippingDeadline: Date): Date { return new Date(shippingDeadline.getTime() - SEVEN_DAYS) }
@@ -135,7 +142,7 @@ export async function listMemberComps(memberId: string, deps: { db?: typeof pris
   const db = deps.db ?? prisma
   const now = deps.now ?? new Date()
   const isBoard = deps.isBoard ?? false
-  const comps = await db.competition.findMany({ where: { OR: [{ resultsDate: null }, { resultsDate: { gte: now } }] }, include: { entries: true, shipments: true, contributions: true }, orderBy: { shippingDeadline: 'asc' } })
+  const comps = await db.competition.findMany({ where: { OR: [{ resultsDate: null }, { resultsDate: { gte: awardsCutoff(now) } }] }, include: { entries: true, shipments: true, contributions: true }, orderBy: { shippingDeadline: 'asc' } })
   // Resolve entrant names once across all comps for the shared "who entered" list.
   const allIds = (comps as any[]).flatMap((c) => (c.entries ?? []).map((e: any) => e.memberId))
   const names = await memberNames(db, allIds)
@@ -168,14 +175,14 @@ export async function listPastComps(deps: { db?: typeof prisma; now?: Date } = {
   // unused over-fetch AND a latent PII footgun if a future edit dropped a past
   // comp into a client component. toCompView tolerates the absent relation
   // (contributionTotal 0, contributions []).
-  const comps = await db.competition.findMany({ where: { resultsDate: { lt: now } }, include: { shipments: true }, orderBy: { shippingDeadline: 'desc' } })
+  const comps = await db.competition.findMany({ where: { resultsDate: { lt: awardsCutoff(now) } }, include: { shipments: true }, orderBy: { shippingDeadline: 'desc' } })
   return (comps as any[]).map((c) => toCompView(c, now))
 }
 
 export async function listOfficerComps(deps: { db?: typeof prisma; now?: Date } = {}): Promise<OfficerCompView[]> {
   const db = deps.db ?? prisma
   const now = deps.now ?? new Date()
-  const comps = await db.competition.findMany({ where: { OR: [{ resultsDate: null }, { resultsDate: { gte: now } }] }, include: { entries: true, shipments: true, contributions: true }, orderBy: { shippingDeadline: 'asc' } })
+  const comps = await db.competition.findMany({ where: { OR: [{ resultsDate: null }, { resultsDate: { gte: awardsCutoff(now) } }] }, include: { entries: true, shipments: true, contributions: true }, orderBy: { shippingDeadline: 'asc' } })
   const allIds = (comps as any[]).flatMap((c) => (c.entries ?? []).map((e: any) => e.memberId))
   const names = await memberNames(db, allIds)
   return (comps as any[]).map((c) => {
@@ -247,6 +254,25 @@ export async function editCompetition(id: string, patch: Partial<NewCompetitionI
   if (!c) return { ok: false, reason: 'not_found' }
   if (!actor.isBoard && (c as any).addedById !== actor.memberId) return { ok: false, reason: 'forbidden' }
   await db.competition.update({ where: { id }, data: { ...patch } })
+  return { ok: true }
+}
+
+// Set or clear a comp's awards-ceremony date. Narrow on purpose (only resultsDate,
+// only a real YYYY-MM-DD) rather than the client-supplied patch editCompetition takes.
+// Stored as midnight UTC of that day — the date-only convention isArchived relies on.
+export async function setAwardsDate(id: string, date: string | null, actor: { memberId: string; isBoard: boolean }, deps: { db?: typeof prisma } = {}): Promise<MutResult> {
+  const db = deps.db ?? prisma
+  let resultsDate: Date | null = null
+  if (date) {
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date)
+    if (!m) return { ok: false, reason: 'validation' }
+    resultsDate = new Date(Date.UTC(+m[1], +m[2] - 1, +m[3]))
+    if (resultsDate.toISOString().slice(0, 10) !== date) return { ok: false, reason: 'validation' }  // e.g. 2026-02-30 rolled over
+  }
+  const c = await db.competition.findUnique({ where: { id } })
+  if (!c) return { ok: false, reason: 'not_found' }
+  if (!actor.isBoard && (c as any).addedById !== actor.memberId) return { ok: false, reason: 'forbidden' }
+  await db.competition.update({ where: { id }, data: { resultsDate } })
   return { ok: true }
 }
 

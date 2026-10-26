@@ -6,6 +6,7 @@ import { AddCompetitionForm } from '@/components/members/AddCompetitionForm'
 import { CompetitionCard } from '@/components/members/CompetitionCard'
 import { OfficerCompetitions } from '@/components/members/OfficerCompetitions'
 import { PageHeader, EmptyState } from '@/components/ui'
+import { humanDate } from '@/lib/comp-format'
 
 // The club PayPal merchant id is a public payment identifier but is kept a
 // SERVER env var (not NEXT_PUBLIC_*) — this page is a server component, so we
@@ -51,7 +52,7 @@ export default async function CompetitionsPage() {
         <details className="mt-8">
           <summary className="cursor-pointer text-foreground/50 text-sm">Past competitions ({past.length})</summary>
           <ul className="mt-2 space-y-1 text-sm text-foreground/60">
-            {past.map((p) => <li key={p.id}><a href={p.homepageUrl} target="_blank" rel="noreferrer" className="hover:text-accent">{p.name}</a> · shipped by {p.shippingDeadline.toISOString().slice(0, 10)}</li>)}
+            {past.map((p) => <li key={p.id}><a href={p.homepageUrl} target="_blank" rel="noreferrer" className="hover:text-accent">{p.name}</a> · awards {humanDate(p.resultsDate)}</li>)}
           </ul>
         </details>
       )}

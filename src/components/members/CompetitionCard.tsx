@@ -3,7 +3,7 @@ import { useState, useTransition } from 'react'
 import type { MemberCompView, EntryChannel, ShipmentView } from '@/lib/competitions'
 import { mapsUrl } from '@/lib/competitions'
 import { channelBadge, isUrgent, deliverBannerState, humanDate, relDays, compTimeline, type BadgeVariant } from '@/lib/comp-format'
-import { addEntryAction, editEntryAction, deleteEntryAction, deleteCompetitionAction, addShipmentAction, editShipmentAction, deleteShipmentAction } from '@/app/members/_actions/competition-actions'
+import { addEntryAction, editEntryAction, deleteEntryAction, deleteCompetitionAction, setAwardsDateAction, addShipmentAction, editShipmentAction, deleteShipmentAction } from '@/app/members/_actions/competition-actions'
 import { ChipInButton } from '@/components/members/ChipInButton'
 
 const BADGE_CLASS: Record<BadgeVariant, string> = {
@@ -39,6 +39,10 @@ export function CompetitionCard({ comp, viewerIsBoard, viewerId, donateUrl }: { 
   const [editingShipId, setEditingShipId] = useState<string | null>(null)
   const [editShipDraft, setEditShipDraft] = useState({ carrier: '', tracking: '' })
   const [menuOpen, setMenuOpen] = useState(false)
+  // resultsDate may arrive as an ISO string across the RSC boundary — normalize via new Date()
+  const awardsIso = comp.resultsDate ? new Date(comp.resultsDate).toISOString().slice(0, 10) : ''
+  const [editingAwards, setEditingAwards] = useState(false)
+  const [awardsDraft, setAwardsDraft] = useState(awardsIso)
   const [draft, setDraft] = useState({ beerName: '', style: '', channel: 'club_ship' as EntryChannel, registered: false })
   const canEditComp = viewerIsBoard || comp.addedById === viewerId
   const hasClubShip = comp.myEntries.some((e) => e.channel === 'club_ship')
@@ -63,14 +67,18 @@ export function CompetitionCard({ comp, viewerIsBoard, viewerId, donateUrl }: { 
           ) : (
             <span className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium text-foreground/50 border border-border/60">Not entered yet</span>
           )}
-          {canEditComp && viewerIsBoard && (
+          {canEditComp && (
             <div className="relative">
               <button aria-label="Competition actions" disabled={pending} onClick={() => setMenuOpen((o) => !o)}
                 className="text-foreground/40 hover:text-foreground px-2 py-1 rounded-lg border border-border/50 text-sm leading-none">⋯</button>
               {menuOpen && (
                 <div className="absolute right-0 mt-1 z-10 rounded-lg border border-border bg-card-bg shadow-lg py-1 min-w-[9rem]">
-                  <button disabled={pending} onClick={() => { setMenuOpen(false); if (confirm(`Delete "${comp.name}" and all its entries and recorded contributions?`)) run(() => deleteCompetitionAction(comp.id)) }}
-                    className="block w-full text-left px-3 py-1.5 text-xs text-red-400 hover:bg-red-500/10">Delete competition</button>
+                  <button disabled={pending} onClick={() => { setMenuOpen(false); setAwardsDraft(awardsIso); setEditingAwards(true) }}
+                    className="block w-full text-left px-3 py-1.5 text-xs text-foreground/80 hover:bg-white/[0.06]">Edit awards date</button>
+                  {viewerIsBoard && (
+                    <button disabled={pending} onClick={() => { setMenuOpen(false); if (confirm(`Delete "${comp.name}" and all its entries and recorded contributions?`)) run(() => deleteCompetitionAction(comp.id)) }}
+                      className="block w-full text-left px-3 py-1.5 text-xs text-red-400 hover:bg-red-500/10">Delete competition</button>
+                  )}
                 </div>
               )}
             </div>
@@ -91,13 +99,28 @@ export function CompetitionCard({ comp, viewerIsBoard, viewerId, donateUrl }: { 
               <span className="relative z-[1] w-3.5 h-3.5 rounded-full" style={{ background: d.color, boxShadow: d.ring !== 'transparent' ? `0 0 0 3px ${d.ring}` : undefined }} />
               <span className={`mt-1.5 text-[10px] uppercase tracking-wide ${active ? 'text-accent' : 'text-foreground/45'}`}>{step.label}</span>
               <span className={`text-xs font-semibold ${step.state === 'done' ? 'text-[#4ade80]' : active ? 'text-accent' : 'text-foreground/70'}`}>
-                {step.key === 'delivered' && step.state !== 'done' ? '—' : humanDate(step.date)}
+                {step.key === 'awards' && !step.date ? 'TBD' : step.key === 'delivered' && step.state !== 'done' ? '—' : humanDate(step.date)}
               </span>
               {active && step.date && <span className="text-[10px] text-foreground/40">{relDays(step.date)}</span>}
             </div>
           )
         })}
       </div>
+
+      {editingAwards && (
+        <div className="mt-3 flex items-center gap-2 flex-wrap rounded-xl border border-border/60 bg-background/40 p-3">
+          <label className="text-xs text-foreground/60" htmlFor={`awards-${comp.id}`}>Awards ceremony</label>
+          <input id={`awards-${comp.id}`} type="date" value={awardsDraft} onChange={(e) => setAwardsDraft(e.target.value)}
+            className="rounded-lg border border-border bg-background/60 px-2 py-1 text-sm" />
+          <button disabled={pending} onClick={() => { setEditingAwards(false); run(() => setAwardsDateAction(comp.id, awardsDraft || null)) }}
+            className="rounded-lg bg-accent text-black px-3 py-1 text-xs font-semibold disabled:opacity-50">Save</button>
+          {awardsIso && (
+            <button disabled={pending} onClick={() => { setEditingAwards(false); run(() => setAwardsDateAction(comp.id, null)) }}
+              className="rounded-lg border border-border px-3 py-1 text-xs text-foreground/70">Clear</button>
+          )}
+          <button onClick={() => setEditingAwards(false)} className="text-xs text-foreground/50 hover:text-foreground">Cancel</button>
+        </div>
+      )}
 
       {/* ship-to / drop-off quick links */}
       <div className="flex gap-2 mt-4">
