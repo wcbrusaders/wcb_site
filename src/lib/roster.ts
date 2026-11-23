@@ -819,6 +819,18 @@ export async function appendMemberRow(
   return appendRow(name, values_out)
 }
 
+/** Append one dues payment to the Payments tab, in that tab's own header order. */
+export async function appendPaymentRow(
+  row: Record<string, string>,
+  deps: AppendMemberRowDeps = {},
+): Promise<number> {
+  const getTab = deps.getTab ?? realGetTab
+  const appendRow = deps.appendRow ?? realAppendRow
+  const values = await getTab(PAYMENTS_TAB)
+  const headers = (values[0] ?? []).map((h) => String(h).trim())
+  return appendRow(PAYMENTS_TAB, headers.map((h) => row[h] ?? ''))
+}
+
 export function validateSecondaryEmail(email: string): { ok: true; value: string } | { ok: false; reason: string } {
   const v = normalizeEmail(email)
   if (!v) return { ok: false, reason: 'Email is required.' }

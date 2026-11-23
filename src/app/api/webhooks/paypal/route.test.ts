@@ -10,6 +10,7 @@ function makeIpn(overrides: Partial<Ipn> = {}): Ipn {
     email: 'payer@example.com',
     firstName: 'Peter',
     lastName: 'Pray',
+    fee: 0,
     amount: 15,
     status: 'completed',
     txnType: 'web_accept',

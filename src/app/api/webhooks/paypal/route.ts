@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
-import { readMembersForMatching, writeRosterCells, moveRowToTab, appendMemberRow } from '@/lib/roster'
+import { readMembersForMatching, writeRosterCells, moveRowToTab, appendMemberRow, appendPaymentRow } from '@/lib/roster'
+import { duesLedgerRow } from '@/lib/membership/dues-ledger'
 import { sendMembershipEmail } from '@/lib/membership/emails'
 import { verifyIpn, parseIpn, isProcessablePayment, type Ipn } from '@/lib/membership/paypal-ipn'
 import { processPayment, type ProcessDeps, type PendingCandidate } from '@/lib/membership/process-payment'
@@ -135,6 +136,17 @@ export async function POST(req: Request): Promise<NextResponse> {
     const result = await processPayment(ipn, buildDeps())
     // Never log the raw payload (contains PII) — outcome + txnId only.
     console.log('paypal ipn processed', { txnId: ipn.txnId, outcome: result.outcome })
+    // Dues ledger: record the money in the roster's Payments tab (revenue reports read it). Null for
+    // duplicates/non-dues, so a re-delivered IPN can't double-log. A sheet failure must not fail the
+    // webhook (the renewal already happened) — it's logged for manual backfill.
+    const ledger = duesLedgerRow(ipn, result.outcome, new Date())
+    if (ledger) {
+      try {
+        await appendPaymentRow(ledger)
+      } catch (e) {
+        console.error('paypal ipn: Payments-tab append FAILED — backfill manually', { txnId: ipn.txnId, date: ledger.Date, net: ledger['Net Dues'], error: e instanceof Error ? e.message : String(e) })
+      }
+    }
   } catch (e) {
     console.error('paypal ipn: processPayment threw', { txnId: ipn.txnId, error: e instanceof Error ? e.message : String(e) })
   }
