@@ -167,16 +167,47 @@ export async function listMemberComps(memberId: string, deps: { db?: typeof pris
   })
 }
 
-export async function listPastComps(deps: { db?: typeof prisma; now?: Date } = {}): Promise<CompetitionView[]> {
+export type PastCompView = CompetitionView & { allEntries: CompEntryView[] }
+
+const entryView = (e: any, memberName: string | null): CompEntryView => ({
+  id: e.id, memberId: e.memberId, memberName, beerName: e.beerName, style: e.style, channel: e.channel as EntryChannel, registered: e.registered, bottled: e.bottled ?? false,
+})
+
+export async function listPastComps(deps: { db?: typeof prisma; now?: Date } = {}): Promise<PastCompView[]> {
   const db = deps.db ?? prisma
   const now = deps.now ?? new Date()
-  // No `contributions` include: past comps are rendered as plain links (no
-  // chip-in total or list), so fetching payer names here would be both an
-  // unused over-fetch AND a latent PII footgun if a future edit dropped a past
-  // comp into a client component. toCompView tolerates the absent relation
-  // (contributionTotal 0, contributions []).
-  const comps = await db.competition.findMany({ where: { resultsDate: { lt: awardsCutoff(now) } }, include: { shipments: true }, orderBy: { shippingDeadline: 'desc' } })
-  return (comps as any[]).map((c) => toCompView(c, now))
+  // No `contributions` include: past comps never show the chip-in total or list, so fetching payer
+  // names here would be both an unused over-fetch AND a latent PII footgun if a future edit dropped a
+  // past comp into a client component. toCompView tolerates the absent relation.
+  // Entries ARE included: the club's competition history ("who entered what") stays visible after
+  // a comp is archived — it used to disappear from the page entirely.
+  const comps = (await db.competition.findMany({ where: { resultsDate: { lt: awardsCutoff(now) } }, include: { shipments: true, entries: true }, orderBy: { shippingDeadline: 'desc' } }) as any[])
+    .sort((a, b) => b.shippingDeadline.getTime() - a.shippingDeadline.getTime())
+  const names = await memberNames(db, comps.flatMap((c) => (c.entries ?? []).map((e: any) => e.memberId)))
+  return comps.map((c) => ({ ...toCompView(c, now), allEntries: (c.entries ?? []).map((e: any) => entryView(e, names.get(e.memberId) ?? null)) }))
+}
+
+export type MyEntryView = {
+  entryId: string; compId: string; compName: string; homepageUrl: string
+  shippingDeadline: Date; resultsDate: Date | null; isPast: boolean
+  beerName: string; style: string; channel: EntryChannel
+}
+
+/** Everything one member has entered, across active and past comps, newest comp first. */
+export async function listMyEntries(memberId: string, deps: { db?: typeof prisma; now?: Date } = {}): Promise<MyEntryView[]> {
+  const db = deps.db ?? prisma
+  const now = deps.now ?? new Date()
+  const comps = (await db.competition.findMany({ include: { entries: true } }) as any[])
+  const when = (c: any) => (c.resultsDate ?? c.shippingDeadline).getTime()
+  return comps
+    .sort((a, b) => when(b) - when(a))
+    .flatMap((c) => (c.entries ?? [])
+      .filter((e: any) => e.memberId === memberId)
+      .map((e: any) => ({
+        entryId: e.id, compId: c.id, compName: c.name, homepageUrl: c.homepageUrl,
+        shippingDeadline: c.shippingDeadline, resultsDate: c.resultsDate ?? null, isPast: isArchived(c.resultsDate ?? null, now),
+        beerName: e.beerName, style: e.style, channel: e.channel as EntryChannel,
+      })))
 }
 
 export async function listOfficerComps(deps: { db?: typeof prisma; now?: Date } = {}): Promise<OfficerCompView[]> {

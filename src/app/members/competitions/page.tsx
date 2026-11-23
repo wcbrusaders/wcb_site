@@ -1,12 +1,12 @@
 import { redirect } from 'next/navigation'
 import { auth } from '@/lib/auth'
-import { listMemberComps, listPastComps, listOfficerComps } from '@/lib/competitions'
+import { listMemberComps, listPastComps, listOfficerComps, listMyEntries } from '@/lib/competitions'
 import { buildDonateUrl } from '@/lib/paypal-donate-url'
 import { AddCompetitionForm } from '@/components/members/AddCompetitionForm'
 import { CompetitionCard } from '@/components/members/CompetitionCard'
 import { OfficerCompetitions } from '@/components/members/OfficerCompetitions'
 import { PageHeader, EmptyState } from '@/components/ui'
-import { humanDate } from '@/lib/comp-format'
+import { CompetitionHistory } from '@/components/members/CompetitionHistory'
 
 // The club PayPal merchant id is a public payment identifier but is kept a
 // SERVER env var (not NEXT_PUBLIC_*) — this page is a server component, so we
@@ -25,7 +25,7 @@ export default async function CompetitionsPage() {
   // Pass isBoard so the contributor list (payer names) is only included for
   // board viewers — non-board members get the public total but not the names.
   const comps = await listMemberComps(memberId, { isBoard })
-  const past = await listPastComps()
+  const [past, mine] = await Promise.all([listPastComps(), listMyEntries(memberId)])
 
   return (
     <div className="max-w-4xl mx-auto px-4 md:px-6 py-8">
@@ -48,14 +48,7 @@ export default async function CompetitionsPage() {
         </div>
       )}
 
-      {past.length > 0 && (
-        <details className="mt-8">
-          <summary className="cursor-pointer text-foreground/50 text-sm">Past competitions ({past.length})</summary>
-          <ul className="mt-2 space-y-1 text-sm text-foreground/60">
-            {past.map((p) => <li key={p.id}><a href={p.homepageUrl} target="_blank" rel="noreferrer" className="hover:text-accent">{p.name}</a> · awards {humanDate(p.resultsDate)}</li>)}
-          </ul>
-        </details>
-      )}
+      <CompetitionHistory past={past} mine={mine} />
 
       {isBoard && <OfficerCompetitions comps={await listOfficerComps()} />}
     </div>
