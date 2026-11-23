@@ -39,7 +39,10 @@ export async function fetchMetricsData(
     expires: m.expires,
   }))
 
-  const payments: PaymentLite[] = paymentRows.map((p) => ({
+  // "ipn:<txnId>" rows are the PayPal webhook's $0 idempotency markers, not payments — the real
+  // dues amount reaches this table via the Payments-tab sync. Counting them showed every renewal
+  // since 2026-09 as a $0 payment.
+  const payments: PaymentLite[] = paymentRows.filter((p) => !p.source.startsWith('ipn:')).map((p) => ({
     date: p.date,
     netDues: p.netDues,
     source: p.source,

@@ -7,6 +7,12 @@ describe('parseIpn', () => {
     const p = parseIpn(f)
     expect(p).toMatchObject({ txnId: 'T1', email: 'a@b.com', firstName: 'Peter', lastName: 'Pray', amount: 65, status: 'completed', txnType: 'web_accept' })
   })
+  it('parses the PayPal fee (mc_fee) so dues can be logged net', () => {
+    const f = new URLSearchParams({ txn_id: 'T1', payer_email: 'A@B.com', mc_gross: '40.00', mc_fee: '1.89', payment_status: 'Completed', txn_type: 'web_accept' })
+    expect(parseIpn(f).fee).toBe(1.89)
+    f.delete('mc_fee')
+    expect(parseIpn(f).fee).toBe(0)
+  })
   it('parses custom field (comp:abc123)', () => {
     const f = new URLSearchParams({ txn_id: 'T1', payer_email: 'A@B.com', first_name: 'Peter', last_name: 'Pray', mc_gross: '65.00', payment_status: 'Completed', txn_type: 'web_accept', custom: 'comp:abc123' })
     const p = parseIpn(f)
