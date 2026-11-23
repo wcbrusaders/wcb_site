@@ -5,7 +5,7 @@ import {
   listMemberComps, listPastComps, listOfficerComps, computeBannerItems,
   addCompetition, editCompetition, deleteCompetition, addEntry, editEntry, deleteEntry,
   rollupShipments, addShipment, editShipment, deleteShipment,
-  isArchived, setAwardsDate,
+  isArchived, setAwardsDate, listMyEntries,
 } from './competitions'
 
 test('trackingUrl builds carrier URLs and returns null for unknown/empty', () => {
@@ -513,4 +513,36 @@ describe('deleteShipment', () => {
     expect(r.ok).toBe(false)
     expect((r as any).reason).toBe('not_found')
   })
+})
+
+// ── Competition history: past comps keep their "who entered what", and each member can see
+// everything they've entered across all comps (active + past), newest first.
+const HIST_NOW = new Date('2026-11-23T12:00:00Z')
+const histComps = () => [
+  comp({ id: 'old', name: 'US Open', shippingDeadline: new Date('2026-08-21T00:00:00Z'), resultsDate: new Date('2026-09-12T00:00:00Z') }),
+  comp({ id: 'mid', name: 'Queen of Beer', shippingDeadline: new Date('2026-11-06T00:00:00Z'), resultsDate: new Date('2026-11-15T00:00:00Z') }),
+  comp({ id: 'live', name: 'Monk Melee', shippingDeadline: new Date('2026-11-22T00:00:00Z'), resultsDate: new Date('2026-12-05T00:00:00Z') }),
+]
+const histEntries = () => [
+  entry({ id: 'e1', competitionId: 'old', memberId: 'm1', beerName: 'Hazy', style: 'NEIPA' }),
+  entry({ id: 'e2', competitionId: 'old', memberId: 'm2', beerName: 'Stout', style: 'Irish Stout' }),
+  entry({ id: 'e3', competitionId: 'mid', memberId: 'm1', beerName: 'Saison', style: 'Saison' }),
+  entry({ id: 'e4', competitionId: 'live', memberId: 'm1', beerName: 'Quad', style: 'Belgian Quad' }),
+]
+const histMembers = [{ id: 'm1', name: 'Jordan' }, { id: 'm2', name: 'Peter' }]
+
+test('listPastComps: each past comp carries every entrant with resolved names (who entered what)', async () => {
+  const past = await listPastComps({ db: db(histComps(), histEntries(), histMembers), now: HIST_NOW })
+  expect(past.map((c) => c.id)).toEqual(['mid', 'old'])   // newest first; live comp excluded
+  const usOpen = past.find((c) => c.id === 'old')!
+  expect(usOpen.allEntries.map((e) => `${e.memberName}: ${e.beerName} (${e.style})`).sort())
+    .toEqual(['Jordan: Hazy (NEIPA)', 'Peter: Stout (Irish Stout)'])
+})
+
+test('listMyEntries: every entry I made, across active AND past comps, newest comp first, nobody else\'s', async () => {
+  const mine = await listMyEntries('m1', { db: db(histComps(), histEntries(), histMembers), now: HIST_NOW })
+  expect(mine.map((e) => `${e.compName}: ${e.beerName}`)).toEqual(['Monk Melee: Quad', 'Queen of Beer: Saison', 'US Open: Hazy'])
+  expect(mine[0]).toMatchObject({ compId: 'live', style: 'Belgian Quad', isPast: false })
+  expect(mine[2]).toMatchObject({ compId: 'old', isPast: true })
+  expect((await listMyEntries('m2', { db: db(histComps(), histEntries(), histMembers), now: HIST_NOW })).map((e) => e.beerName)).toEqual(['Stout'])
 })
