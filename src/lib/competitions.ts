@@ -291,20 +291,47 @@ export async function editCompetition(id: string, patch: Partial<NewCompetitionI
 // Set or clear a comp's awards-ceremony date. Narrow on purpose (only resultsDate,
 // only a real YYYY-MM-DD) rather than the client-supplied patch editCompetition takes.
 // Stored as midnight UTC of that day — the date-only convention isArchived relies on.
-export async function setAwardsDate(id: string, date: string | null, actor: { memberId: string; isBoard: boolean }, deps: { db?: typeof prisma } = {}): Promise<MutResult> {
+/** Parse a strict YYYY-MM-DD into midnight UTC (the comp date-only convention); null if invalid. */
+function parseYmd(date: string): Date | null {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date)
+  if (!m) return null
+  const d = new Date(Date.UTC(+m[1], +m[2] - 1, +m[3]))
+  return d.toISOString().slice(0, 10) === date ? d : null   // rejects rollovers like 2026-02-30
+}
+
+export type CompDatesPatch = { registrationDeadline?: string; shippingDeadline?: string; resultsDate?: string | null }
+
+// Edit a comp's dates after it's been added. Narrow on purpose (only these three, only real
+// YYYY-MM-DD) rather than the client-supplied patch editCompetition takes. Only the keys present are
+// changed. Registration/delivery are required fields (can't be cleared); awards may be cleared.
+// Any invalid value rejects the whole edit.
+export async function setCompDates(id: string, patch: CompDatesPatch, actor: { memberId: string; isBoard: boolean }, deps: { db?: typeof prisma } = {}): Promise<MutResult> {
   const db = deps.db ?? prisma
-  let resultsDate: Date | null = null
-  if (date) {
-    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date)
-    if (!m) return { ok: false, reason: 'validation' }
-    resultsDate = new Date(Date.UTC(+m[1], +m[2] - 1, +m[3]))
-    if (resultsDate.toISOString().slice(0, 10) !== date) return { ok: false, reason: 'validation' }  // e.g. 2026-02-30 rolled over
+  const data: { registrationDeadline?: Date; shippingDeadline?: Date; resultsDate?: Date | null } = {}
+  for (const key of ['registrationDeadline', 'shippingDeadline'] as const) {
+    if (!(key in patch)) continue
+    const d = patch[key] ? parseYmd(patch[key] as string) : null
+    if (!d) return { ok: false, reason: 'validation' }
+    data[key] = d
   }
+  if ('resultsDate' in patch) {
+    if (patch.resultsDate) {
+      const d = parseYmd(patch.resultsDate)
+      if (!d) return { ok: false, reason: 'validation' }
+      data.resultsDate = d
+    } else data.resultsDate = null
+  }
+  if (Object.keys(data).length === 0) return { ok: false, reason: 'validation' }
   const c = await db.competition.findUnique({ where: { id } })
   if (!c) return { ok: false, reason: 'not_found' }
   if (!actor.isBoard && (c as any).addedById !== actor.memberId) return { ok: false, reason: 'forbidden' }
-  await db.competition.update({ where: { id }, data: { resultsDate } })
+  await db.competition.update({ where: { id }, data })
   return { ok: true }
+}
+
+// Set or clear just the awards-ceremony date ('' / null clears).
+export async function setAwardsDate(id: string, date: string | null, actor: { memberId: string; isBoard: boolean }, deps: { db?: typeof prisma } = {}): Promise<MutResult> {
+  return setCompDates(id, { resultsDate: date || null }, actor, deps)
 }
 
 // The trackingUrl UPS guard, reused: matches "UPS" but not "USPS".
