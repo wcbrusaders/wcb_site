@@ -5,7 +5,7 @@ import {
   listMemberComps, listPastComps, listOfficerComps, computeBannerItems,
   addCompetition, editCompetition, deleteCompetition, addEntry, editEntry, deleteEntry,
   rollupShipments, addShipment, editShipment, deleteShipment,
-  isArchived, setAwardsDate, listMyEntries,
+  isArchived, setAwardsDate, listMyEntries, setCompDates,
 } from './competitions'
 
 test('trackingUrl builds carrier URLs and returns null for unknown/empty', () => {
@@ -545,4 +545,41 @@ test('listMyEntries: every entry I made, across active AND past comps, newest co
   expect(mine[0]).toMatchObject({ compId: 'live', style: 'Belgian Quad', isPast: false })
   expect(mine[2]).toMatchObject({ compId: 'old', isPast: true })
   expect((await listMyEntries('m2', { db: db(histComps(), histEntries(), histMembers), now: HIST_NOW })).map((e) => e.beerName)).toEqual(['Stout'])
+})
+
+// ── Editing a comp's dates after it's added (registration / beer-arrives-by / awards).
+test('setCompDates: updates only the dates given, as midnight UTC; adder or board only', async () => {
+  const comps = [comp({ resultsDate: new Date('2027-02-27T00:00:00Z') })]
+  const store = db(comps, [])
+  const adder = { memberId: 'm1', isBoard: false }
+  expect(await setCompDates('c1', { shippingDeadline: '2027-01-15' }, adder, { db: store })).toEqual({ ok: true })
+  expect(comps[0].shippingDeadline.toISOString()).toBe('2027-01-15T00:00:00.000Z')
+  expect(comps[0].registrationDeadline.toISOString()).toBe('2026-09-10T00:00:00.000Z')   // untouched
+  expect(comps[0].resultsDate.toISOString()).toBe('2027-02-27T00:00:00.000Z')            // untouched
+  expect(await setCompDates('c1', { registrationDeadline: '2027-01-01', resultsDate: '2027-03-01' }, { memberId: 'x', isBoard: true }, { db: store })).toEqual({ ok: true })
+  expect(comps[0].registrationDeadline.toISOString()).toBe('2027-01-01T00:00:00.000Z')
+  expect(comps[0].resultsDate.toISOString()).toBe('2027-03-01T00:00:00.000Z')
+  expect(await setCompDates('c1', { shippingDeadline: '2027-01-20' }, { memberId: 'x', isBoard: false }, { db: store })).toEqual({ ok: false, reason: 'forbidden' })
+  expect(await setCompDates('nope', { shippingDeadline: '2027-01-20' }, adder, { db: store })).toEqual({ ok: false, reason: 'not_found' })
+})
+
+test('setCompDates: awards can be cleared, but registration/delivery are required', async () => {
+  const comps = [comp({ resultsDate: new Date('2027-02-27T00:00:00Z') })]
+  const store = db(comps, [])
+  const adder = { memberId: 'm1', isBoard: false }
+  expect(await setCompDates('c1', { resultsDate: null }, adder, { db: store })).toEqual({ ok: true })
+  expect(comps[0].resultsDate).toBeNull()
+  expect(await setCompDates('c1', { shippingDeadline: null as unknown as string }, adder, { db: store })).toEqual({ ok: false, reason: 'validation' })
+  expect(await setCompDates('c1', { registrationDeadline: '' }, adder, { db: store })).toEqual({ ok: false, reason: 'validation' })
+})
+
+test('setCompDates: any invalid date rejects the whole edit and changes nothing', async () => {
+  const comps = [comp()]
+  const store = db(comps, [])
+  const before = comps[0].shippingDeadline.toISOString()
+  for (const bad of ['2027-02-30', '1/15/2027', 'soon']) {
+    expect(await setCompDates('c1', { shippingDeadline: '2027-01-15', registrationDeadline: bad }, { memberId: 'm1', isBoard: false }, { db: store })).toEqual({ ok: false, reason: 'validation' })
+  }
+  expect(comps[0].shippingDeadline.toISOString()).toBe(before)
+  expect(await setCompDates('c1', {}, { memberId: 'm1', isBoard: false }, { db: store })).toEqual({ ok: false, reason: 'validation' })
 })

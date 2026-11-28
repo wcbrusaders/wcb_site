@@ -3,7 +3,7 @@ import { useState, useTransition } from 'react'
 import type { MemberCompView, EntryChannel, ShipmentView } from '@/lib/competitions'
 import { mapsUrl } from '@/lib/competitions'
 import { channelBadge, isUrgent, deliverBannerState, humanDate, relDays, compTimeline, type BadgeVariant } from '@/lib/comp-format'
-import { addEntryAction, editEntryAction, deleteEntryAction, deleteCompetitionAction, setAwardsDateAction, addShipmentAction, editShipmentAction, deleteShipmentAction } from '@/app/members/_actions/competition-actions'
+import { addEntryAction, editEntryAction, deleteEntryAction, deleteCompetitionAction, setCompDatesAction, addShipmentAction, editShipmentAction, deleteShipmentAction } from '@/app/members/_actions/competition-actions'
 import { ChipInButton } from '@/components/members/ChipInButton'
 
 const BADGE_CLASS: Record<BadgeVariant, string> = {
@@ -39,10 +39,20 @@ export function CompetitionCard({ comp, viewerIsBoard, viewerId, donateUrl }: { 
   const [editingShipId, setEditingShipId] = useState<string | null>(null)
   const [editShipDraft, setEditShipDraft] = useState({ carrier: '', tracking: '' })
   const [menuOpen, setMenuOpen] = useState(false)
-  // resultsDate may arrive as an ISO string across the RSC boundary — normalize via new Date()
-  const awardsIso = comp.resultsDate ? new Date(comp.resultsDate).toISOString().slice(0, 10) : ''
-  const [editingAwards, setEditingAwards] = useState(false)
-  const [awardsDraft, setAwardsDraft] = useState(awardsIso)
+  // Dates may arrive as ISO strings across the RSC boundary — normalize via new Date()
+  const ymd = (d: Date | string | null) => (d ? new Date(d).toISOString().slice(0, 10) : '')
+  const currentDates = { reg: ymd(comp.registrationDeadline), ship: ymd(comp.shippingDeadline), awards: ymd(comp.resultsDate) }
+  const [editingDates, setEditingDates] = useState(false)
+  const [datesDraft, setDatesDraft] = useState(currentDates)
+  function saveDates() {
+    // send only what changed; registration/delivery can't be blank, awards blank = clear
+    const patch: { registrationDeadline?: string; shippingDeadline?: string; resultsDate?: string | null } = {}
+    if (datesDraft.reg !== currentDates.reg) patch.registrationDeadline = datesDraft.reg
+    if (datesDraft.ship !== currentDates.ship) patch.shippingDeadline = datesDraft.ship
+    if (datesDraft.awards !== currentDates.awards) patch.resultsDate = datesDraft.awards || null
+    setEditingDates(false)
+    if (Object.keys(patch).length) run(() => setCompDatesAction(comp.id, patch))
+  }
   const [draft, setDraft] = useState({ beerName: '', style: '', channel: 'club_ship' as EntryChannel, registered: false })
   const canEditComp = viewerIsBoard || comp.addedById === viewerId
   const hasClubShip = comp.myEntries.some((e) => e.channel === 'club_ship')
@@ -73,8 +83,8 @@ export function CompetitionCard({ comp, viewerIsBoard, viewerId, donateUrl }: { 
                 className="text-foreground/40 hover:text-foreground px-2 py-1 rounded-lg border border-border/50 text-sm leading-none">⋯</button>
               {menuOpen && (
                 <div className="absolute right-0 mt-1 z-10 rounded-lg border border-border bg-card-bg shadow-lg py-1 min-w-[9rem]">
-                  <button disabled={pending} onClick={() => { setMenuOpen(false); setAwardsDraft(awardsIso); setEditingAwards(true) }}
-                    className="block w-full text-left px-3 py-1.5 text-xs text-foreground/80 hover:bg-white/[0.06]">Edit awards date</button>
+                  <button disabled={pending} onClick={() => { setMenuOpen(false); setDatesDraft(currentDates); setEditingDates(true) }}
+                    className="block w-full text-left px-3 py-1.5 text-xs text-foreground/80 hover:bg-white/[0.06]">Edit dates</button>
                   {viewerIsBoard && (
                     <button disabled={pending} onClick={() => { setMenuOpen(false); if (confirm(`Delete "${comp.name}" and all its entries and recorded contributions?`)) run(() => deleteCompetitionAction(comp.id)) }}
                       className="block w-full text-left px-3 py-1.5 text-xs text-red-400 hover:bg-red-500/10">Delete competition</button>
@@ -107,18 +117,25 @@ export function CompetitionCard({ comp, viewerIsBoard, viewerId, donateUrl }: { 
         })}
       </div>
 
-      {editingAwards && (
-        <div className="mt-3 flex items-center gap-2 flex-wrap rounded-xl border border-border/60 bg-background/40 p-3">
-          <label className="text-xs text-foreground/60" htmlFor={`awards-${comp.id}`}>Awards ceremony</label>
-          <input id={`awards-${comp.id}`} type="date" value={awardsDraft} onChange={(e) => setAwardsDraft(e.target.value)}
-            className="rounded-lg border border-border bg-background/60 px-2 py-1 text-sm" />
-          <button disabled={pending} onClick={() => { setEditingAwards(false); run(() => setAwardsDateAction(comp.id, awardsDraft || null)) }}
-            className="rounded-lg bg-accent text-black px-3 py-1 text-xs font-semibold disabled:opacity-50">Save</button>
-          {awardsIso && (
-            <button disabled={pending} onClick={() => { setEditingAwards(false); run(() => setAwardsDateAction(comp.id, null)) }}
-              className="rounded-lg border border-border px-3 py-1 text-xs text-foreground/70">Clear</button>
-          )}
-          <button onClick={() => setEditingAwards(false)} className="text-xs text-foreground/50 hover:text-foreground">Cancel</button>
+      {editingDates && (
+        <div className="mt-3 rounded-xl border border-border/60 bg-background/40 p-3 space-y-2">
+          {([
+            ['reg', 'Registration deadline', true],
+            ['ship', 'Beer arrives by (entry delivery deadline)', true],
+            ['awards', 'Awards ceremony (blank = TBD)', false],
+          ] as const).map(([k, label, required]) => (
+            <div key={k} className="flex items-center gap-2 flex-wrap">
+              <label className="text-xs text-foreground/60 min-w-[15rem]" htmlFor={`date-${k}-${comp.id}`}>{label}</label>
+              <input id={`date-${k}-${comp.id}`} type="date" required={required} value={datesDraft[k]}
+                onChange={(e) => setDatesDraft({ ...datesDraft, [k]: e.target.value })}
+                className="rounded-lg border border-border bg-background/60 px-2 py-1 text-sm" />
+            </div>
+          ))}
+          <div className="flex items-center gap-2 pt-1">
+            <button disabled={pending || !datesDraft.reg || !datesDraft.ship} onClick={saveDates}
+              className="rounded-lg bg-accent text-black px-3 py-1 text-xs font-semibold disabled:opacity-50">Save</button>
+            <button onClick={() => setEditingDates(false)} className="text-xs text-foreground/50 hover:text-foreground">Cancel</button>
+          </div>
         </div>
       )}
 
